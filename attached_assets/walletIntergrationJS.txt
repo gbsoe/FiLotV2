@@ -1,0 +1,284 @@
+// walletintegration.js
+import dotenv from "dotenv";
+import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+
+dotenv.config();
+
+// Set up the RPC endpoint and client.
+const RPC_ENDPOINT = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+const connection = new Connection(RPC_ENDPOINT, "confirmed");
+
+// Define token mints (SOL is native, others are SPL tokens)
+const TOKEN_MINTS = {
+  SOL: "So11111111111111111111111111111111111111112",
+  USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+  RAY: "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R"
+};
+
+// For our simulation, define:
+// - Optimal ratio for a SOL-USDC pool: 1 SOL should be paired with 120 USDC.
+// - A simulated conversion rate: 1 SOL = 133 USDC.
+const OPTIMAL_USDC_PER_SOL = 120.0;
+const SIMULATED_CONVERSION_RATE = 133.0; // USDC received per SOL swapped (after fees, slippage, etc.)
+
+//////////////////////////////
+// Wallet & Balance Functions
+//////////////////////////////
+
+/**
+ * Validate that the provided string is a valid Solana wallet address.
+ * @param {string} walletAddress
+ * @returns {boolean}
+ */
+export function validateWalletAddress(walletAddress) {
+  try {
+    new PublicKey(walletAddress);
+    return true;
+  } catch (error) {
+    console.error(`Invalid wallet address ${walletAddress}: ${error}`);
+    return false;
+  }
+}
+
+/**
+ * "Connect" the wallet by verifying the address.
+ * (In production, signing and secure connection should be handled externally.)
+ * @param {string} walletAddress
+ * @returns {string} The wallet address if valid.
+ */
+export function connectWallet(walletAddress) {
+  if (validateWalletAddress(walletAddress)) {
+    console.info(`Wallet ${walletAddress} validated and connected.`);
+    return walletAddress;
+  } else {
+    throw new Error("Invalid wallet address.");
+  }
+}
+
+/**
+ * Fetch the SOL balance (in SOL) for the given wallet address.
+ * @param {string} walletAddress
+ * @returns {Promise<number>}
+ */
+export async function getSolBalance(walletAddress) {
+  try {
+    const publicKey = new PublicKey(walletAddress);
+    const lamports = await connection.getBalance(publicKey, "confirmed");
+    const solBalance = lamports / 1e9;
+    console.info(`Wallet ${walletAddress} SOL balance: ${solBalance}`);
+    return solBalance;
+  } catch (error) {
+    console.error(`Error fetching SOL balance: ${error}`);
+    return 0.0;
+  }
+}
+
+/**
+ * Fetch the SPL token balance for a given token mint.
+ * Assumes that the first parsed token account holds the balance.
+ * @param {string} walletAddress
+ * @param {string} tokenMint
+ * @returns {Promise<number>}
+ */
+export async function getTokenBalance(walletAddress, tokenMint) {
+  try {
+    const publicKey = new PublicKey(walletAddress);
+    const mintPublicKey = new PublicKey(tokenMint);
+    const response = await connection.getParsedTokenAccountsByOwner(publicKey, { mint: mintPublicKey }, "confirmed");
+    let balance = 0.0;
+    if (response.value.length > 0) {
+      // We use the uiAmount from the parsed account info.
+      const tokenAmount = response.value[0].account.data.parsed.info.tokenAmount;
+      balance = tokenAmount.uiAmount || 0.0;
+    }
+    console.info(`Wallet ${walletAddress} token ${tokenMint} balance: ${balance}`);
+    return balance;
+  } catch (error) {
+    console.error(`Error fetching token balance for ${tokenMint}: ${error}`);
+    return 0.0;
+  }
+}
+
+/**
+ * Check and return the wallet's balance for SOL and key tokens.
+ * @param {string} walletAddress
+ * @returns {Promise<Object>}
+ */
+export async function checkWalletBalance(walletAddress) {
+  const balances = { SOL: await getSolBalance(walletAddress) };
+  for (const [token, mint] of Object.entries(TOKEN_MINTS)) {
+    if (token !== "SOL") {
+      balances[token] = await getTokenBalance(walletAddress, mint);
+    }
+  }
+  return balances;
+}
+
+//////////////////////////////
+// Swap & Deposit Calculation
+//////////////////////////////
+
+/**
+ * Simulate swapping a given SOL amount for USDC using a fixed conversion rate.
+ * @param {number} solAmount
+ * @returns {number} USDC received.
+ */
+export function simulateSwap(solAmount) {
+  const usdcReceived = solAmount * SIMULATED_CONVERSION_RATE;
+  console.info(`Simulated swap: ${solAmount} SOL -> ${usdcReceived} USDC`);
+  return usdcReceived;
+}
+
+/**
+ * Calculate two deposit strategies for a SOL-USDC pool.
+ * 
+ * 1. Automatic Swap Strategy:
+ *    - Calculate how much SOL must be swapped to reach the optimal USDC amount.
+ *    - Returns an object with:
+ *      { swapSol, postSwapSol, postSwapUsdc }
+ * 
+ * 2. Partial Deposit Strategy:
+ *    - Calculate the maximum SOL deposit using the existing USDC balance.
+ *    - Returns an object with:
+ *      { depositSol, depositUsdc }
+ * 
+ * @param {string} walletAddress
+ * @param {number} optimalRatio  (default: OPTIMAL_USDC_PER_SOL)
+ * @param {number} conversionRate  (default: SIMULATED_CONVERSION_RATE)
+ * @returns {Promise<Object>} An object containing both strategies.
+ */
+export async function calculateDepositStrategy(walletAddress, optimalRatio = OPTIMAL_USDC_PER_SOL, conversionRate = SIMULATED_CONVERSION_RATE) {
+  const balances = await checkWalletBalance(walletAddress);
+  const solBalance = balances.SOL || 0.0;
+  const usdcBalance = balances.USDC || 0.0;
+  
+  // Optimal USDC required if all SOL is to be deposited.
+  const optimalRequiredUsdc = solBalance * optimalRatio;
+  const strategy = {};
+
+  if (usdcBalance >= optimalRequiredUsdc) {
+    // The user already has sufficient USDC for their entire SOL balance.
+    strategy.autoSwap = {
+      swapSol: 0.0,
+      postSwapSol: solBalance,
+      postSwapUsdc: usdcBalance
+    };
+    strategy.partialDeposit = {
+      depositSol: solBalance,
+      depositUsdc: usdcBalance
+    };
+  } else {
+    // Calculate shortfall in USDC.
+    const usdcShortfall = optimalRequiredUsdc - usdcBalance;
+    // Amount of SOL required to swap to cover the shortfall.
+    let swapSol = usdcShortfall / conversionRate;
+    // Ensure we don't swap more than available SOL.
+    swapSol = Math.min(swapSol, solBalance);
+    strategy.autoSwap = {
+      swapSol: swapSol,
+      postSwapSol: solBalance - swapSol,
+      postSwapUsdc: usdcBalance + simulateSwap(swapSol)
+    };
+    // For partial deposit: reduce SOL deposit so that existing USDC fully pairs.
+    const depositSol = usdcBalance / optimalRatio;
+    strategy.partialDeposit = {
+      depositSol: depositSol,
+      depositUsdc: usdcBalance
+    };
+  }
+  
+  console.info("Calculated deposit strategy:", strategy);
+  return strategy;
+}
+
+//////////////////////////////
+// Transaction Building Functions
+//////////////////////////////
+
+/**
+ * Build a transaction to join a liquidity pool using provided amounts.
+ * In production, this function should use proper Raydium instructions.
+ * @param {string} walletAddress
+ * @param {string} poolId
+ * @param {string} tokenA
+ * @param {string} tokenB
+ * @param {number} amountSol
+ * @param {number} amountUsdc
+ * @returns {Transaction}
+ */
+export function buildJoinPoolTransaction(walletAddress, poolId, tokenA, tokenB, amountSol, amountUsdc) {
+  const transaction = new Transaction();
+  // TODO: Insert proper instructions for joining a pool.
+  console.info(`Built join pool transaction for wallet ${walletAddress} on pool ${poolId} with ${amountSol} SOL and ${amountUsdc} USDC`);
+  return transaction;
+}
+
+/**
+ * Build a transaction to exit a liquidity pool.
+ * @param {string} walletAddress
+ * @param {string} poolId
+ * @returns {Transaction}
+ */
+export function buildStopPoolTransaction(walletAddress, poolId) {
+  const transaction = new Transaction();
+  // TODO: Insert proper instructions for exiting a pool.
+  console.info(`Built stop pool transaction for wallet ${walletAddress} on pool ${poolId}`);
+  return transaction;
+}
+
+/**
+ * Simulate sending a transaction.
+ * In production, this function should hand the unsigned transaction off to the user's wallet for signing.
+ * @param {string} walletAddress
+ * @param {Transaction} transaction
+ * @returns {string} A dummy transaction signature.
+ */
+export function sendTransaction(walletAddress, transaction) {
+  try {
+    const dummySignature = "5DUMMYTRANSACTION_SIGNATURE";
+    console.info(`Transaction sent for wallet ${walletAddress}, signature: ${dummySignature}`);
+    return dummySignature;
+  } catch (error) {
+    console.error(`Error sending transaction: ${error}`);
+    return "";
+  }
+}
+
+/**
+ * Orchestrate building and sending a join pool transaction.
+ * @param {string} walletAddress
+ * @param {string} poolId
+ * @param {string} tokenA
+ * @param {string} tokenB
+ * @param {number} depositSol
+ * @param {number} depositUsdc
+ * @returns {boolean} True if transaction is "sent" (simulation).
+ */
+export function joinPoolTransaction(walletAddress, poolId, tokenA, tokenB, depositSol, depositUsdc) {
+  try {
+    const transaction = buildJoinPoolTransaction(walletAddress, poolId, tokenA, tokenB, depositSol, depositUsdc);
+    const signature = sendTransaction(walletAddress, transaction);
+    return Boolean(signature);
+  } catch (error) {
+    console.error(`Error executing join pool transaction: ${error}`);
+    return false;
+  }
+}
+
+/**
+ * Orchestrate building and sending a stop pool (exit) transaction.
+ * @param {string} walletAddress
+ * @param {string} poolId
+ * @returns {boolean} True if transaction is "sent" (simulation).
+ */
+export function stopPoolTransaction(walletAddress, poolId) {
+  try {
+    const transaction = buildStopPoolTransaction(walletAddress, poolId);
+    const signature = sendTransaction(walletAddress, transaction);
+    return Boolean(signature);
+  } catch (error) {
+    console.error(`Error executing stop pool transaction: ${error}`);
+    return false;
+  }
+}

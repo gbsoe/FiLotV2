@@ -120,18 +120,56 @@ class BotStatistics(db.Model):
     __tablename__ = "bot_statistics"
     
     id = Column(Integer, primary_key=True)
-    total_users = Column(Integer, default=0)
-    active_users_24h = Column(Integer, default=0)
-    active_users_7d = Column(Integer, default=0)
-    subscribed_users = Column(Integer, default=0)
-    total_messages = Column(Integer, default=0)
-    total_commands = Column(Integer, default=0)
-    response_time_avg = Column(Float, default=0.0)  # In milliseconds
-    uptime = Column(Integer, default=0)  # In seconds
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    start_time = Column(DateTime, default=datetime.datetime.utcnow)
+    command_count = Column(Integer, default=0)
+    active_user_count = Column(Integer, default=0)
+    subscribed_user_count = Column(Integer, default=0)
+    blocked_user_count = Column(Integer, default=0)
+    spam_detected_count = Column(Integer, default=0)
+    average_response_time = Column(Float, default=0.0)  # In milliseconds
+    uptime_percentage = Column(Float, default=0.0)  # Percentage
+    error_count = Column(Integer, default=0)
+    
+    # Properties to maintain compatibility with application code
+    @property
+    def total_users(self):
+        return self.active_user_count
+        
+    @property
+    def active_users_24h(self):
+        return self.active_user_count
+        
+    @property
+    def active_users_7d(self):
+        return self.active_user_count
+        
+    @property
+    def subscribed_users(self):
+        return self.subscribed_user_count
+        
+    @property
+    def total_messages(self):
+        return self.command_count * 2  # Estimate
+        
+    @property
+    def total_commands(self):
+        return self.command_count
+        
+    @property
+    def response_time_avg(self):
+        return self.average_response_time
+        
+    @property
+    def uptime(self):
+        # Convert percentage to seconds (assuming 100% = 30 days)
+        return int(self.uptime_percentage * 30 * 24 * 60 * 60 / 100)
+        
+    @property
+    def updated_at(self):
+        return self.start_time
     
     def __repr__(self):
-        return f"<BotStatistics id={self.id}, total_users={self.total_users}, updated_at={self.updated_at}>"
+        return f"<BotStatistics id={self.id}, active_users={self.active_user_count}, commands={self.command_count}>"
 
 class SystemBackup(db.Model):
     """SystemBackup model representing system backups."""

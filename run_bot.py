@@ -2,58 +2,79 @@
 # -*- coding: utf-8 -*-
 
 """
-Run script for the Telegram cryptocurrency pool bot
+Telegram bot for cryptocurrency pool data tracking and investment simulation
 """
 
 import os
 import sys
-import logging
 import asyncio
+import logging
 from dotenv import load_dotenv
-from bot import create_application
+from telegram import Update
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes
+)
 
-# Load environment variables
+# Import local modules
+from bot import (
+    start_command,
+    help_command,
+    info_command,
+    simulate_command,
+    subscribe_command,
+    unsubscribe_command,
+    status_command,
+    verify_command,
+    handle_message,
+    error_handler
+)
+
+# Load environment variables from .env file if it exists
 load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Check if Telegram bot token is available
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-if not BOT_TOKEN:
-    logger.error("CRITICAL: TELEGRAM_BOT_TOKEN is not set in environment variables")
-    sys.exit(1)
-
-async def main() -> None:
-    """Run the bot."""
-    # Create the application
-    application = create_application()
+def main() -> None:
+    """
+    Main function to start the Telegram bot.
+    """
+    # Check for Telegram bot token
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        logger.error("Telegram bot token not found. Please set the TELEGRAM_BOT_TOKEN environment variable.")
+        sys.exit(1)
+    
+    # Create the Application
+    application = Application.builder().token(token).build()
+    
+    # Register command handlers
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("info", info_command))
+    application.add_handler(CommandHandler("simulate", simulate_command))
+    application.add_handler(CommandHandler("subscribe", subscribe_command))
+    application.add_handler(CommandHandler("unsubscribe", unsubscribe_command))
+    application.add_handler(CommandHandler("status", status_command))
+    application.add_handler(CommandHandler("verify", verify_command))
+    
+    # Register message handler for non-command messages
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # Register error handler
+    application.add_error_handler(error_handler)
     
     # Start the bot
-    await application.initialize()
-    logger.info("Bot initialized, starting...")
-    
-    # Start the bot and run until Ctrl+C is pressed
-    await application.start()
-    await application.updater.start_polling(drop_pending_updates=True)
-    logger.info("Bot started. Press Ctrl+C to stop.")
-    
-    # Run until the application is stopped
-    try:
-        await asyncio.Event().wait()  # Run forever
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("Bot stopping...")
-    finally:
-        # Stop the bot gracefully
-        await application.stop()
+    logger.info("Starting bot...")
+    application.run_polling()
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except Exception as e:
-        logger.error(f"Error running bot: {e}")
-        sys.exit(1)
+    main()

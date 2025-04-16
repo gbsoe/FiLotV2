@@ -1,70 +1,6 @@
 """
-Predefined responses for common user questions in the Telegram cryptocurrency pool bot
+Predefined response data for the Telegram bot
 """
-
-# Constants
-PREDEFINED_RESPONSES = {
-    "help": (
-        "*FiLot Bot Help*\n\n"
-        "Here are the available commands:\n\n"
-        "• */start* - Get started with FiLot\n"
-        "• */help* - Show this help message\n"
-        "• */info* - Show current top-performing liquidity pools\n"
-        "• */simulate [amount]* - Simulate potential earnings (default $1,000)\n"
-        "• */subscribe* - Subscribe to daily updates\n"
-        "• */unsubscribe* - Unsubscribe from daily updates\n"
-        "• */status* - Check bot status\n\n"
-        "You can also ask me questions about crypto, liquidity pools, impermanent loss, and more!\n\n"
-        "Token Contract Address (CA):\n`Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump`\n\n"
-        "Buy LA! Token:\nhttps://pump.fun/coin/Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump"
-    )
-}
-
-
-def format_start_response(is_new_user=True):
-    """Format the response for /start command."""
-    return (
-        "⚠ Welcome to the FiLot AI-powered Investment Assistant!\n\n"
-        "💡 I help you track real-time crypto earnings and updates—think of me as your AI-powered investment assistant for maximizing your returns through FiLot's liquidity pool optimization and LA! Token.\n\n"
-        "💰 Why should you care?\n\n"
-        "👈 Banks offer just 0.5%-2% a year, but with FiLot, our AI finds the best liquidity pools where you can earn much more (potentially 10-200%+) depending on market conditions—automatically and safely.\n\n"
-        "🤔 How does it work?\n\n"
-        "👉 FiLot AI scans the market in real time, predicts the best pools, and helps you invest in one click. No complicated DeFi knowledge needed!\n\n"
-        "👆 Want to see your potential earnings?\n"
-        "Use /simulate [amount] to calculate your potential earnings (default is $1,000). For example, type /simulate 5000 to see how much you could earn by investing $5,000.\n\n"
-        "ℹ What's a liquidity pool?\n\n"
-        "💡 It's like a community savings pot where people add their crypto. Every time someone trades using that pool, contributors earn a share of the fees. The more you contribute, the more you earn!\n\n"
-        "✅ FiLot Makes It Easy & Safe\n\n"
-        "📢 Stay Updated\n\n"
-        "Type /subscribe for automatic updates, /info to see today's best earnings, or /help for more details.\n\n"
-        "❓ Have questions? Just ask me directly or use /ask to get product-related answers.\n\n"
-        "⚠ FiLot is launching soon! Get in early and let AI grow your money smarter than a bank!\n\n"
-        "Token Contract Address (CA):\n`Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump`\n\n"
-        "Buy LA! Token:\nhttps://pump.fun/coin/Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump"
-    )
-
-
-def format_about_response():
-    """Format the response for /about command or similar queries."""
-    return get_predefined_responses()["what is filot"]
-
-
-def format_no_match_response():
-    """Format the response when no predefined answer matches the query."""
-    return (
-        "I don't have specific information about that yet. "
-        "FiLot is continuously being upgraded with new features and information.\n\n"
-        "In the meantime, you can check out our top-performing pools with /info, "
-        "or simulate your potential earnings with /simulate [amount].\n\n"
-        "If you have questions about FiLot, LA! Token, or liquidity pools in general, feel free to ask!"
-    )
-
-
-def get_response_for_question(query):
-    """Get a predefined response for a query, or None if no match is found."""
-    response = get_predefined_response(query)
-    return response
-
 
 def get_predefined_responses():
     """
@@ -254,57 +190,36 @@ def get_predefined_responses():
 
         "what is trading": (
             "*Trading* involves buying and selling assets with the goal of making a profit from price fluctuations.\n\n"
-            "In the volatile crypto market, trading can be risky, but platforms like FiLot help by identifying high-yield liquidity pools and optimizing your investment strategy."
+            "In the volatile crypto market, trading requires careful analysis and risk management—which is why FiLot offers analytics to help you make more informed decisions."
         ),
 
         "what is apr": (
-            "*APR* (Annual Percentage Rate) represents the yearly rate of return on an investment without accounting for compounding.\n\n"
-            "Traditional banks typically offer around 0.5% to 2% APR, whereas liquidity pools on FiLot can offer APRs ranging from 10% up to 200% or more.\n\n"
-            "For example, a $1,000 investment at a 50% APR might yield approximately $500 in one year (before compounding), which is significantly higher than what a conventional bank deposit would earn."
+            "*APR* (Annual Percentage Rate) represents the yearly interest rate earned or paid on an investment, excluding the effects of compounding.\n\n"
+            "For liquidity pools, APR typically represents the annualized trading fees earned by liquidity providers. FiLot helps identify pools with competitive APRs."
         ),
 
         "what is apy": (
-            "*APY* (Annual Percentage Yield) takes into account the effects of compounding, providing a more comprehensive view of potential earnings over a year.\n\n"
-            "While traditional savings accounts might yield an APY of around 1% to 2%, liquidity pools on FiLot can have APYs ranging from 10% to well over 200%, depending on market conditions and the compounding frequency."
+            "*APY* (Annual Percentage Yield) represents the total return on an investment over one year, including the effects of compound interest.\n\n"
+            "Unlike APR, APY factors in compound interest, giving a more accurate picture of potential earnings in pools that auto-compound rewards."
         ),
 
         "compare bank interest": (
-            "Traditional bank interest rates typically range from *0.5%* to *2%* per year. In contrast, crypto liquidity pools—especially those identified by FiLot—can offer APRs between *10%* and *200%+*.\n\n"
-            "For example, a *$1,000* deposit at a *1%* bank interest rate would earn about *$10* to *$20* in a year, whereas the same *$1,000* investment in a high-yield liquidity pool on FiLot could yield between *$100* and *$500* or more annually. This stark contrast illustrates the potential for significantly higher returns."
+            "Traditional banks typically offer interest rates of 0.01% to 3% on savings accounts, while crypto investment opportunities can provide significantly higher returns—often ranging from 5% to over 100% APY depending on the risk profile.\n\n"
+            "FiLot helps identify optimal investment opportunities with competitive APRs and lower risk factors, potentially multiplying your returns compared to traditional banking."
         ),
 
         "what can i ask": (
-            "You can ask a wide range of questions about FiLot and the crypto market. For example, you can inquire about:\n\n"
-            "• *FiLot Features:* Questions like 'What is FiLot?' or 'How does FiLot work?' to learn about our AI-powered investment insights.\n"
-            "• *LA! Token Details:* Ask 'What is LA! Token?' or 'What are LA! Token's use cases?' to understand its role in our ecosystem and its *1 billion* token supply.\n"
-            "• *Liquidity Pools and IL:* Inquire about 'What is a liquidity pool?' or 'What is impermanent loss?' to grasp key DeFi concepts.\n"
-            "• *Market Comparisons:* Questions such as 'What is APR?' or 'Compare bank interest rates' to see how crypto returns compare to traditional finance.\n\n"
-            "Simply type your question, and I'll provide a clear, detailed answer!\n\n"
-            "*Token Contract Address (CA):*\n`Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump`\n\n"
-            "*Buy LA! Token:*\nhttps://pump.fun/coin/Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump"
-        ),
-
-        "/start": (
-            "⚠ Welcome to the FiLot AI-powered Investment Assistant!\n\n"
-            "💡 I help you track real-time crypto earnings and updates—think of me as your AI-powered investment assistant for maximizing your returns through FiLot's liquidity pool optimization and LA! Token.\n\n"
-            "💰 Why should you care?\n\n"
-            "👈 Banks offer just 0.5%-2% a year, but with FiLot, our AI finds the best liquidity pools where you can earn much more (potentially 10-200%+) depending on market conditions—automatically and safely.\n\n"
-            "🤔 How does it work?\n\n"
-            "👉 FiLot AI scans the market in real time, predicts the best pools, and helps you invest in one click. No complicated DeFi knowledge needed!\n\n"
-            "👆 Want to see your potential earnings?\n"
-            "Use /simulate [amount] to calculate your potential earnings (default is $1,000). For example, type /simulate 5000 to see how much you could earn by investing $5,000.\n\n"
-            "ℹ What's a liquidity pool?\n\n"
-            "💡 It's like a community savings pot where people add their crypto. Every time someone trades using that pool, contributors earn a share of the fees. The more you contribute, the more you earn!\n\n"
-            "✅ FiLot Makes It Easy & Safe\n\n"
-            "📢 Stay Updated\n\n"
-            "Type /subscribe for automatic updates, /info to see today's best earnings, or /help for more details.\n\n"
-            "❓ Have questions? Just ask me directly or use /ask to get product-related answers.\n\n"
-            "⚠ FiLot is launching soon! Get in early and let AI grow your money smarter than a bank!\n\n"
-            "Token Contract Address (CA):\n`Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump`\n\n"
-            "Buy LA! Token:\nhttps://pump.fun/coin/Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump"
-        ),
+            "You can ask me about a wide range of topics, including:\n\n"
+            "• FiLot platform features and benefits\n"
+            "• LA! Token details, tokenomics, and use cases\n"
+            "• Liquidity pools and DeFi concepts\n"
+            "• Crypto investment strategies and opportunities\n"
+            "• Basic blockchain and cryptocurrency concepts\n"
+            "• APR, APY, and comparison with traditional finance\n"
+            "• Platform roadmap, security, and governance\n\n"
+            "Feel free to ask any specific questions, and I'll provide detailed, informative answers!"
+        )
     }
-
 
 def get_variations():
     """
@@ -314,101 +229,134 @@ def get_variations():
     return {
         "what is filot": [
             "what is filot",
-            "explain filot",
             "tell me about filot",
+            "explain filot",
             "what does filot do",
-            "fi lot platform"
+            "how does filot work",
+            "filot information",
+            "what's filot",
+            "what kind of platform is filot"
         ],
         "what is la token": [
             "what is la token",
-            "what is la",
-            "tell me about la",
+            "la token information",
+            "what's la token",
+            "tell me about la token",
             "explain la token",
-            "la coin",
-            "la"
+            "la token details"
         ],
         "what are la token's use cases": [
             "what are la token's use cases",
             "la token use cases",
-            "what can la token be used for",
-            "how is la token used"
+            "la token utility",
+            "what can la token do",
+            "la token functions",
+            "la token uses"
         ],
         "how can i benefit from la token": [
             "how can i benefit from la token",
             "benefits of la token",
-            "why hold la token",
-            "advantages of la token"
+            "advantages of la token",
+            "what do i get from la token",
+            "why should i buy la token"
         ],
         "what makes la token unique": [
             "what makes la token unique",
-            "unique features of la token",
-            "what is special about la token",
-            "how is la token different"
+            "la token unique features",
+            "why is la token special",
+            "la token difference",
+            "what's special about la token"
         ],
         "tell me about la token's launch": [
             "tell me about la token's launch",
-            "la launch",
-            "when la launch",
-            "when does la launch",
             "la token launch",
-            "launch la token"
+            "when is la token launching",
+            "la token release",
+            "la token launch details"
         ],
         "when does filot launch": [
             "when does filot launch",
-            "filot launch",
-            "when filot launch",
-            "filot launching",
-            "fi lot launch"
+            "filot launch date",
+            "when will filot be available",
+            "filot release date",
+            "when can i use filot"
         ],
         "what is the roadmap": [
             "what is the roadmap",
-            "roadmap for filot",
-            "fi lot roadmap",
-            "what is the future plan"
+            "roadmap details",
+            "future plans",
+            "project timeline",
+            "development roadmap"
         ],
         "security and governance": [
             "security and governance",
-            "how secure is la token",
-            "governance of filot",
-            "security measures"
+            "how secure is filot",
+            "filot security",
+            "filot governance",
+            "how is filot governed"
         ],
         "technical innovation": [
             "technical innovation",
-            "what are the innovations",
-            "technological features of filot",
-            "tech behind filot"
+            "filot technology",
+            "tech behind filot",
+            "filot technical features",
+            "filot innovations"
+        ],
+        "what is liquidity pool": [
+            "what is liquidity pool",
+            "explain liquidity pool",
+            "liquidity pool definition",
+            "how do liquidity pools work",
+            "what are liquidity pools"
+        ],
+        "impermanent loss": [
+            "impermanent loss",
+            "what is impermanent loss",
+            "explain impermanent loss",
+            "il risk",
+            "how to avoid impermanent loss"
         ],
         "how to use filot": [
             "how to use filot",
-            "how do i use filot",
-            "using filot",
-            "filot usage instructions"
+            "filot instructions",
+            "filot user guide",
+            "how to get started with filot",
+            "filot tutorial"
         ],
         "what is defi": [
             "what is defi",
-            "define defi",
-            "what does defi mean",
-            "explain defi"
+            "defi meaning",
+            "explain defi",
+            "decentralized finance",
+            "defi definition"
         ],
         "what is crypto": [
             "what is crypto",
-            "explain crypto",
-            "what does crypto mean"
+            "explain cryptocurrency",
+            "crypto basics",
+            "cryptocurrency 101",
+            "what are cryptocurrencies"
         ],
         "what is blockchain": [
             "what is blockchain",
-            "explain blockchain",
-            "what does blockchain mean"
+            "blockchain explanation",
+            "how blockchain works",
+            "blockchain technology",
+            "blockchain basics"
         ],
         "what are tokens": [
             "what are tokens",
-            "explain tokens",
-            "what is a token"
+            "crypto tokens explained",
+            "token vs coin",
+            "digital tokens",
+            "tokens in crypto"
         ],
         "what is ai": [
             "what is ai",
-            "explain ai",
-            "what does ai mean"
+            "ai explanation",
+            "artificial intelligence",
+            "ai in crypto",
+            "how does ai work"
         ],
         "how do i start investing": [
             "how do i start investing",
@@ -449,7 +397,6 @@ def get_variations():
             "what topics can i ask about"
         ],
     }
-
 
 def get_predefined_response(query):
     """
@@ -498,7 +445,7 @@ def get_predefined_response(query):
     # Fallback: return None if no match is found
     return None
 
-
+# Example usage (for testing purposes)
 if __name__ == "__main__":
     sample_queries = [
         "What is FiLot?",
