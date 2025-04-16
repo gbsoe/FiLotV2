@@ -32,6 +32,7 @@ from bot import (
     verify_command,
     wallet_command,
     walletconnect_command,
+    profile_command,
     handle_message,
     handle_callback_query,
     error_handler
@@ -74,6 +75,7 @@ def main() -> None:
     application.add_handler(CommandHandler("verify", verify_command))
     application.add_handler(CommandHandler("wallet", wallet_command))
     application.add_handler(CommandHandler("walletconnect", walletconnect_command))
+    application.add_handler(CommandHandler("profile", profile_command))
     
     # Register callback query handler
     application.add_handler(CallbackQueryHandler(handle_callback_query))

@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 # Import local modules
 import db_utils
-from models import User, Pool, UserQuery
+from models import User, Pool, UserQuery, db
 from response_data import get_predefined_response
 from raydium_client import get_pools, get_token_prices
 from utils import format_pool_info, format_simulation_results, format_daily_update
@@ -466,9 +466,9 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             
             if setting_type == "risk":
                 if setting_value.lower() in ["conservative", "moderate", "aggressive"]:
-                    # Update risk profile
+                    # Update risk profile using db_utils
                     db_user.risk_profile = setting_value.lower()
-                    db.session.commit()
+                    db_utils.update_user_profile(db_user.id, "risk_profile", setting_value.lower())
                     
                     # Send confirmation
                     await update.message.reply_markdown(
@@ -482,9 +482,9 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     
             elif setting_type == "horizon":
                 if setting_value.lower() in ["short", "medium", "long"]:
-                    # Update investment horizon
+                    # Update investment horizon using db_utils
                     db_user.investment_horizon = setting_value.lower()
-                    db.session.commit()
+                    db_utils.update_user_profile(db_user.id, "investment_horizon", setting_value.lower())
                     
                     # Send confirmation
                     await update.message.reply_markdown(
@@ -497,9 +497,10 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     )
                     
             elif setting_type == "goals":
-                # Update investment goals
-                db_user.investment_goals = setting_value[:255]  # Limit to 255 chars
-                db.session.commit()
+                # Update investment goals using db_utils
+                goals_value = setting_value[:255]  # Limit to 255 chars
+                db_user.investment_goals = goals_value
+                db_utils.update_user_profile(db_user.id, "investment_goals", goals_value)
                 
                 # Send confirmation
                 await update.message.reply_markdown(

@@ -243,6 +243,45 @@ def verify_user(user_id: int, code: str) -> bool:
     return False
 
 @handle_db_error
+def update_user_profile(user_id: int, field: str, value: Any) -> bool:
+    """
+    Update a user's investment profile settings.
+    
+    Args:
+        user_id: Telegram user ID
+        field: Field name to update (risk_profile, investment_horizon, investment_goals, etc.)
+        value: New value for the field
+        
+    Returns:
+        True if update successful, False otherwise
+    """
+    user = User.query.get(user_id)
+    
+    if not user:
+        return False
+    
+    try:
+        # Update the specified field
+        if hasattr(user, field):
+            setattr(user, field, value)
+            db.session.commit()
+            
+            # Log profile update
+            log_user_activity(
+                user_id, 
+                "profile_updated", 
+                f"User profile updated: {field}={value}"
+            )
+            return True
+        else:
+            logger.error(f"Field {field} does not exist in User model")
+            return False
+    except Exception as e:
+        logger.error(f"Error updating user profile: {e}")
+        db.session.rollback()
+        return False
+
+@handle_db_error
 def generate_verification_code(user_id: int) -> Optional[str]:
     """
     Generate a verification code for a user.
