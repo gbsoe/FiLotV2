@@ -65,22 +65,32 @@ def get_or_create_user(user_id: int, username: str = None, first_name: str = Non
     Returns:
         User object
     """
-    user = User.query.get(user_id)
+    # Find user by telegram_id, not by primary key
+    logger.info(f"Looking for user with telegram_id={user_id}")
+    user = User.query.filter_by(telegram_id=user_id).first()
     
     if not user:
-        # Create new user
+        logger.info(f"User {user_id} not found, creating new user")
+        # Create new user with telegram_id
         user = User(
-            id=user_id,
+            telegram_id=user_id,
             username=username,
             first_name=first_name,
             last_name=last_name
         )
         db.session.add(user)
-        db.session.commit()
-        
-        # Log user creation
-        log_user_activity(user_id, "account_created", "New user created")
+        try:
+            db.session.commit()
+            logger.info(f"Created new user with telegram_id={user_id}, database id={user.id}")
+            
+            # Log user creation
+            log_user_activity(user_id, "account_created", "New user created")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error creating user: {e}")
+            raise
     else:
+        logger.info(f"User {user_id} found, updating if needed")
         # Update user info in case it has changed
         if username is not None and username != user.username:
             user.username = username
@@ -90,8 +100,15 @@ def get_or_create_user(user_id: int, username: str = None, first_name: str = Non
             user.last_name = last_name
             
         # Update last active time
-        user.last_active = datetime.datetime.utcnow()
-        db.session.commit()
+        user.last_active_at = datetime.datetime.utcnow()
+        
+        try:
+            db.session.commit()
+            logger.info(f"Updated user {user_id}")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating user: {e}")
+            raise
     
     return user
 
@@ -107,12 +124,14 @@ def block_user(user_id: int, reason: str = None) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    user = User.query.get(user_id)
+    user = User.query.filter_by(telegram_id=user_id).first()
     
     if not user:
+        logger.warning(f"Cannot block user {user_id}: user not found")
         return False
     
     user.is_blocked = True
+    user.block_reason = reason
     db.session.commit()
     
     # Log user blocking
@@ -121,6 +140,7 @@ def block_user(user_id: int, reason: str = None) -> bool:
     # Update statistics
     update_bot_statistics()
     
+    logger.info(f"User {user_id} blocked successfully")
     return True
 
 @handle_db_error
@@ -134,9 +154,10 @@ def unblock_user(user_id: int) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    user = User.query.get(user_id)
+    user = User.query.filter_by(telegram_id=user_id).first()
     
     if not user:
+        logger.warning(f"Cannot unblock user {user_id}: user not found")
         return False
     
     user.is_blocked = False
@@ -148,6 +169,7 @@ def unblock_user(user_id: int) -> bool:
     # Update statistics
     update_bot_statistics()
     
+    logger.info(f"User {user_id} unblocked successfully")
     return True
 
 @handle_db_error
@@ -161,9 +183,10 @@ def subscribe_user(user_id: int) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    user = User.query.get(user_id)
+    user = User.query.filter_by(telegram_id=user_id).first()
     
     if not user:
+        logger.warning(f"Cannot subscribe user {user_id}: user not found")
         return False
     
     user.is_subscribed = True
@@ -175,6 +198,7 @@ def subscribe_user(user_id: int) -> bool:
     # Update statistics
     update_bot_statistics()
     
+    logger.info(f"User {user_id} subscribed successfully")
     return True
 
 @handle_db_error
