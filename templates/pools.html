@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}Crypto Pool Tracker Bot - Pool Data{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h2 class="card-title">Cryptocurrency Pool Data</h2>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Token Pair</th>
+                                <th>24h APR</th>
+                                <th>7d APR</th>
+                                <th>30d APR</th>
+                                <th>TVL (USD)</th>
+                                <th>Token Prices</th>
+                                <th>Pool ID</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pool in pools %}
+                            <tr>
+                                <td>{{ pool.token_a_symbol }}/{{ pool.token_b_symbol }}</td>
+                                <td class="text-success">{{ "%.2f"|format(pool.apr_24h) }}%</td>
+                                <td>{{ "%.2f"|format(pool.apr_7d) }}%</td>
+                                <td>{{ "%.2f"|format(pool.apr_30d) }}%</td>
+                                <td>${{ "{:,.2f}".format(pool.tvl) }}</td>
+                                <td>
+                                    <small>
+                                        {{ pool.token_a_symbol }}: ${{ "%.4f"|format(pool.token_a_price) }}<br>
+                                        {{ pool.token_b_symbol }}: ${{ "%.4f"|format(pool.token_b_price) }}
+                                    </small>
+                                </td>
+                                <td>
+                                    <code class="small">{{ pool.id }}</code>
+                                </td>
+                                <td>{{ pool.last_updated.strftime('%Y-%m-%d %H:%M') }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <em>No pool data available</em>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h3 class="card-title">Data Refresh Information</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    Pool data is automatically refreshed every 5 minutes from the Raydium API.
+                    This ensures that you always have up-to-date information for your investment decisions.
+                </p>
+                <p>
+                    You can also view this data directly in Telegram by using the <code>/info</code> command.
+                </p>
+                <a href="/" class="btn btn-primary">Back to Home</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -19,7 +19,50 @@
             </div>
         </div>
 
-        <div class="row mt-5">
+        <!-- Bot Statistics -->
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h3 class="card-title">Bot Statistics</h3>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h4 class="text-primary">{{ user_count }}</h4>
+                                <p class="mb-0">Total Users</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h4 class="text-success">{{ subscribed_count }}</h4>
+                                <p class="mb-0">Subscribed Users</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h4 class="text-info">{{ stats.command_count if stats else 0 }}</h4>
+                                <p class="mb-0">Commands Processed</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h4 class="text-warning">{{ stats.active_user_count if stats else 0 }}</h4>
+                                <p class="mb-0">Active Users</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
             <div class="col-md-4 mb-4">
                 <div class="card h-100">
                     <div class="card-body text-center">
@@ -55,7 +98,7 @@
             </div>
         </div>
 
-        <div class="card mt-5">
+        <div class="card mt-4">
             <div class="card-header">
                 <h2>How to Use the Bot</h2>
             </div>
