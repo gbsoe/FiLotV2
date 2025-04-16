@@ -35,6 +35,12 @@ class User(db.Model):
     user_agent = Column(String(255), nullable=True)
     block_reason = Column(String(255), nullable=True)
     
+    # Financial profile settings
+    risk_profile = Column(String(20), default="moderate")  # conservative, moderate, aggressive
+    investment_horizon = Column(String(20), default="medium")  # short, medium, long
+    preferred_pools = Column(JSON, nullable=True)  # User's favorite or preferred pool types
+    investment_goals = Column(String(255), nullable=True)  # User's financial goals
+    
     # Relationships
     queries = relationship("UserQuery", back_populates="user", cascade="all, delete-orphan")
     activity_logs = relationship("UserActivityLog", back_populates="user", cascade="all, delete-orphan")

@@ -43,6 +43,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Helper function to update query response in database
+async def update_query_response(query_id: int, response_text: str, processing_time: float) -> None:
+    """
+    Update a query in the database with its response and processing time.
+    """
+    try:
+        # Import here to avoid circular imports
+        from sqlalchemy.orm import Session
+        from models import db, UserQuery
+        
+        # Create new session for thread safety
+        with Session(db.engine) as session:
+            query = session.query(UserQuery).filter(UserQuery.id == query_id).first()
+            if query:
+                query.response_text = response_text
+                query.processing_time = processing_time
+                session.commit()
+                logger.debug(f"Updated query {query_id} with response")
+    except Exception as e:
+        logger.error(f"Error updating query response: {e}")
+
 # Helper function to get pool data
 async def get_pool_data() -> List[Any]:
     """Get pool data for display in commands."""
@@ -412,6 +433,95 @@ async def wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             "Sorry, an error occurred while processing your request. Please try again later."
         )
 
+async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Set user investment profile when the command /profile is issued."""
+    try:
+        user = update.effective_user
+        db_utils.log_user_activity(user.id, "profile_command")
+        
+        # Get current user profile data
+        db_user = db_utils.get_or_create_user(user.id)
+        
+        # If no parameters provided, show current profile
+        if not context.args:
+            # Format current profile info
+            profile_text = (
+                "🔍 *Your Investment Profile*\n\n"
+                f"• Risk Tolerance: *{db_user.risk_profile.capitalize()}*\n"
+                f"• Investment Horizon: *{db_user.investment_horizon.capitalize()}*\n"
+                f"• Investment Goals: {db_user.investment_goals or 'Not specified'}\n\n"
+                "To update your profile, use one of these commands:\n"
+                "• `/profile risk [conservative/moderate/aggressive]`\n"
+                "• `/profile horizon [short/medium/long]`\n"
+                "• `/profile goals [your investment goals]`\n\n"
+                "Example: `/profile risk aggressive`"
+            )
+            await update.message.reply_markdown(profile_text)
+            return
+            
+        # Process command parameters
+        if len(context.args) >= 2:
+            setting_type = context.args[0].lower()
+            setting_value = " ".join(context.args[1:])
+            
+            if setting_type == "risk":
+                if setting_value.lower() in ["conservative", "moderate", "aggressive"]:
+                    # Update risk profile
+                    db_user.risk_profile = setting_value.lower()
+                    db.session.commit()
+                    
+                    # Send confirmation
+                    await update.message.reply_markdown(
+                        f"✅ Risk profile updated to *{setting_value.capitalize()}*.\n\n"
+                        f"Your AI financial advice will now be tailored to a {setting_value.lower()} risk tolerance."
+                    )
+                else:
+                    await update.message.reply_text(
+                        "Invalid risk profile. Please choose from: conservative, moderate, or aggressive."
+                    )
+                    
+            elif setting_type == "horizon":
+                if setting_value.lower() in ["short", "medium", "long"]:
+                    # Update investment horizon
+                    db_user.investment_horizon = setting_value.lower()
+                    db.session.commit()
+                    
+                    # Send confirmation
+                    await update.message.reply_markdown(
+                        f"✅ Investment horizon updated to *{setting_value.capitalize()}*.\n\n"
+                        f"Your AI financial advice will now be tailored to a {setting_value.lower()}-term investment horizon."
+                    )
+                else:
+                    await update.message.reply_text(
+                        "Invalid investment horizon. Please choose from: short, medium, or long."
+                    )
+                    
+            elif setting_type == "goals":
+                # Update investment goals
+                db_user.investment_goals = setting_value[:255]  # Limit to 255 chars
+                db.session.commit()
+                
+                # Send confirmation
+                await update.message.reply_markdown(
+                    "✅ Investment goals updated successfully.\n\n"
+                    "Your AI financial advice will take your goals into consideration."
+                )
+                
+            else:
+                await update.message.reply_text(
+                    "Invalid setting. Please use 'risk', 'horizon', or 'goals'."
+                )
+        else:
+            await update.message.reply_text(
+                "Please provide both setting type and value. For example:\n"
+                "/profile risk moderate"
+            )
+    except Exception as e:
+        logger.error(f"Error in profile command: {e}")
+        await update.message.reply_text(
+            "Sorry, an error occurred while processing your request. Please try again later."
+        )
+
 async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Create a WalletConnect session when the command /walletconnect is issued."""
     try:
@@ -469,7 +579,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         message_text = update.message.text
         
         # Log the query
-        db_utils.log_user_query(
+        query = db_utils.log_user_query(
             user_id=user.id,
             command=None,
             query_text=message_text
@@ -482,11 +592,117 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             # Send predefined response
             await update.message.reply_markdown(response)
         else:
-            # No predefined response available, ask DeepSeek AI (in future)
-            await update.message.reply_text(
-                "I don't have a specific answer for that question yet. Would you like to rephrase it? "
-                "You can also use /help to see all available commands."
-            )
+            # No predefined response available, use Anthropic AI for specialized financial advice
+            
+            # Send typing indicator while processing
+            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+            
+            # Try to identify if this is a financial question
+            classification = await ai_advisor.classify_financial_question(message_text)
+            
+            # Get user profile if available
+            user_db = db_utils.get_or_create_user(user.id)
+            risk_profile = getattr(user_db, 'risk_profile', 'moderate')
+            investment_horizon = getattr(user_db, 'investment_horizon', 'medium')
+            
+            # Get pool data for context
+            pools = await get_pool_data()
+            
+            if classification == "pool_advice":
+                # Question about specific liquidity pools
+                ai_response = await ai_advisor.get_financial_advice(
+                    message_text, 
+                    pool_data=pools,
+                    risk_profile=risk_profile,
+                    investment_horizon=investment_horizon
+                )
+                await update.message.reply_markdown(ai_response)
+                
+            elif classification == "strategy_help":
+                # Question about investment strategies
+                amount = 1000  # Default amount for strategy examples
+                # Check if user mentioned an amount
+                amount_match = re.search(r'(\$?[0-9,]+)', message_text)
+                if amount_match:
+                    try:
+                        amount = float(amount_match.group(1).replace('$', '').replace(',', ''))
+                    except ValueError:
+                        pass
+                
+                ai_response = await ai_advisor.generate_investment_strategy(
+                    investment_amount=amount,
+                    risk_profile=risk_profile,
+                    investment_horizon=investment_horizon,
+                    pool_data=pools
+                )
+                await update.message.reply_markdown(ai_response)
+                
+            elif classification == "risk_assessment":
+                # Question about risk assessment
+                # Find the pool with highest APR for risk assessment example
+                highest_apr_pool = {}
+                if pools and len(pools) > 0:
+                    highest_apr_pool = {
+                        'token_a_symbol': pools[0].token_a_symbol,
+                        'token_b_symbol': pools[0].token_b_symbol,
+                        'apr_24h': pools[0].apr_24h,
+                        'apr_7d': pools[0].apr_7d,
+                        'apr_30d': pools[0].apr_30d,
+                        'tvl': pools[0].tvl,
+                        'fee': pools[0].fee,
+                        'volume_24h': pools[0].volume_24h
+                    }
+                
+                ai_response = await ai_advisor.assess_investment_risk(highest_apr_pool)
+                
+                # Format risk assessment response
+                risk_level = ai_response.get('risk_level', 'medium')
+                explanation = ai_response.get('explanation', 'No detailed explanation available.')
+                
+                if risk_level.lower() == 'high' or risk_level.lower() == 'very high':
+                    risk_emoji = "🔴"
+                elif risk_level.lower() == 'medium':
+                    risk_emoji = "🟠"
+                else:
+                    risk_emoji = "🟢"
+                    
+                formatted_response = (
+                    f"*Risk Assessment: {risk_level.upper()}* {risk_emoji}\n\n"
+                    f"{explanation}\n\n"
+                    f"*Key Considerations:*\n• {ai_response.get('key_factors', 'N/A')}\n\n"
+                    f"*Impermanent Loss Risk:*\n• {ai_response.get('impermanent_loss', 'N/A')}\n\n"
+                    f"*Volatility:*\n• {ai_response.get('volatility', 'N/A')}\n\n"
+                    f"*Liquidity:*\n• {ai_response.get('liquidity', 'N/A')}\n\n"
+                    "Remember that all cryptocurrency investments carry inherent risks."
+                )
+                
+                await update.message.reply_markdown(formatted_response)
+                
+            elif classification == "defi_explanation":
+                # Question about DeFi concepts - extract the concept
+                concept_match = re.search(r'(what is|explain|how does|tell me about) ([\w\s]+)', message_text.lower())
+                concept = concept_match.group(2).strip() if concept_match else message_text
+                
+                ai_response = await ai_advisor.explain_financial_concept(concept)
+                await update.message.reply_markdown(ai_response)
+                
+            else:
+                # General financial advice
+                ai_response = await ai_advisor.get_financial_advice(
+                    message_text, 
+                    pool_data=pools,
+                    risk_profile=risk_profile,
+                    investment_horizon=investment_horizon
+                )
+                await update.message.reply_markdown(ai_response)
+                
+            # Update the query with the response
+            if query:
+                query.response_text = ai_response
+                query.processing_time = (datetime.datetime.now() - query.timestamp).total_seconds() * 1000
+                # Save to db in a non-blocking way
+                asyncio.create_task(update_query_response(query.id, ai_response, query.processing_time))
+                
     except Exception as e:
         logger.error(f"Error handling message: {e}")
         await update.message.reply_text(
