@@ -27,6 +27,11 @@ from walletconnect_utils import (
     kill_walletconnect_session,
     get_user_walletconnect_sessions
 )
+from anthropic_service import AnthropicAI
+
+# Initialize AI service
+anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
+ai_advisor = AnthropicAI(api_key=anthropic_api_key)
 
 # Load environment variables
 load_dotenv()
