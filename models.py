@@ -118,7 +118,13 @@ class ErrorLog(db.Model):
     traceback = Column(Text, nullable=True)
     module = Column(String(100), nullable=True)
     user_id = Column(Integer, nullable=True)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    resolved = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Properties to maintain compatibility with application code
+    @property
+    def timestamp(self):
+        return self.created_at
     
     def __repr__(self):
         return f"<ErrorLog id={self.id}, error_type={self.error_type}>"

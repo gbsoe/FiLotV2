@@ -138,7 +138,7 @@ def status():
         
         # Get recent errors
         recent_errors = ErrorLog.query.order_by(
-            ErrorLog.timestamp.desc()
+            ErrorLog.created_at.desc()
         ).limit(20).all()
         
         return render_template(

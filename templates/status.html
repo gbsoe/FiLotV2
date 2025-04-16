@@ -110,7 +110,7 @@
                             {% if recent_errors %}
                                 {% for error in recent_errors %}
                                 <tr>
-                                    <td>{{ error.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>{{ error.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                                     <td>{{ error.error_type }}</td>
                                     <td>{{ error.module or 'N/A' }}</td>
                                     <td>{{ error.error_message }}</td>
