@@ -64,8 +64,7 @@ class Pool(db.Model):
     """Pool model representing a cryptocurrency pool."""
     __tablename__ = "pools"
     
-    id = Column(Integer, primary_key=True)
-    pool_id = Column(String(255), unique=True, nullable=False)
+    id = Column(String(255), primary_key=True)  # This is actually the pool_id
     token_a_symbol = Column(String(10), nullable=False)
     token_b_symbol = Column(String(10), nullable=False)
     token_a_price = Column(Float, nullable=False)
@@ -77,7 +76,16 @@ class Pool(db.Model):
     fee = Column(Float, nullable=False)
     volume_24h = Column(Float, nullable=True)
     tx_count_24h = Column(Integer, nullable=True)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    last_updated = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Properties to maintain compatibility with application code
+    @property
+    def pool_id(self):
+        return self.id
+        
+    @property
+    def updated_at(self):
+        return self.last_updated
     
     def __repr__(self):
         return f"<Pool id={self.id}, token_a={self.token_a_symbol}, token_b={self.token_b_symbol}, apr_24h={self.apr_24h}>"

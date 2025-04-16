@@ -1,0 +1,157 @@
+
+import { SignClient } from '@walletconnect/sign-client';
+import { Core } from '@walletconnect/core';
+import { Web3Wallet } from '@walletconnect/web3wallet';
+import { getSdkError } from '@walletconnect/utils';
+import pg from 'pg';
+import dotenv from 'dotenv';
+dotenv.config();
+
+// PostgreSQL connection setup with connection pooling
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL.replace('.us-east-2', '-pooler.us-east-2'),
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+  ssl: {
+    rejectUnauthorized: false
+  },
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000
+});
+
+// Add connection error handler
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
+});
+
+// Add connection success logging
+pool.on('connect', () => {
+  console.log('New database connection established');
+});
+
+// Test database connection
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
+
+async function initDB() {
+  try {
+    const client = await pool.connect();
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS wallet_sessions (
+        session_id VARCHAR(255) PRIMARY KEY,
+        session_data JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`);
+    client.release();
+    console.log('Database initialized successfully');
+  } catch (error) {
+    console.error('Error initializing database:', error);
+    throw error;
+  }
+}
+
+async function initReown() {
+  if (!process.env.WALLETCONNECT_PROJECT_ID) {
+    throw new Error("WALLETCONNECT_PROJECT_ID not found");
+  }
+
+  try {
+    const signClient = await SignClient.init({
+      projectId: process.env.WALLETCONNECT_PROJECT_ID,
+      metadata: {
+        name: "FiLot Investment Advisor",
+        description: "AI Investment Advisor for DeFi",
+        url: `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`,
+        icons: [`https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/icon.png`]
+      }
+    });
+
+    console.log("[REOWN] SignClient initialized successfully");
+    return signClient;
+  } catch (error) {
+    console.error("[REOWN] SignClient initialization error:", error);
+    throw error;
+  }
+}
+
+async function saveSession(sessionId, sessionData) {
+  const query = `
+    INSERT INTO wallet_sessions (session_id, session_data)
+    VALUES ($1, $2)
+    ON CONFLICT (session_id) 
+    DO UPDATE SET session_data = $2, created_at = CURRENT_TIMESTAMP`;
+
+  try {
+    await pool.query(query, [sessionId, sessionData]);
+    return true;
+  } catch (error) {
+    console.error("[DB] Error saving session:", error);
+    throw error;
+  }
+}
+
+async function createWCSession(sessionId) {
+  console.log("[REOWN] Creating WalletConnect session:", sessionId);
+
+  try {
+    const signClient = await initReown();
+
+    const { uri, approval } = await signClient.connect({
+      requiredNamespaces: {
+        solana: {
+          methods: ["solana_signTransaction", "solana_signMessage"],
+          chains: ["solana:mainnet"],
+          events: ["connect", "disconnect"]
+        }
+      }
+    });
+
+    if (!uri) {
+      throw new Error("Failed to generate connection URI");
+    }
+
+    const sessionData = {
+      uri,
+      approval,
+      created: Date.now()
+    };
+
+    await saveSession(sessionId, sessionData);
+
+    return {
+      success: true,
+      sessionId,
+      uri
+    };
+  } catch (error) {
+    console.error("[REOWN] Session creation error:", error);
+    throw error;
+  }
+}
+
+async function killWCSession(sessionId) {
+  try {
+    const query = 'DELETE FROM wallet_sessions WHERE session_id = $1';
+    await pool.query(query, [sessionId]);
+    return true;
+  } catch (error) {
+    console.error("[DB] Error killing session:", error);
+    throw error;
+  }
+}
+
+// Initialize database on module load
+initDB().catch(console.error);
+
+// Initialize WalletConnect on module load
+initReown().catch(console.error);
+
+export {
+  initReown,
+  saveSession,
+  createWCSession,
+  killWCSession
+};
