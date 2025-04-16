@@ -1,0 +1,1023 @@
+import os
+import json
+import sys
+import requests
+import asyncio
+import time
+import logging
+
+# Configure debug logging for relevant libraries
+logging.getLogger("telegram.ext").setLevel(logging.DEBUG)
+logging.getLogger("httpx").setLevel(logging.DEBUG)
+from datetime import datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
+import pytz
+import logging
+from openai import OpenAI as Client
+
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+    ChatJoinRequestHandler
+)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+
+import openai
+from flask import Flask, jsonify
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# --- Logging Functions ---
+def log_message(message, component="BOT"):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] [{component}] {message}")
+
+def log_error(message, component="BOT"):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] [{component}] ERROR: {message}")
+    # Append error to a log file
+    try:
+        with open("error_log.txt", "a") as f:
+            f.write(f"{datetime.now().isoformat()}: {message}\n")
+    except Exception as e:
+        print(f"[{timestamp}] [LOGGING] CRITICAL ERROR: Could not write to error_log.txt: {str(e)}")
+
+# --- Initialize DeepSeek client ---
+try:
+    if os.getenv('DEEPSEEK_API_KEY'):
+        deepseek_client = Client(
+            api_key=os.getenv('DEEPSEEK_API_KEY'),
+            base_url="https://api.deepseek.com"
+        )
+        log_message("DeepSeek API client initialized", component="INIT")
+    else:
+        log_message("DeepSeek API key not found in environment", component="INIT")
+        deepseek_client = None
+except Exception as e:
+    log_error(f"Failed to initialize DeepSeek API client: {str(e)}", component="INIT")
+    deepseek_client = None
+
+# --- Flask App Initialization ---
+app = Flask(__name__)
+flask_app = app  # Ensure the Flask app is accessible at module level for Gunicorn
+
+# --- Telegram & OpenAI Imports already above ---
+# (no duplicate logging functions now)
+
+# --- Command Handler Wrapper ---
+def command_handler_wrapper(func):
+    """Wrapper for command handlers with error handling"""
+    async def wrapper(update, context):
+        try:
+            await func(update, context)
+        except Exception as e:
+            log_error(f"Command {func.__name__} failed: {str(e)}", component="HANDLER")
+            await update.message.reply_text("Sorry, command execution failed. Please try again.")
+    return wrapper
+
+# --- Global Variables & Configurations ---
+START_TIME = datetime.now()
+SUBSCRIBERS_FILE = "subscribers.json"
+BLOCKED_USERS_FILE = "blocked_users.json"
+
+try:
+    with open(BLOCKED_USERS_FILE, 'r') as f:
+        BLOCKED_USERS = set(json.load(f))
+except FileNotFoundError:
+    log_message("blocked_users.json not found, creating a new one.", component="INIT")
+    BLOCKED_USERS = set()
+    with open(BLOCKED_USERS_FILE, 'w') as f:
+        json.dump(list(BLOCKED_USERS), f)
+except json.JSONDecodeError:
+    log_error("Error decoding blocked_users.json. Initializing with an empty set.", component="INIT")
+    BLOCKED_USERS = set()
+
+USER_DATABASE_FILE = "user_database.json"
+USER_QUESTIONS_FILE = "user_questions.json"
+
+# Validate required environment variables
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+CHANNEL_ID = os.environ.get("CHANNEL_ID")
+
+if not TELEGRAM_BOT_TOKEN:
+    log_error("CRITICAL: TELEGRAM_BOT_TOKEN is not set in environment variables", component="INIT")
+    sys.exit(1)
+
+if not CHANNEL_ID:
+    log_message("WARNING: CHANNEL_ID is not set in environment variables", component="INIT")
+
+log_message(f"Bot token validation: {'Present' if TELEGRAM_BOT_TOKEN else 'Missing'}", component="INIT")
+log_message(f"Channel ID validation: {'Present' if CHANNEL_ID else 'Missing'}", component="INIT")
+
+# --- Production Adjustments ---
+NODE_SERVICE_URL = "http://0.0.0.0:3000"
+log_message(f"Internal Node.js service URL set to: {NODE_SERVICE_URL}", component="INIT")
+
+PYTHON_PORT = int(os.environ.get("PORT", 5000))
+PYTHON_HOST = "0.0.0.0"  # Bind to all interfaces
+log_message(f"Flask will run on {PYTHON_HOST}:{PYTHON_PORT}", component="INIT")
+
+REPL_SLUG = os.getenv('REPL_SLUG')
+REPL_OWNER = os.getenv('REPL_OWNER')
+KEEP_ALIVE_URL = f"{NODE_SERVICE_URL}/health"  # Adjusted to use NODE_SERVICE_URL and assuming a /health endpoint
+log_message(f"Keep-alive check URL set to: {KEEP_ALIVE_URL}", component="INIT")
+
+FOOTER = "\n\n[Swap USDT to SOL now](http://bit.ly/4kfCgW7)"  # Placeholder link
+
+# --- OpenAI & DeepSeek Configurations ---
+openai.api_key = os.getenv('OPENAI_API_KEY')  # Standard OpenAI if used
+DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
+deepseek_client = None
+try:
+    if DEEPSEEK_API_KEY:
+        deepseek_client = openai.OpenAI(
+            api_key=DEEPSEEK_API_KEY,
+            base_url="https://api.deepseek.com"
+        )
+        log_message("DeepSeek API client initialized", component="INIT")
+    else:
+        log_message("DeepSeek API key (DEEPSEEK_API_KEY) not found. /ask command might be limited.", component="INIT")
+except Exception as e:
+    log_error(f"Failed to initialize DeepSeek API client: {str(e)}", component="INIT")
+
+user_context = {}
+
+executor = ThreadPoolExecutor(max_workers=10)  # Adjust workers as needed
+
+# --- Helper Functions ---
+def append_footer(message: str) -> str:
+    """Appends the standard footer to a message."""
+    return message + FOOTER
+
+def append_ask_note(message: str) -> str:
+    """Appends a note prompting users to use /ask for product questions."""
+    note = "\n\n*For product-related questions, please use the /ask command.*"
+    return message + note
+
+def format_price(price):
+    """Formats a price value to one decimal place with a dollar sign."""
+    try:
+        price_decimal = Decimal(str(price))
+        formatted = price_decimal.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+        return f"${formatted}"
+    except Exception as e:
+        log_error(f"Error formatting price '{price}': {str(e)}", component="HELPER")
+        return f"${str(price)}"
+
+def format_token_price(raw_price, token_symbol="Token"):
+    """Formats a token price to one decimal place."""
+    try:
+        p = float(raw_price)
+        return f"${p:.1f}"
+    except (ValueError, TypeError) as e:
+        log_error(f"Error formatting token price '{raw_price}' for {token_symbol}: {str(e)}", component="HELPER")
+        return f"${raw_price}"
+
+# --- Database Utilities ---
+logging.basicConfig(level=logging.INFO)
+db_logger = logging.getLogger('database')
+
+try:
+    from db_utils import (
+        load_subscribers, save_subscriber, remove_subscriber,
+        load_user_database, update_user_activity,
+        save_user_question, load_user_questions,
+        get_db_stats, backup_database, export_questions_to_txt,
+        track_user_question, init_db
+    )
+
+    # Initialize database connection and tables
+    if init_db():
+        log_message("Database initialized successfully", component="INIT")
+    else:
+        log_error("Database initialization failed, using file fallback", component="INIT")
+except ImportError as e:
+    log_error(f"Failed to import from db_utils.py: {str(e)}", component="INIT")
+    def load_subscribers(): return set()
+    def save_subscriber(chat_id): pass
+    def remove_subscriber(chat_id): pass
+    def load_user_database(): return {}
+    def update_user_activity(chat_id, user_data, command): pass
+    def save_user_question(chat_id, question, answer): pass
+    def load_user_questions(): return []
+    def get_db_stats(): return {}
+    def backup_database(): pass
+    def export_questions_to_txt(): pass
+    def track_user_question(chat_id, question_type): pass
+
+def track_user_activity(update, command=None):
+    """Tracks user activity and updates the database."""
+    if not update or not update.effective_user or not update.effective_chat:
+        log_message("Attempted to track activity with invalid update object.", component="TRACKING")
+        return None
+    chat_id = update.effective_chat.id
+    user = update.effective_user
+    user_data = {
+        'chat_id': chat_id,
+        'username': user.username or "N/A",
+        'first_name': user.first_name or "N/A",
+        'last_name': user.last_name or "",
+        'language_code': user.language_code or "N/A",
+        'is_subscribed': chat_id in subscribers
+    }
+    update_user_activity(chat_id, user_data, command)
+    return user_data
+
+subscribers = load_subscribers() or set()
+log_message(f"Loaded {len(subscribers)} subscribers from file.", component="INIT")
+
+# --- Node.js Service Interaction ---
+_pools_cache = {
+    'data': None,
+    'timestamp': 0,
+    'duration': 60  # Increased cache duration to 60 seconds
+}
+
+# Pre-warm the cache
+def warm_cache():
+    fetch_pools_data()
+
+_http_session = requests.Session()
+adapter = requests.adapters.HTTPAdapter(
+    pool_connections=20,
+    pool_maxsize=30,
+    max_retries=3,
+    pool_block=False
+)
+_http_session.mount('http://', adapter)
+_http_session.mount('https://', adapter)
+_http_session.timeout = 30  # Increase timeout to 30 seconds
+
+def fetch_pools_data():
+    """Fetches pool data from the internal Node.js service, using cache."""
+    now = time.time()
+    if _pools_cache['data'] and (now - _pools_cache['timestamp'] < _pools_cache['duration']):
+        log_message("Returning cached pools data.", component="NODE_API")
+        return _pools_cache['data']
+
+    url = f"{NODE_SERVICE_URL}/pools"
+    max_retries = 3
+    retry_delay = 1
+    fallback_data = {
+        "topAPR": [{"id": "fallback_id", "tokenPair": "SOL/USDC", "day": {"apr": 10.0}, "week": {"apr": 11.0}, "month": {"apr": 12.0}, "tvl": 1000000, "price": 100.0, "priceToken": "SOL"}],
+        "mandatory": [{"id": "fallback_mand", "tokenPair": "SOL/USDT", "day": {"apr": 9.0}, "week": {"apr": 10.0}, "month": {"apr": 11.0}, "tvl": 900000, "price": 100.0, "priceToken": "SOL"}]
+    }
+
+    for attempt in range(max_retries):
+        try:
+            log_message(f"Fetching live pools data from {url} (attempt {attempt+1}/{max_retries})", component="NODE_API")
+            response = _http_session.get(url, timeout=16)
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, dict) and "topAPR" in data and "mandatory" in data:
+                    _pools_cache['data'] = data
+                    _pools_cache['timestamp'] = now
+                    log_message("Successfully fetched and cached live pools data.", component="NODE_API")
+                    return data
+                else:
+                    log_error(f"API at {url} returned invalid data structure: {str(data)[:200]}", component="NODE_API")
+                    if attempt == max_retries - 1:
+                        log_error("Using fallback data due to invalid structure.", component="NODE_API")
+                        return fallback_data
+                    continue
+            else:
+                log_error(f"API at {url} returned non-200 status: {response.status_code}", component="NODE_API")
+                response.raise_for_status()
+        except requests.exceptions.Timeout:
+            log_error(f"API connection to {url} timed out on attempt {attempt+1}.", component="NODE_API")
+        except requests.exceptions.ConnectionError:
+            log_error(f"API connection refused at {url} on attempt {attempt+1}. Is Node.js running?", component="NODE_API")
+        except requests.exceptions.RequestException as e:
+            log_error(f"API request error to {url} on attempt {attempt+1}: {str(e)}", component="NODE_API")
+        except json.JSONDecodeError:
+            log_error(f"Failed to decode JSON response from {url}", component="NODE_API")
+        except Exception as e:
+            log_error(f"Unexpected error fetching pools data on attempt {attempt+1}: {str(e)}", component="NODE_API")
+
+        if attempt < max_retries - 1:
+            log_message(f"Retrying pools data fetch in {retry_delay} seconds...", component="NODE_API")
+            time.sleep(retry_delay)
+            retry_delay *= 2
+        else:
+            log_error(f"Failed to fetch live pools data from {url} after {max_retries} attempts. Using fallback data.", component="NODE_API")
+            return fallback_data
+
+    return fallback_data
+
+# --- Dynamic Admin Check Helper ---
+async def is_group_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Checks if the user sending a command in a group is an admin."""
+    if not update.effective_chat or not update.effective_user:
+        return False
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    if update.effective_chat.type not in ["group", "supergroup"]:
+        return False
+    try:
+        admins = await context.bot.get_chat_administrators(chat_id)
+        admin_ids = {admin.user.id for admin in admins}
+        is_admin = user_id in admin_ids
+        log_message(f"Admin check for user {user_id} in chat {chat_id}: {'Is admin' if is_admin else 'Not admin'}", component="AUTH")
+        return is_admin
+    except Exception as e:
+        log_error(f"Failed to get chat administrators for chat {chat_id}: {str(e)}", component="AUTH")
+        return False
+
+# --- New Handler for Chat Join Requests ---
+async def join_request_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles new users requesting to join the chat."""
+    if not update.chat_join_request:
+        return
+    request = update.chat_join_request
+    user = request.from_user
+    chat = request.chat
+    chat_id = chat.id
+    user_id = user.id
+    log_message(f"Received join request from user {user_id} ({user.username or user.first_name}) for chat {chat_id} ({chat.title or 'N/A'})", component="JOIN")
+    if user.is_bot:
+        log_message(f"Declining join request from bot {user_id}.", component="JOIN")
+        try:
+            await context.bot.decline_chat_join_request(chat_id=chat_id, user_id=user_id)
+        except Exception as e:
+            log_error(f"Failed to decline bot join request for {user_id}: {str(e)}", component="JOIN")
+        return
+    is_suspicious = (not user.has_profile_photo) or (user.username and "bot" in user.username.lower())
+    if is_suspicious:
+        log_message(f"Suspicious join request from user {user_id}. Flagging for manual review.", component="JOIN")
+        owner_chat_id = os.getenv("OWNER_CHAT_ID")
+        if owner_chat_id:
+            try:
+                message = (
+                    f"¡⚠️ *Suspicious Join Request* ⚠️\n\n"
+                    f"Chat: {chat.title or chat_id}\n"
+                    f"User: {user.first_name} {user.last_name or ''} (@{user.username or 'N/A'})\n"
+                    f"User ID: `{user_id}`\n"
+                    f"Reason: {'No profile photo' if not user.has_profile_photo else 'Username contains bot'}\n\n"
+                    f"Please review and manually approve/decline."
+                )
+                await context.bot.send_message(chat_id=owner_chat_id, text=message, parse_mode="Markdown")
+            except Exception as e:
+                log_error(f"Failed to send suspicious join notification to owner {owner_chat_id}: {str(e)}", component="JOIN")
+        return
+    try:
+        log_message(f"Approving join request for user {user_id}.", component="JOIN")
+        await context.bot.approve_chat_join_request(chat_id=chat_id, user_id=user_id)
+    except Exception as e:
+        log_error(f"Failed to approve join request for user {user_id} in chat {chat_id}: {str(e)}", component="JOIN")
+
+# --- Telegram Command Handlers ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /start command."""
+    log_message("Entered /start handler", component="HANDLER_ENTRY")
+    chat_id = update.effective_chat.id
+    user = update.effective_user
+    username = user.username or user.first_name
+    log_message(f"Command /start executed by {username} (ID: {user.id}, Chat: {chat_id})", component="TELEGRAM")
+    track_user_activity(update, "start")
+    welcome_message = (
+        "💡 *Welcome to the FiLot AI-powered Investment Assistant!*\n\n"
+        "🚀 I help you track real-time crypto earnings and updates – think of me as your AI assistant for maximizing returns through FiLot's liquidity pool optimization.\n\n"
+        "💡 *Why care?*\n"
+        "🏦 Banks offer low interest (0.5-2%/year). FiLot's AI finds liquidity pools potentially earning much more (10-200%+) based on market conditions, automatically and safely.\n\n"
+        "📝 *How does it work?*\n"
+        "🔍 FiLot AI scans the market, predicts top pools, and helps you invest easily. No complex DeFi knowledge needed!\n\n"
+        "⏱ *See potential earnings?*\n"
+        "💰 Use /simulate to estimate returns from providing liquidity. Just enter an amount!\n\n"
+        "❓ *What's a liquidity pool?*\n"
+        "It’s a shared pot of crypto. When trades use the pool, contributors earn fees. More contribution = more earnings!\n\n"
+        "✨ *FiLot Makes It Easy & Safe*\n"
+        "• AI-Powered Yield Optimization\n"
+        "• Risk Protection (focus on stable pools)\n"
+        "• One-Click Investing (coming soon)\n\n"
+        "📢 *Stay Updated*\n"
+        "Type /subscribe for automatic updates, /info for today's top earnings, or /help for commands.\n\n"
+        "🤖 *Have questions?* Just type them, or use /ask for specific product info.\n\n"
+        "💡 FiLot is launching soon! Get ready to let AI grow your money smarter.\n\n"
+        "*Token Contract Address (CA)*:\n`Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump`\n\n"
+        "*Buy LA! Token:*\nhttps://pump.fun/coin/Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump"
+    )
+    final_message = append_footer(welcome_message)
+    try:
+        await update.message.reply_text(final_message, parse_mode="Markdown")
+    except Exception as e:
+        log_error(f"Failed to send /start message to chat {chat_id}: {str(e)}", component="TELEGRAM")
+
+async def subscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /subscribe command."""
+    chat_id = update.effective_chat.id
+    log_message(f"Command /subscribe executed by Chat: {chat_id}", component="TELEGRAM")
+    track_user_activity(update, "subscribe")
+    if chat_id not in subscribers:
+        subscribers.add(chat_id)
+        save_subscriber(chat_id)
+        message = (
+            "✅ You're now subscribed to updates! I'll send you the latest earnings and price updates for selected crypto investments. "
+            "To stop, type /unsubscribe."
+        )
+        log_message(f"Chat {chat_id} successfully subscribed.", component="TELEGRAM")
+    else:
+        message = "✅ You are already subscribed!"
+        log_message(f"Chat {chat_id} tried to subscribe again.", component="TELEGRAM")
+    final_message = append_footer(message)
+    try:
+        await update.message.reply_text(final_message, parse_mode="Markdown")
+    except Exception as e:
+        log_error(f"Failed to send /subscribe confirmation to chat {chat_id}: {str(e)}", component="TELEGRAM")
+
+async def unsubscribe(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /unsubscribe command."""
+    chat_id = update.effective_chat.id
+    log_message(f"Command /unsubscribe executed by Chat: {chat_id}", component="TELEGRAM")
+    track_user_activity(update, "unsubscribe")
+    if chat_id in subscribers:
+        subscribers.remove(chat_id)
+        remove_subscriber(chat_id)
+        message = (
+            "🚫 You've unsubscribed from updates. You can still check info with /info. "
+            "To re-subscribe, type /subscribe."
+        )
+        log_message(f"Chat {chat_id} successfully unsubscribed.", component="TELEGRAM")
+    else:
+        message = "ℹ️ You are not currently subscribed."
+        log_message(f"Chat {chat_id} tried to unsubscribe but wasn't subscribed.", component="TELEGRAM")
+    final_message = append_footer(message)
+    try:
+        await update.message.reply_text(final_message, parse_mode="Markdown")
+    except Exception as e:
+        log_error(f"Failed to send /unsubscribe confirmation to chat {chat_id}: {str(e)}", component="TELEGRAM")
+
+async def info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /info command, fetching and displaying pool data."""
+    chat_id = update.effective_chat.id
+    log_message(f"Command /info executed by Chat: {chat_id}", component="TELEGRAM")
+    track_user_activity(update, "info")
+    await update.message.reply_chat_action(action="typing")
+    try:
+        data = fetch_pools_data()
+        top_apr = data.get("topAPR", [])
+        mandatory = data.get("mandatory", [])
+        message = "📈 Latest Crypto Investment Update:\n\n"
+        if not top_apr and not mandatory:
+            message += "⏳ Currently unable to fetch live pool data. Please try again later."
+        else:
+            if top_apr:
+                message += "Best Performing Investments Today:\n"
+                for pool in top_apr[:3]:
+                    pool_id = pool.get('id', 'N/A')
+                    token_pair = pool.get("tokenPair", "Unknown Pair")
+                    day_apr = float(pool.get('day', {}).get('apr', 0))
+                    week_apr = float(pool.get('week', {}).get('apr', 0))
+                    month_apr = float(pool.get('month', {}).get('apr', 0))
+                    tvl = pool.get('tvl', 0)
+                    price = pool.get("price", 0)
+                    price_token = pool.get("priceToken", "")
+                    current_price_str = (f"${price:.1f} per {price_token}"
+                                         if price_token
+                                         else f"${price:.1f} per Token")
+                    message += (
+                        f"• Pool ID: 📋 `{pool_id}`\n"
+                        f"  Token Pair: {token_pair}\n"
+                        f"  24h APR: {day_apr:.2f}%\n"
+                        f"  7d APR: {week_apr:.2f}%\n"
+                        f"  30d APR: {month_apr:.2f}%\n"
+                        f"  TVL (USD): ${tvl:,.2f}\n"
+                        f"  Current Price (USD): {current_price_str}\n\n"
+                    )
+            if mandatory:
+                message += "Top Stable Investments (e.g., SOL-USDC / SOL-USDT):\n"
+                for pool in mandatory:
+                    pool_id = pool.get('id', 'N/A')
+                    token_pair = pool.get("tokenPair", "Unknown Pair")
+                    day_apr = float(pool.get('day', {}).get('apr', 0))
+                    week_apr = float(pool.get('week', {}).get('apr', 0))
+                    month_apr = float(pool.get('month', {}).get('apr', 0))
+                    tvl = pool.get('tvl', 0)
+                    price = pool.get("price", 0)
+                    price_token = pool.get("priceToken", "")
+                    current_price_str = (f"${price:.1f} per {price_token}"
+                                         if price_token
+                                         else f"${price:.1f} per Token")
+                    message += (
+                        f"• Pool ID: 📋 `{pool_id}`\n"
+                        f"  Token Pair: {token_pair}\n"
+                        f"  24h APR: {day_apr:.2f}%\n"
+                        f"  7d APR: {week_apr:.2f}%\n"
+                        f"  30d APR: {month_apr:.2f}%\n"
+                        f"  TVL (USD): ${tvl:,.2f}\n"
+                        f"  Current Price (USD): {current_price_str}\n\n"
+                    )
+        message += "\nWant to see your potential earnings? Try /simulate amount (default is $1000)."
+        final_message = append_footer(message)
+        await update.message.reply_text(final_message, parse_mode="Markdown", disable_web_page_preview=True)
+        log_message(f"/info data sent successfully to chat {chat_id}.", component="TELEGRAM")
+    except Exception as e:
+        log_error(f"/info command failed for chat {chat_id}: {str(e)}", component="TELEGRAM")
+        err_message = append_footer("⏳ Sorry, I couldn't fetch the latest investment info right now. Please try again later.")
+        await update.message.reply_text(err_message, parse_mode="Markdown")
+
+async def simulate(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /simulate command to estimate earnings."""
+    chat_id = update.effective_chat.id
+    log_message(f"Command /simulate executed by Chat: {chat_id} with args: {context.args}", component="TELEGRAM")
+    track_user_activity(update, "simulate")
+    principal = 1000.0
+    if context.args:
+        try:
+            amount_str = context.args[0].replace('$', '').replace(',', '')
+            principal = float(amount_str)
+            if principal <= 0:
+                await update.message.reply_text("⏳ Please enter a positive amount to simulate (e.g., /simulate 500).")
+                return
+        except ValueError:
+            await update.message.reply_text("⏳ Invalid amount. Please use a number (e.g., /simulate 500).")
+            return
+    await update.message.reply_chat_action(action="typing")
+    try:
+        data = fetch_pools_data()
+        all_pools = {pool['id']: pool for pool in data.get("topAPR", []) + data.get("mandatory", []) if 'id' in pool}.values()
+        if not all_pools:
+            await update.message.reply_text(append_footer("⏳ Could not fetch pool data for simulation. Please try /info or try again later."))
+            return
+        message = f"🚀 Simulation for an Investment of ${principal:,.2f}:\n\n"
+        pools_to_simulate = list(all_pools)[:5]
+        for pool in pools_to_simulate:
+            pool_id = pool.get('id', 'N/A')
+            token_pair = pool.get('tokenPair', 'Unknown')
+            month_apr = float(pool.get('month', {}).get('apr', 0))
+            week_apr = float(pool.get('week', {}).get('apr', 0))
+            day_apr = float(pool.get('day', {}).get('apr', 0))
+            base_apr = month_apr if month_apr > 0 else (week_apr if week_apr > 0 else day_apr)
+            if base_apr <= 0:
+                continue
+            daily_earnings = principal * (base_apr / 100) / 365
+            weekly_earnings = daily_earnings * 7
+            monthly_earnings = daily_earnings * 30
+            annual_earnings = daily_earnings * 365
+            message += (
+                f"• Pool ID: 📋 `{pool_id}`\n"
+                f"  Token Pair: {token_pair}\n"
+                f"  - Daily Earnings: ${daily_earnings:,.2f}\n"
+                f"  - Weekly Earnings: ${weekly_earnings:,.2f}\n"
+                f"  - Monthly Earnings: ${monthly_earnings:,.2f}\n"
+                f"  - Annual Earnings: ${annual_earnings:,.2f}\n\n"
+            )
+        message += "\nDisclaimer: The numbers above are estimations and actual earnings may vary."
+        final_message = append_footer(message)
+        await update.message.reply_text(final_message, parse_mode="Markdown", disable_web_page_preview=True)
+        log_message(f"/simulate calculation sent to chat {chat_id}.", component="TELEGRAM")
+    except Exception as e:
+        log_error(f"/simulate command failed for chat {chat_id}: {str(e)}", component="TELEGRAM")
+        err_message = append_footer("⏳ An error occurred during the simulation. Please try again.")
+        await update.message.reply_text(err_message, parse_mode="Markdown")
+
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /status command."""
+    chat_id = update.effective_chat.id
+    log_message(f"Command /status executed by Chat: {chat_id}", component="TELEGRAM")
+    track_user_activity(update, "status")
+    uptime = datetime.now() - START_TIME
+    hours, remainder = divmod(uptime.total_seconds(), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    uptime_str = f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
+    users_data = load_user_database()
+    total_users = len(users_data)
+    node_status = "⏳ Unknown"
+    try:
+        response = _http_session.get(f"{NODE_SERVICE_URL}/health", timeout=3)
+        if response.status_code == 200:
+            node_status = "✅ Online"
+        else:
+            node_status = f"⏳ Status {response.status_code}"
+    except requests.exceptions.RequestException:
+        node_status = "⏳ Offline"
+    except Exception:
+        node_status = "⏳ Error Checking"
+    message = (
+        f"📊 *Bot Status*\n\n"
+        f"✅ Bot Service: Online\n"
+        f"⏳ Internal API Service: {node_status}\n"
+        f"⏱ Uptime: {uptime_str}\n"
+        f"🚀 Active Subscriptions: {len(subscribers)}\n"
+        f"📊 Total Users Tracked: {total_users}\n"
+    )
+    final_message = append_footer(message)
+    await update.message.reply_text(final_message, parse_mode="Markdown")
+    log_message(f"/status response sent to chat {chat_id}. Node status: {node_status}", component="TELEGRAM")
+
+async def joinpool_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /joinpool command."""
+    chat_id = update.effective_chat.id
+    log_message(f"Command /joinpool executed by Chat: {chat_id}", component="TELEGRAM")
+    track_user_activity(update, "joinpool")
+
+    message = (
+        "🔄 *Pool Joining Feature -Coming Soon!*\n\n"
+        "The direct pool joining feature is currently under development and will be available soon!\n\n"
+        "In the meantime, you can:\n"
+        "• Use /info to view available pools and their performance\n"
+        "• Try /simulate to calculate potential earnings\n"
+        "• Stay updated by using /subscribe\n\n"
+        "We're working hard to bring you seamless pool integration. Thank you for your patience! 🚀"
+    )
+    final_message = append_footer(message)
+    await update.message.reply_text(final_message, parse_mode="Markdown")
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /help command."""
+    chat_id = update.effective_chat.id
+    log_message(f"Command /help executed by Chat: {chat_id}", component="TELEGRAM")
+    track_user_activity(update, "help")
+    message = (
+        "✅  How can I help? Here's what you can do:\n\n"
+        "/start - Welcome message and introduction\n"
+        "/subscribe - Subscribe to updates\n"
+        "/unsubscribe - Unsubscribe from updates\n"
+        "/info - Latest crypto investment info\n"
+        "/simulate [amount] - Simulate potential earnings (default $1000)\n"
+        "/status - Bot status and subscriber count\n"
+        "/FAQ - Frequently asked questions\n"
+        "/Social - Follow our official social channels\n"
+        "/ask [question] - Ask product-related questions\n"
+        "/joinpool <pool_id> <wallet_address> - Execute a join pool transaction\n\n"
+        "💬  You can also simply type your questions directly!"
+    )
+    final_message = append_footer(message)
+    await update.message.reply_text(final_message, parse_mode="Markdown")
+
+async def faq(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /faq command."""
+    chat_id = update.effective_chat.id
+    log_message(f"Command /faq executed byChat: {chat_id}", component="TELEGRAM")
+    track_user_activity(update, "faq")
+    message = (
+        "❓ *Frequently Asked Questions*\n\n"
+        "*What does this bot do?*\n"
+        "It helps track crypto earnings from AI-optimized liquidity pools and provides info on FiLot.\n\n"
+        "*How do I earn with liquidity pools?*\n"
+        "Contribute crypto to earn trading fees. FiLot aims to find high-yield, safer pools.\n\n"
+        "*Is it risky?*\n"
+        "All investments have risk. FiLot focuses on stable pools (like SOL-USDC) and uses AI to manage risk, but losses are possible.\n\n"
+        "*What's Impermanent Loss (IL)?*\n"
+        "Value changes in your deposited tokens compared to just holding them. AI aims to minimize this by selecting suitable pools.\n\n"
+        "*What's APR?*\n"
+        "Annual Percentage Rate - estimated yearly return. Pool APRs can be high (10-200%+) but fluctuate.\n\n"
+        "*How do updates work?*\n"
+        "Use /subscribe for automatic news. Use /unsubscribe to stop.\n\n"
+        "*How does /simulate work?*\n"
+        "It estimates earnings based on recent APRs: `Earnings = Investment * (APR/100) * Time`.\n\n"
+        "*When is FiLot launching?*\n"
+        "Coming soon! Use /subscribe for announcements.\n\n"
+        "*How do I ask specific questions?*\n"
+        "Use `/ask Your question here...` for product details, or just type general questions.\n\n"
+    )
+    final_message = append_footer(message)
+    await update.message.reply_text(final_message, parse_mode="Markdown", disable_web_page_preview=True)
+
+async def social(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /social command."""
+    chat_id = update.effective_chat.id
+    log_message(f"Command /social executed by Chat: {chat_id}", component="TELEGRAM")
+    track_user_activity(update, "social")
+    message = (
+        "🤝 *Connect With Us!*\n\n"
+        "Stay updated and join the community on our official channels:\n\n"
+        "🐦 **X (Twitter):** [@CrazyRichLA](https://x.com/crazyrichla)\n"
+        "📸 **Instagram:** [@CrazyRichLA](https://www.instagram.com/crazyrichla)\n"
+        "🌐 **Website:** [CrazyRichLA](https://crazyrichla.replit.app)\n\n"
+        "Follow us for the latest news and launch announcements!"
+    )
+    final_message = append_footer(message)
+    await update.message.reply_text(final_message, parse_mode="Markdown", disable_web_page_preview=True)
+
+# --- Admin Commands ---
+async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """(Admin) Bans a user."""
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    log_message(f"Command /ban attempt by User: {user_id} in Chat: {chat_id}", component="ADMIN")
+    track_user_activity(update, "ban_attempt")
+    if not await is_group_admin(update, context):
+        await update.message.reply_text("🚫 Sorry, this command is only for chat administrators.")
+        return
+    target_user_id = None
+    if update.message.reply_to_message:
+        target_user_id = update.message.reply_to_message.from_user.id
+        log_message(f"Admin {user_id} targeting user {target_user_id} via reply for banning.", component="ADMIN")
+    elif context.args:
+        try:
+            target_user_id = int(context.args[0])
+            log_message(f"Admin {user_id} targeting user {target_user_id} via argument for banning.", component="ADMIN")
+        except (ValueError, IndexError):
+            await update.message.reply_text("⏳ Usage: Reply to a user's message or use `/ban <user_id>`.")
+            return
+    else:
+        await update.message.reply_text("⏳ Usage: Reply to the user you want to ban or use `/ban <user_id>`.")
+        return
+    if target_user_id:
+        if target_user_id == context.bot.id:
+            await update.message.reply_text("🚫 Nice try! I can't ban myself.")
+            return
+        if target_user_id == user_id:
+            await update.message.reply_text("🚫 You can't ban yourself.")
+            return
+        try:
+            target_member = await context.bot.get_chat_member(chat_id, target_user_id)
+            if target_member.status in ['administrator', 'creator']:
+                await update.message.reply_text("🚫 Cannot ban another administrator/creator.")
+                log_message(f"Admin {user_id} failed to ban admin/creator {target_user_id}.", component="ADMIN")
+                return
+        except Exception as e:
+            log_error(f"Could not check target user {target_user_id} status before ban: {str(e)}", component="ADMIN")
+        try:
+            await context.bot.ban_chat_member(chat_id=chat_id, user_id=target_user_id)
+            BLOCKED_USERS.add(target_user_id)
+            with open(BLOCKED_USERS_FILE, 'w') as f:
+                json.dump(list(BLOCKED_USERS), f)
+            await update.message.reply_text(f"✅ User {target_user_id} has been banned.")
+            log_message(f"Admin {user_id} successfully banned user {target_user_id} in chat {chat_id}.", component="ADMIN")
+        except Exception as e:
+            log_error(f"Failed to ban user {target_user_id} in chat {chat_id}: {str(e)}", component="ADMIN")
+            await update.message.reply_text(f"⏳ Failed to ban user {target_user_id}. Error: {str(e)}")
+
+async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """(Admin) Unbans a user."""
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    log_message(f"Command /unban attempt by User: {user_id} in Chat: {chat_id}", component="ADMIN")
+    track_user_activity(update, "unban_attempt")
+    if not await is_group_admin(update, context):
+        await update.message.reply_text("🚫 Sorry, this command is only for chat administrators.")
+        return
+    target_user_id = None
+    if context.args:
+        try:
+            target_user_id = int(context.args[0])
+            log_message(f"Admin {user_id} targeting user {target_user_id} via argument for unbanning.", component="ADMIN")
+        except (ValueError, IndexError):
+            await update.message.reply_text("⏳ Usage: `/unban <user_id>`.")
+            return
+    else:
+        await update.message.reply_text("⏳ Usage: `/unban <user_id>`.")
+        return
+    if target_user_id:
+        try:
+            await context.bot.unban_chat_member(chat_id=chat_id, user_id=target_user_id, only_if_banned=True)
+            if target_user_id in BLOCKED_USERS:
+                BLOCKED_USERS.remove(target_user_id)
+                with open(BLOCKED_USERS_FILE, 'w') as f:
+                    json.dump(list(BLOCKED_USERS), f)
+            await update.message.reply_text(f"✅ User {target_user_id} has been unbanned. They can rejoin.")
+            log_message(f"Admin {user_id} successfully unbanned user {target_user_id} in chat {chat_id}.", component="ADMIN")
+        except Exception as e:
+            log_error(f"Failed to unban user {target_user_id} in chat {chat_id}: {str(e)}", component="ADMIN")
+            if "user is not found" in str(e).lower() or "user_not_participant" in str(e).lower() or "wasn't banned" in str(e).lower():
+                await update.message.reply_text(f"🚫 User {target_user_id} doesn't seem to be banned.")
+            else:
+                await update.message.reply_text(f"⏳ Failed to unban user {target_user_id}. Error: {str(e)}")
+
+# --- AI /ask Command and Text Handler ---
+async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /ask command using DeepSeek or fallback."""
+    chat_id = update.effective_chat.id
+    user_question = ' '.join(context.args)
+    log_message(f"Command /ask executed by Chat: {chat_id} with question: '{user_question}'", component="AI")
+    track_user_activity(update, "ask")
+    if not user_question:
+        await update.message.reply_text("🚫 Please ask a question after the command, like `/ask What is FiLot?`")
+        return
+    if not deepseek_client:
+        await update.message.reply_text("⏳ The AI assistant (DeepSeek) is currently unavailable. Please try again later.")
+        log_error("Attempted /ask command but DeepSeek client is not initialized.", component="AI")
+        return
+    from response_data import get_predefined_response
+    predefined_answer = get_predefined_response(user_question)
+    if predefined_answer and predefined_answer.strip():
+        log_message(f"Using predefined answer for /ask query: {user_question}", component="PREDEFINED")
+        final_message = append_footer(predefined_answer)
+        await update.message.reply_text(final_message, parse_mode="Markdown")
+        return
+    await update.message.reply_chat_action(action="typing")
+    if chat_id not in user_context:
+        user_context[chat_id] = [{"role": "system", "content": "You are FiLot AI, a helpful assistant knowledgeable about FiLot liquidity pools, crypto investments, and the LA! token project. Answer user questions clearly and concisely based on your training data. If you don't know the answer, say so. Keep answers focused on the product and related crypto concepts."}]
+    user_context[chat_id].append({"role": "user", "content": user_question})
+    max_context = 10
+    if len(user_context[chat_id]) > max_context:
+        user_context[chat_id] = [user_context[chat_id][0]] + user_context[chat_id][-(max_context - 1):]
+    try:
+        response = await asyncio.get_event_loop().run_in_executor(
+            executor,
+            lambda: deepseek_client.chat.completions.create(
+                model="deepseek-chat",
+                messages=user_context[chat_id],
+                max_tokens=300,
+                temperature=0.7
+            )
+        )
+        ai_response = response.choices[0].message.content.strip()
+        user_context[chat_id].append({"role": "assistant", "content": ai_response})
+        final_message = append_footer(ai_response)
+        await update.message.reply_text(final_message, parse_mode="Markdown")
+        log_message(f"Successfully processed /ask command for chat {chat_id}.", component="AI")
+        save_user_question(chat_id, user_question, ai_response)
+        track_user_question(chat_id, "ask_command")
+    except openai.APIConnectionError as e:
+        log_error(f"DeepSeek API connection error for /ask: {str(e)}", component="AI")
+        await update.message.reply_text("⏳ Sorry, I couldn't connect to the AI assistant right now. Please check your connection or try again later.")
+    except openai.RateLimitError as e:
+        log_error(f"DeepSeek API rate limit exceeded for /ask: {str(e)}", component="AI")
+        await update.message.reply_text("⚡ The AI assistant is currently busy. Please try again in a moment.")
+    except openai.APIStatusError as e:
+        log_error(f"DeepSeek API status error for /ask (Code: {e.status_code}): {e.response}", component="AI")
+        await update.message.reply_text(f"⏳ An error occurred with the AI assistant (Code: {e.status_code}). Please try again.")
+    except Exception as e:
+        log_error(f"General error processing /ask command for chat {chat_id}: {str(e)}", component="AI")
+        await update.message.reply_text("⏳ An unexpected error occurred while processing your request.")
+
+async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles regular text messages, potentially routing to AI or specific logic."""
+    chat_id = update.effective_chat.id
+    user_message = update.message.text
+    log_message(f"Received text message from Chat: {chat_id}: '{user_message[:50]}...'", component="TELEGRAM")
+    track_user_activity(update, "text_message")
+    if len(user_message.split()) < 3 or user_message.lower() in ["hi", "hello", "thanks", "ok", "gm", "gn"]:
+        log_message(f"Ignoring short/greeting message from {chat_id}.", component="TELEGRAM")
+        return
+    from response_data import get_predefined_response
+    # Normalize message for better matching
+    normalized_message = user_message.lower().strip()
+    predefined_answer = get_predefined_response(normalized_message)
+    if predefined_answer and predefined_answer.strip():
+        log_message(f"Using predefined answer for text message: {user_message[:50]}...", component="PREDEFINED")
+        final_message = append_footer(predefined_answer)
+        await update.message.reply_text(final_message, parse_mode="Markdown")
+        track_user_question(chat_id, "predefined_response")
+        return
+    if deepseek_client and ("?" in user_message or len(user_message.split()) >= 4):
+        log_message(f"Routing text message from {chat_id} to AI.", component="AI_ROUTE")
+        await update.message.reply_chat_action(action="typing")
+        if chat_id not in user_context:
+            user_context[chat_id] = [{"role": "system", "content": "You are FiLot AI, a helpful assistant knowledgeable about FiLot liquidity pools, crypto investments, and the LA! token project. Answer user questions clearly and concisely based on your training data. If you don't know the answer, say so. Keep answers focused on the product and related crypto concepts."}]
+        user_context[chat_id].append({"role": "user", "content": user_message})
+        max_context = 10
+        if len(user_context[chat_id]) > max_context:
+            user_context[chat_id] = [user_context[chat_id][0]] + user_context[chat_id][-(max_context - 1):]
+        try:
+            response = await asyncio.get_event_loop().run_in_executor(
+                executor,
+                lambda: deepseek_client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=user_context[chat_id],
+                    max_tokens=300,
+                    temperature=0.7
+                )
+            )
+            ai_response = response.choices[0].message.content.strip()
+            user_context[chat_id].append({"role": "assistant", "content": ai_response})
+            final_message = append_footer(append_ask_note(ai_response))
+            await update.message.reply_text(final_message, parse_mode="Markdown")
+            log_message(f"Successfully processed text message via AI for chat {chat_id}.", component="AI")
+            save_user_question(chat_id, user_message, ai_response)
+            track_user_question(chat_id, "text_message_ai")
+        except Exception as e:
+            log_error(f"Error processing text message via AI for chat {chat_id}: {str(e)}", component="AI")
+            await update.message.reply_text(append_footer("Sorry, I couldn't process that with the AI right now. You can try using specific commands like /info or /faq, or use `/ask your question`."))
+    else:
+        log_message(f"No specific action taken for text message from {chat_id}.", component="TELEGRAM")
+        pass
+
+# --- Flask Web Server Endpoints ---
+@app.route('/health')
+def health_check_endpoint():
+    log_message("Health check endpoint accessed.", component="FLASK")
+    node_status_code = 503
+    try:
+        response = _http_session.get(f"{NODE_SERVICE_URL}/health", timeout=2)
+        node_status_code = response.status_code
+    except Exception:
+        pass
+    if node_status_code == 200:
+        return jsonify(status="OK", telegram_bot="Running", node_service="OK"), 200
+    else:
+        return jsonify(status="Partially Available", telegram_bot="Running", node_service=f"Status {node_status_code}"), 503
+
+@app.route('/pools_py')
+def get_pools_via_python():
+    log_message("/pools_py endpoint accessed.", component="FLASK")
+    data = fetch_pools_data()
+    if data and "fallback_id" not in data.get("topAPR", [{}])[0].get("id", ""):
+        return jsonify(data), 200
+    else:
+        return jsonify(error="Failed to retrieve fresh pool data", fallback_used=("fallback_id" in data.get("topAPR", [{}])[0].get("id", ""))), 503
+
+@app.route('/')
+def index():
+    log_message("Root endpoint '/' accessed.", component="FLASK")
+    uptime = str(datetime.now() - START_TIME).split('.')[0]
+    return jsonify({
+        "message": "FiLot bot is alive!",
+        "uptime": uptime,
+        "status": "running"
+    }), 200
+
+# --- Main Application Logic ---
+async def init_application():
+    """Initialize and configure the bot application"""
+    if not TELEGRAM_BOT_TOKEN:
+        log_error("Cannot start: TELEGRAM_BOT_TOKEN is not set.", component="MAIN")
+        return None
+
+    try:
+        application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+        me = await application.bot.get_me()
+        log_message(f"Bot initialized: @{me.username}", component="INIT")
+
+        # Register command handlers with proper error handling
+        from telegram.ext import CallbackQueryHandler
+        
+        handlers = [
+            CommandHandler("start", command_handler_wrapper(start)),
+            CommandHandler("subscribe", command_handler_wrapper(subscribe)),
+            CommandHandler("unsubscribe", command_handler_wrapper(unsubscribe)),
+            CallbackQueryHandler(command_handler_wrapper(button_callback)),
+            CommandHandler("info", command_handler_wrapper(info)),
+            CommandHandler("simulate", command_handler_wrapper(simulate)),
+            CommandHandler("status", command_handler_wrapper(status)),
+            CommandHandler("help", command_handler_wrapper(help_command)),
+            CommandHandler("faq", command_handler_wrapper(faq)),
+            CommandHandler("social", command_handler_wrapper(social)),
+            CommandHandler("ask", command_handler_wrapper(ask_command)),
+            CommandHandler("ban", command_handler_wrapper(ban_command)),
+            CommandHandler("unban", command_handler_wrapper(unban_command)),
+            CommandHandler("joinpool", command_handler_wrapper(joinpool_command)),
+            ChatJoinRequestHandler(callback=join_request_handler),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler)
+        ]
+
+        for handler in handlers:
+            application.add_handler(handler)
+
+        log_message("All handlers registered successfully", component="INIT")
+        return application
+    except Exception as e:
+        log_error(f"Failed to initialize application: {str(e)}", component="INIT")
+        return None
+
+# This is outside the if __main__ block
+app = Flask(__name__)
+
+# Initialize the bot at module level for Gunicorn workers
+bot_application = None
+
+def initialize_bot():
+    """Initialize the bot if not already initialized"""
+    global bot_application
+    if not bot_application:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        bot_application = loop.run_until_complete(init_application())
+        if bot_application:
+            loop.run_until_complete(bot_application.initialize())
+            loop.run_until_complete(bot_application.start())
+            loop.create_task(bot_application.updater.start_polling(drop_pending_updates=True))
+            loop.run_forever()
+
+if __name__ == '__main__':
+    log_message("---- Application Starting ----", component="MAIN")
+    try:
+        # Start the bot in a separate thread
+        import threading
+        bot_thread = threading.Thread(target=initialize_bot, daemon=True)
+        bot_thread.start()
+        
+        # Run Flask for development
+        app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
+    except Exception as e:
+        log_error(f"Critical error: {str(e)}", component="MAIN")
+        sys.exit(1)
+
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles callback queries from inline buttons."""
+    try:
+        query = update.callback_query
+        chat_id = update.effective_chat.id
+        log_message(f"Button callback received from Chat: {chat_id}, Data: {query.data}", component="CALLBACK")
+        track_user_activity(update, "button_press")
+
+        # Acknowledge the button press to remove loading state
+        await query.answer()
+
+        # Send a polite message about unimplemented functionality
+        await query.edit_message_text(
+            text="Sorry, this button's function is not yet implemented. Please try again later.",
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        log_error(f"Button callback failed: {str(e)}", component="CALLBACK")
+        try:
+            await update.callback_query.answer("An error occurred. Please try again.")
+        except Exception:
+            pass
