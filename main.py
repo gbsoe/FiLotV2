@@ -86,9 +86,10 @@ def main() -> None:
     # Register error handler
     application.add_error_handler(error_handler)
     
-    # Start the bot
+    # Start the bot inside Flask application context
     logger.info("Starting bot...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    with app.app_context():
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
