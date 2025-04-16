@@ -1,76 +1,81 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block title %}Crypto Pool Tracker Bot - Pool Data{% endblock %}
+{% block title %}FiLot Bot - Pools{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-10">
+<div class="row">
+    <div class="col-12">
         <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h2 class="card-title">Cryptocurrency Pool Data</h2>
+            <div class="card-header">
+                <h2 class="mb-0">Cryptocurrency Pools</h2>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    View and monitor all tracked liquidity pools sorted by APR (Annual Percentage Rate).
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">Pool List</h3>
+                    <div>
+                        <button class="btn btn-outline-primary" id="refresh-pools">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
                     <table class="table table-hover">
-                        <thead class="table-dark">
+                        <thead>
                             <tr>
-                                <th>Token Pair</th>
-                                <th>24h APR</th>
-                                <th>7d APR</th>
-                                <th>30d APR</th>
-                                <th>TVL (USD)</th>
-                                <th>Token Prices</th>
-                                <th>Pool ID</th>
-                                <th>Last Updated</th>
+                                <th>Pool</th>
+                                <th>APR (24h)</th>
+                                <th>APR (7d)</th>
+                                <th>TVL</th>
+                                <th>Volume (24h)</th>
+                                <th>Fee</th>
+                                <th>Updated</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for pool in pools %}
-                            <tr>
-                                <td>{{ pool.token_a_symbol }}/{{ pool.token_b_symbol }}</td>
-                                <td class="text-success">{{ "%.2f"|format(pool.apr_24h) }}%</td>
-                                <td>{{ "%.2f"|format(pool.apr_7d) }}%</td>
-                                <td>{{ "%.2f"|format(pool.apr_30d) }}%</td>
-                                <td>${{ "{:,.2f}".format(pool.tvl) }}</td>
-                                <td>
-                                    <small>
-                                        {{ pool.token_a_symbol }}: ${{ "%.4f"|format(pool.token_a_price) }}<br>
-                                        {{ pool.token_b_symbol }}: ${{ "%.4f"|format(pool.token_b_price) }}
-                                    </small>
-                                </td>
-                                <td>
-                                    <code class="small">{{ pool.id }}</code>
-                                </td>
-                                <td>{{ pool.last_updated.strftime('%Y-%m-%d %H:%M') }}</td>
-                            </tr>
+                            {% if pools %}
+                                {% for pool in pools %}
+                                <tr>
+                                    <td>{{ pool.token_a_symbol }}/{{ pool.token_b_symbol }}</td>
+                                    <td>{{ "%.2f"|format(pool.apr_24h) }}%</td>
+                                    <td>{{ "%.2f"|format(pool.apr_7d) if pool.apr_7d else 'N/A' }}%</td>
+                                    <td>${{ "{:,.2f}"|format(pool.tvl) }}</td>
+                                    <td>${{ "{:,.2f}"|format(pool.volume_24h) if pool.volume_24h else 'N/A' }}</td>
+                                    <td>{{ "%.2f"|format(pool.fee * 100) }}%</td>
+                                    <td>{{ pool.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                </tr>
+                                {% endfor %}
                             {% else %}
-                            <tr>
-                                <td colspan="8" class="text-center py-4">
-                                    <em>No pool data available</em>
-                                </td>
-                            </tr>
-                            {% endfor %}
+                                <tr>
+                                    <td colspan="7" class="text-center">No pools available</td>
+                                </tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
-        
-        <div class="card">
-            <div class="card-header bg-info text-white">
-                <h3 class="card-title">Data Refresh Information</h3>
-            </div>
-            <div class="card-body">
-                <p>
-                    Pool data is automatically refreshed every 5 minutes from the Raydium API.
-                    This ensures that you always have up-to-date information for your investment decisions.
-                </p>
-                <p>
-                    You can also view this data directly in Telegram by using the <code>/info</code> command.
-                </p>
-                <a href="/" class="btn btn-primary">Back to Home</a>
-            </div>
-        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('refresh-pools').addEventListener('click', function() {
+        location.reload();
+    });
+</script>
 {% endblock %}

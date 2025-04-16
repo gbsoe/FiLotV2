@@ -1100,6 +1100,7 @@ dependencies = [
     { name = "psycopg2-binary" },
     { name = "python-dotenv" },
     { name = "python-telegram-bot", extra = ["all"] },
+    { name = "sqlalchemy" },
     { name = "telegram" },
     { name = "trafilatura" },
 ]
@@ -1114,6 +1115,7 @@ requires-dist = [
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "python-telegram-bot", extras = ["all"], specifier = "==20.6" },
+    { name = "sqlalchemy", specifier = ">=2.0.40" },
     { name = "telegram", specifier = ">=0.0.1" },
     { name = "trafilatura", specifier = ">=2.0.0" },
 ]

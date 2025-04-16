@@ -1,65 +1,109 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block title %}Crypto Pool Tracker Bot - User Management{% endblock %}
+{% block title %}FiLot Bot - Users{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-10">
+<div class="row">
+    <div class="col-12">
         <div class="card mb-4">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h2 class="card-title m-0">User Management</h2>
-                <div class="badge bg-light text-dark">
-                    Total Users: {{ user_count }}
+            <div class="card-header">
+                <h2 class="mb-0">User Management</h2>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    View and manage users of the FiLot Telegram bot.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4 class="mb-0">User Stats</h4>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-3">
+                    <span>Total Users:</span>
+                    <span>{{ total_users }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span>Verified Users:</span>
+                    <span>{{ verified_users }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <span>Subscribed Users:</span>
+                    <span>{{ subscribed_users }}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>Blocked Users:</span>
+                    <span>{{ blocked_users }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">User List</h4>
+                    <div>
+                        <input type="text" class="form-control" id="userSearch" placeholder="Search users...">
+                    </div>
                 </div>
             </div>
             <div class="card-body">
-                <div class="alert alert-info">
-                    <strong>{{ subscribed_count }}</strong> users are currently subscribed to daily updates.
-                </div>
-                
                 <div class="table-responsive">
                     <table class="table table-hover">
-                        <thead class="table-dark">
+                        <thead>
                             <tr>
-                                <th>User ID</th>
+                                <th>ID</th>
                                 <th>Username</th>
-                                <th>First Name</th>
-                                <th>Last Name</th>
+                                <th>Name</th>
                                 <th>Status</th>
-                                <th>Last Active</th>
                                 <th>Joined</th>
+                                <th>Last Active</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for user in users %}
-                            <tr>
-                                <td>{{ user.id }}</td>
-                                <td>
-                                    {% if user.username %}
-                                        <a href="https://t.me/{{ user.username }}" target="_blank">@{{ user.username }}</a>
-                                    {% else %}
-                                        <em>No username</em>
-                                    {% endif %}
-                                </td>
-                                <td>{{ user.first_name or '-' }}</td>
-                                <td>{{ user.last_name or '-' }}</td>
-                                <td>
-                                    {% if user.is_subscribed %}
-                                        <span class="badge bg-success">Subscribed</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">Not Subscribed</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ user.last_active.strftime('%Y-%m-%d %H:%M') }}</td>
-                                <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
-                            </tr>
+                            {% if users %}
+                                {% for user in users %}
+                                <tr>
+                                    <td>{{ user.telegram_id }}</td>
+                                    <td>{{ '@' + user.username if user.username else 'N/A' }}</td>
+                                    <td>{{ user.first_name }} {{ user.last_name or '' }}</td>
+                                    <td>
+                                        {% if user.is_blocked %}
+                                            <span class="badge bg-danger">Blocked</span>
+                                        {% elif user.is_verified %}
+                                            <span class="badge bg-success">Verified</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">Unverified</span>
+                                        {% endif %}
+                                        
+                                        {% if user.is_subscribed %}
+                                            <span class="badge bg-primary">Subscribed</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                                    <td>{{ user.last_active_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button type="button" class="btn btn-sm btn-outline-primary">View</button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger">Block</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
                             {% else %}
-                            <tr>
-                                <td colspan="7" class="text-center py-4">
-                                    <em>No users found</em>
-                                </td>
-                            </tr>
-                            {% endfor %}
+                                <tr>
+                                    <td colspan="7" class="text-center">No users found</td>
+                                </tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
@@ -67,4 +111,64 @@
         </div>
     </div>
 </div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Recent User Queries</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Command/Query</th>
+                                <th>Processing Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if recent_queries %}
+                                {% for query in recent_queries %}
+                                <tr>
+                                    <td>{{ query.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>{{ query.user.username if query.user and query.user.username else query.user_id }}</td>
+                                    <td>
+                                        {% if query.command %}
+                                            <code>/{{ query.command }}</code>
+                                        {% else %}
+                                            {{ query.query_text|truncate(50) }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ "%.2f"|format(query.processing_time) }} ms</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center">No recent queries</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('userSearch').addEventListener('keyup', function() {
+        const searchText = this.value.toLowerCase();
+        const tableRows = document.querySelectorAll('tbody tr');
+        
+        tableRows.forEach(row => {
+            const rowText = row.textContent.toLowerCase();
+            row.style.display = rowText.includes(searchText) ? '' : 'none';
+        });
+    });
+</script>
 {% endblock %}

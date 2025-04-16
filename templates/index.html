@@ -1,131 +1,72 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block title %}Crypto Pool Tracker Bot - Home{% endblock %}
+{% block title %}FiLot Bot - Home{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-10">
+<div class="row">
+    <div class="col-lg-8">
         <div class="card mb-4">
-            <div class="card-body text-center py-5">
-                <h1 class="display-4 mb-4">Cryptocurrency Pool Tracking Bot</h1>
-                <p class="lead">
-                    Track crypto pools on Raydium and simulate investment returns with our Telegram bot.
+            <div class="card-body">
+                <h2 class="card-title">Welcome to FiLot Bot</h2>
+                <p class="card-text">
+                    FiLot is a next-generation, AI-powered investment assistant that revolutionizes crypto investing. 
+                    Currently in its beta phase, FiLot provides advanced market analysis and real-time insights to help you 
+                    identify high-yield liquidity pools and make informed decisions.
                 </p>
-                <div class="mt-4">
-                    <a href="https://telegram.me/your_bot_username" class="btn btn-primary btn-lg" target="_blank">
-                        <i class="bi bi-telegram"></i> Start Bot on Telegram
-                    </a>
-                </div>
+                <p class="card-text">
+                    Features include:
+                </p>
+                <ul>
+                    <li><strong>Real-Time Analytics:</strong> Constantly scans liquidity pools using both historical and live data.</li>
+                    <li><strong>Automated Recommendations:</strong> Offers tailored suggestions for optimal entry and exit points based on market conditions.</li>
+                    <li><strong>Risk Management:</strong> Evaluates pool stability and potential impermanent loss to help mitigate risks.</li>
+                    <li><strong>User-Friendly Interface:</strong> Designed for investors of all levels with intuitive commands and clear insights.</li>
+                </ul>
+                <p class="card-text">
+                    This dashboard provides monitoring and management capabilities for the FiLot Bot.
+                </p>
+                <a href="https://t.me/YourFilotBot" class="btn btn-primary" target="_blank">Try the Bot on Telegram</a>
             </div>
         </div>
-
-        <!-- Bot Statistics -->
+    </div>
+    <div class="col-lg-4">
         <div class="card mb-4">
-            <div class="card-header bg-dark text-white">
-                <h3 class="card-title">Bot Statistics</h3>
-            </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-md-3 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <h4 class="text-primary">{{ user_count }}</h4>
-                                <p class="mb-0">Total Users</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <h4 class="text-success">{{ subscribed_count }}</h4>
-                                <p class="mb-0">Subscribed Users</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <h4 class="text-info">{{ stats.command_count if stats else 0 }}</h4>
-                                <p class="mb-0">Commands Processed</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <h4 class="text-warning">{{ stats.active_user_count if stats else 0 }}</h4>
-                                <p class="mb-0">Active Users</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row mt-4">
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-graph-up text-primary" style="font-size: 3rem;"></i>
-                        <h3 class="card-title mt-3">Pool Tracking</h3>
-                        <p class="card-text">
-                            Get real-time information about cryptocurrency pools on Raydium including APR, volume, and liquidity data.
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-calculator text-success" style="font-size: 3rem;"></i>
-                        <h3 class="card-title mt-3">Investment Simulation</h3>
-                        <p class="card-text">
-                            Simulate investment returns and analyze impermanent loss risk before committing your funds.
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-robot text-info" style="font-size: 3rem;"></i>
-                        <h3 class="card-title mt-3">AI-Powered Answers</h3>
-                        <p class="card-text">
-                            Ask questions about crypto pools, impermanent loss, and investment strategies using our AI assistant.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card mt-4">
             <div class="card-header">
-                <h2>How to Use the Bot</h2>
+                <h5 class="mb-0">Bot Stats</h5>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h4>Basic Commands</h4>
-                        <ul class="list-group mb-4">
-                            <li class="list-group-item">/start - Start the bot</li>
-                            <li class="list-group-item">/help - Show help message</li>
-                            <li class="list-group-item">/info - Get information about crypto pools</li>
-                            <li class="list-group-item">/simulate &lt;amount&gt; - Simulate investment returns</li>
-                            <li class="list-group-item">/status - Check bot status</li>
-                        </ul>
-                    </div>
-                    <div class="col-md-6">
-                        <h4>Advanced Features</h4>
-                        <ul class="list-group">
-                            <li class="list-group-item">/subscribe - Subscribe to daily updates</li>
-                            <li class="list-group-item">/unsubscribe - Unsubscribe from updates</li>
-                            <li class="list-group-item">/ask &lt;question&gt; - Ask an AI-powered question</li>
-                            <li class="list-group-item">Send a message - Get AI-powered responses</li>
-                        </ul>
-                    </div>
-                </div>
+                <p><strong>Status:</strong> <span class="badge bg-success">Online</span></p>
+                <p><strong>Users:</strong> <span id="user-count">--</span></p>
+                <p><strong>Active Today:</strong> <span id="active-users">--</span></p>
+                <p><strong>Total Queries:</strong> <span id="total-queries">--</span></p>
+                <p><strong>Top Pools:</strong> <span id="pool-count">--</span></p>
+                <a href="/status" class="btn btn-outline-primary btn-sm">View Details</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">LA! Token</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Contract:</strong> <code>Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump</code></p>
+                <p><strong>Launch Date:</strong> March 31, 2025</p>
+                <p><strong>Supply:</strong> 1,000,000,000</p>
+                <a href="https://pump.fun/coin/Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump" class="btn btn-outline-primary btn-sm" target="_blank">Buy LA! Token</a>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // This would be replaced with real API calls in production
+    setTimeout(() => {
+        document.getElementById('user-count').textContent = '432';
+        document.getElementById('active-users').textContent = '87';
+        document.getElementById('total-queries').textContent = '2,154';
+        document.getElementById('pool-count').textContent = '45';
+    }, 500);
+</script>
 {% endblock %}
