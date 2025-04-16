@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block title %}Server Error - Crypto Pool Tracker Bot{% endblock %}
+
+{% block content %}
+<div class="container py-5 text-center">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body py-5">
+                    <h1 class="display-1 text-danger">500</h1>
+                    <h2 class="mb-4">Server Error</h2>
+                    <p class="lead mb-4">Sorry, something went wrong on our server. Our team has been notified and is working on fixing the issue.</p>
+                    <p class="mb-4">You can try refreshing the page or come back later.</p>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">Go to Homepage</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
