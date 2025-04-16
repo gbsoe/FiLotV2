@@ -65,50 +65,87 @@ def get_or_create_user(user_id: int, username: str = None, first_name: str = Non
     Returns:
         User object
     """
-    # Find user by telegram_id, not by primary key
-    logger.info(f"Looking for user with telegram_id={user_id}")
-    user = User.query.filter_by(telegram_id=user_id).first()
+    # In our database, the id column IS the telegram_id
+    logger.info(f"Looking for user with id={user_id}")
     
+    # Try to find the user by ID
+    try:
+        user = User.query.get(user_id)
+    except Exception as e:
+        logger.error(f"Error querying user by primary key: {e}")
+        user = None
+        
     if not user:
         logger.info(f"User {user_id} not found, creating new user")
-        # Create new user with telegram_id
-        user = User(
-            telegram_id=user_id,
-            username=username,
-            first_name=first_name,
-            last_name=last_name
-        )
-        db.session.add(user)
+        # Create new user with the Telegram ID as the primary key
         try:
-            db.session.commit()
-            logger.info(f"Created new user with telegram_id={user_id}, database id={user.id}")
+            user = User(
+                id=user_id,  # Set the primary key directly to the Telegram ID
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                created_at=datetime.datetime.utcnow(),
+                last_active_at=datetime.datetime.utcnow()
+            )
+            db.session.add(user)
+            db.session.flush()  # Try to flush first to catch errors early
             
-            # Log user creation
-            log_user_activity(user_id, "account_created", "New user created")
+            logger.info(f"Created new user with id={user_id}")
+            
+            # Commit changes
+            db.session.commit()
+            
+            # Don't log activity yet as it might fail if user isn't properly created
+            try:
+                # Now it's safe to log activity since the user exists
+                activity = UserActivityLog(
+                    user_id=user_id,
+                    activity_type="account_created",
+                    details="New user created",
+                    timestamp=datetime.datetime.utcnow()
+                )
+                db.session.add(activity)
+                db.session.commit()
+                logger.info(f"Logged creation activity for user {user_id}")
+            except Exception as e:
+                # Non-critical error, just log it
+                logger.error(f"Error logging user creation activity: {e}")
+                db.session.rollback()
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error creating user: {e}")
-            raise
+            # Re-raise only if it's a critical error
+            if "duplicate key" not in str(e).lower():
+                raise
+            # If it's a duplicate key, try fetching again as another process might have created it
+            user = User.query.get(user_id)
+            if not user:
+                raise  # If still not found, there's a serious issue
     else:
         logger.info(f"User {user_id} found, updating if needed")
         # Update user info in case it has changed
+        changed = False
         if username is not None and username != user.username:
             user.username = username
+            changed = True
         if first_name is not None and first_name != user.first_name:
             user.first_name = first_name
+            changed = True
         if last_name is not None and last_name != user.last_name:
             user.last_name = last_name
+            changed = True
             
-        # Update last active time
+        # Update last active timestamp
         user.last_active_at = datetime.datetime.utcnow()
+        changed = True
         
-        try:
-            db.session.commit()
-            logger.info(f"Updated user {user_id}")
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error updating user: {e}")
-            raise
+        if changed:
+            try:
+                db.session.commit()
+                logger.info(f"Updated user {user_id}")
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Error updating user info: {e}")
     
     return user
 
