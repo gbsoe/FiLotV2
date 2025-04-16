@@ -1,163 +1,163 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """
 Database models for the Telegram cryptocurrency pool bot
 """
 
-from datetime import datetime
-from app import db
+import datetime
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, JSON
+from sqlalchemy.orm import relationship
+from flask_sqlalchemy import SQLAlchemy
+from flask import Flask
+import os
+
+# Initialize the database
+db = SQLAlchemy()
 
 class User(db.Model):
-    """
-    User model for storing Telegram user data
-    """
-    __tablename__ = 'users'
+    """User model representing a Telegram user."""
+    __tablename__ = "users"
     
-    id = db.Column(db.Integer, primary_key=True)  # Telegram user ID
-    username = db.Column(db.String(255), nullable=True)  # Telegram username (optional)
-    first_name = db.Column(db.String(255), nullable=True)
-    last_name = db.Column(db.String(255), nullable=True)
-    is_subscribed = db.Column(db.Boolean, default=False)
-    is_blocked = db.Column(db.Boolean, default=False)  # For blocking users who violate rules
-    is_verified = db.Column(db.Boolean, default=False)  # For user verification system
-    verification_code = db.Column(db.String(20), nullable=True)  # For verification process
-    message_count = db.Column(db.Integer, default=0)  # Track message count for rate limiting
-    last_message_time = db.Column(db.DateTime, nullable=True)  # For rate limiting
-    spam_score = db.Column(db.Integer, default=0)  # For spam detection
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_active = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id = Column(Integer, primary_key=True)
+    telegram_id = Column(Integer, unique=True, nullable=False)
+    username = Column(String(255), nullable=True)
+    first_name = Column(String(255), nullable=True)
+    last_name = Column(String(255), nullable=True)
+    is_blocked = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=False)
+    is_subscribed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    last_active_at = Column(DateTime, default=datetime.datetime.utcnow)
+    verification_code = Column(String(8), nullable=True)
+    verification_attempts = Column(Integer, default=0)
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(String(255), nullable=True)
+    block_reason = Column(String(255), nullable=True)
     
     # Relationships
-    queries = db.relationship('UserQuery', backref='user', lazy=True)
-    activity_logs = db.relationship('UserActivityLog', backref='user', lazy=True)
+    queries = relationship("UserQuery", back_populates="user", cascade="all, delete-orphan")
+    activity_logs = relationship("UserActivityLog", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<User {self.id}: {self.username or 'No Username'}>"
+        return f"<User telegram_id={self.telegram_id}, username={self.username}>"
 
 class UserQuery(db.Model):
-    """
-    Model for tracking user queries and interactions
-    """
-    __tablename__ = 'user_queries'
+    """UserQuery model representing a query made by a user."""
+    __tablename__ = "user_queries"
     
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    command = db.Column(db.String(50))  # The command used (/start, /info, etc.)
-    query_text = db.Column(db.Text, nullable=True)  # Full text of the query
-    response_text = db.Column(db.Text, nullable=True)  # Bot's response
-    processing_time = db.Column(db.Float, nullable=True)  # Time taken to process in ms
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    command = Column(String(50), nullable=True)
+    query_text = Column(Text, nullable=True)
+    response_text = Column(Text, nullable=True)
+    processing_time = Column(Float, nullable=True)  # In milliseconds
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="queries")
     
     def __repr__(self):
-        return f"<UserQuery {self.id}: {self.command}>"
+        return f"<UserQuery id={self.id}, user_id={self.user_id}, command={self.command}>"
 
 class Pool(db.Model):
-    """
-    Model for storing cryptocurrency pool data
-    """
-    __tablename__ = 'pools'
+    """Pool model representing a cryptocurrency pool."""
+    __tablename__ = "pools"
     
-    id = db.Column(db.String(255), primary_key=True)  # Raydium pool ID
-    token_a_symbol = db.Column(db.String(50))
-    token_b_symbol = db.Column(db.String(50))
-    apr_24h = db.Column(db.Float)
-    apr_7d = db.Column(db.Float)
-    apr_30d = db.Column(db.Float)
-    tvl = db.Column(db.Float)  # Total Value Locked in USD
-    token_a_price = db.Column(db.Float)
-    token_b_price = db.Column(db.Float)
-    fee = db.Column(db.Float)
-    volume_24h = db.Column(db.Float, nullable=True)  # 24-hour volume
-    tx_count_24h = db.Column(db.Integer, nullable=True)  # 24-hour transaction count
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    def __repr__(self):
-        return f"<Pool {self.id}: {self.token_a_symbol}/{self.token_b_symbol}>"
-
-class BotStatistics(db.Model):
-    """
-    Model for tracking bot usage statistics
-    """
-    __tablename__ = 'bot_statistics'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    start_time = db.Column(db.DateTime, default=datetime.utcnow)
-    command_count = db.Column(db.Integer, default=0)
-    active_user_count = db.Column(db.Integer, default=0)
-    subscribed_user_count = db.Column(db.Integer, default=0)
-    blocked_user_count = db.Column(db.Integer, default=0)
-    spam_detected_count = db.Column(db.Integer, default=0)
-    average_response_time = db.Column(db.Float, default=0)  # Average response time in ms
-    uptime_percentage = db.Column(db.Float, default=100.0)  # Percentage of time bot was available
-    error_count = db.Column(db.Integer, default=0)  # Count of errors encountered
+    id = Column(Integer, primary_key=True)
+    pool_id = Column(String(255), unique=True, nullable=False)
+    token_a_symbol = Column(String(10), nullable=False)
+    token_b_symbol = Column(String(10), nullable=False)
+    token_a_price = Column(Float, nullable=False)
+    token_b_price = Column(Float, nullable=False)
+    apr_24h = Column(Float, nullable=False)
+    apr_7d = Column(Float, nullable=True)
+    apr_30d = Column(Float, nullable=True)
+    tvl = Column(Float, nullable=False)
+    fee = Column(Float, nullable=False)
+    volume_24h = Column(Float, nullable=True)
+    tx_count_24h = Column(Integer, nullable=True)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     def __repr__(self):
-        return f"<BotStatistics {self.id}: {self.command_count} commands>"
+        return f"<Pool id={self.id}, token_a={self.token_a_symbol}, token_b={self.token_b_symbol}, apr_24h={self.apr_24h}>"
 
 class UserActivityLog(db.Model):
-    """
-    Model for monitoring user activity in detail
-    """
-    __tablename__ = 'user_activity_logs'
+    """UserActivityLog model representing user activity."""
+    __tablename__ = "user_activity_logs"
     
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    activity_type = db.Column(db.String(50))  # Type of activity (login, message, command, etc.)
-    details = db.Column(db.Text, nullable=True)  # Additional details about the activity
-    ip_address = db.Column(db.String(50), nullable=True)  # User's IP address if available
-    user_agent = db.Column(db.String(255), nullable=True)  # User's client info if available
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    activity_type = Column(String(50), nullable=False)
+    details = Column(Text, nullable=True)
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(String(255), nullable=True)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     
-    def __repr__(self):
-        return f"<UserActivityLog {self.id}: {self.activity_type}>"
-
-class SystemBackup(db.Model):
-    """
-    Model for tracking database backups
-    """
-    __tablename__ = 'system_backups'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    backup_path = db.Column(db.String(255))  # Path to the backup file
-    backup_size = db.Column(db.Integer)  # Size of the backup in bytes
-    record_count = db.Column(db.Integer)  # Number of records backed up
-    is_complete = db.Column(db.Boolean, default=True)  # Whether the backup completed successfully
-    notes = db.Column(db.Text, nullable=True)  # Any notes about the backup
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Relationships
+    user = relationship("User", back_populates="activity_logs")
     
     def __repr__(self):
-        return f"<SystemBackup {self.id}: {self.created_at.strftime('%Y-%m-%d %H:%M')}>"
+        return f"<UserActivityLog id={self.id}, user_id={self.user_id}, activity_type={self.activity_type}>"
 
 class ErrorLog(db.Model):
-    """
-    Model for tracking system errors
-    """
-    __tablename__ = 'error_logs'
+    """ErrorLog model representing system errors."""
+    __tablename__ = "error_logs"
     
-    id = db.Column(db.Integer, primary_key=True)
-    error_type = db.Column(db.String(100))  # Type of error
-    error_message = db.Column(db.Text)  # Full error message
-    traceback = db.Column(db.Text, nullable=True)  # Stack trace
-    module = db.Column(db.String(100))  # Module where error occurred
-    user_id = db.Column(db.Integer, nullable=True)  # User ID if error related to a user
-    resolved = db.Column(db.Boolean, default=False)  # Whether the error has been resolved
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True)
+    error_type = Column(String(50), nullable=False)
+    error_message = Column(Text, nullable=False)
+    traceback = Column(Text, nullable=True)
+    module = Column(String(100), nullable=True)
+    user_id = Column(Integer, nullable=True)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     
     def __repr__(self):
-        return f"<ErrorLog {self.id}: {self.error_type}>"
+        return f"<ErrorLog id={self.id}, error_type={self.error_type}>"
+
+class BotStatistics(db.Model):
+    """BotStatistics model representing bot statistics."""
+    __tablename__ = "bot_statistics"
+    
+    id = Column(Integer, primary_key=True)
+    total_users = Column(Integer, default=0)
+    active_users_24h = Column(Integer, default=0)
+    active_users_7d = Column(Integer, default=0)
+    subscribed_users = Column(Integer, default=0)
+    total_messages = Column(Integer, default=0)
+    total_commands = Column(Integer, default=0)
+    response_time_avg = Column(Float, default=0.0)  # In milliseconds
+    uptime = Column(Integer, default=0)  # In seconds
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    def __repr__(self):
+        return f"<BotStatistics id={self.id}, total_users={self.total_users}, updated_at={self.updated_at}>"
+
+class SystemBackup(db.Model):
+    """SystemBackup model representing system backups."""
+    __tablename__ = "system_backups"
+    
+    id = Column(Integer, primary_key=True)
+    filename = Column(String(255), nullable=False)
+    file_size = Column(Integer, nullable=False)  # In bytes
+    backup_type = Column(String(50), default="full")
+    data = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    def __repr__(self):
+        return f"<SystemBackup id={self.id}, filename={self.filename}, created_at={self.created_at}>"
 
 class SuspiciousURL(db.Model):
-    """
-    Model for tracking and blocking suspicious URLs
-    """
-    __tablename__ = 'suspicious_urls'
+    """SuspiciousURL model representing suspicious URLs detected by the bot."""
+    __tablename__ = "suspicious_urls"
     
-    id = db.Column(db.Integer, primary_key=True)
-    url = db.Column(db.String(255))  # The suspicious URL
-    domain = db.Column(db.String(100))  # Domain extracted from URL
-    category = db.Column(db.String(50))  # Category of threat (phishing, malware, spam, etc.)
-    detection_count = db.Column(db.Integer, default=1)  # Number of times detected
-    is_blocked = db.Column(db.Boolean, default=True)  # Whether the URL is blocked
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_detected = db.Column(db.DateTime, default=datetime.utcnow)
+    id = Column(Integer, primary_key=True)
+    url = Column(String(2000), nullable=False)
+    category = Column(String(50), default="unknown")
+    detected_in_message_id = Column(Integer, nullable=True)
+    detected_from_user_id = Column(Integer, nullable=True)
+    is_verified_threat = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     def __repr__(self):
-        return f"<SuspiciousURL {self.id}: {self.url}>"
+        return f"<SuspiciousURL id={self.id}, url={self.url}, category={self.category}>"
