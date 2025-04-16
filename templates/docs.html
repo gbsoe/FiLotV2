@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}Crypto Pool Tracker Bot - Documentation{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card mb-5">
+            <div class="card-header bg-primary text-white">
+                <h1 class="card-title">Bot Documentation</h1>
+            </div>
+            <div class="card-body">
+                <h2 class="border-bottom pb-2 mb-4">Command Reference</h2>
+                
+                <div class="mb-5">
+                    <h3>/start</h3>
+                    <p>Starts the bot and shows the welcome message.</p>
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <code>/start</code>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-5">
+                    <h3>/help</h3>
+                    <p>Displays a list of available commands and their descriptions.</p>
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <code>/help</code>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-5">
+                    <h3>/info</h3>
+                    <p>Returns current information about cryptocurrency pools on Raydium, including APR, volume, and liquidity data.</p>
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <code>/info</code>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-5">
+                    <h3>/simulate</h3>
+                    <p>Simulates investment returns based on the current pool data, including projections and impermanent loss risk.</p>
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <code>/simulate 1000</code>
+                        </div>
+                    </div>
+                    <div class="mt-2 small text-secondary">
+                        Replace 1000 with your investment amount.
+                    </div>
+                </div>
+                
+                <div class="mb-5">
+                    <h3>/status</h3>
+                    <p>Shows the current status of the bot, including uptime, user count, and API status.</p>
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <code>/status</code>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-5">
+                    <h3>/subscribe</h3>
+                    <p>Subscribes you to receive daily updates about the best performing pools.</p>
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <code>/subscribe</code>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-5">
+                    <h3>/unsubscribe</h3>
+                    <p>Unsubscribes you from daily updates.</p>
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <code>/unsubscribe</code>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-5">
+                    <h3>/ask</h3>
+                    <p>Asks an AI-powered question about cryptocurrency, pools, or investment strategies.</p>
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <code>/ask What is impermanent loss?</code>
+                        </div>
+                    </div>
+                    <div class="mt-2 small text-secondary">
+                        Replace the question with your own query.
+                    </div>
+                </div>
+                
+                <h2 class="border-bottom pb-2 mb-4 mt-5">Natural Language Queries</h2>
+                <p>
+                    You can also send direct messages to the bot with questions or keywords, and it will try to understand
+                    and provide a relevant response using AI. For example:
+                </p>
+                <ul class="list-group mb-4">
+                    <li class="list-group-item">"What pools have the highest APR?"</li>
+                    <li class="list-group-item">"Show me stable pools with low risk"</li>
+                    <li class="list-group-item">"How does impermanent loss affect my returns?"</li>
+                    <li class="list-group-item">"What's the average APR for USDC pools?"</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h3 class="card-title">Technical Information</h3>
+            </div>
+            <div class="card-body">
+                <p>
+                    This bot uses the following technologies and APIs:
+                </p>
+                <ul>
+                    <li>python-telegram-bot - For the Telegram bot interface</li>
+                    <li>Raydium API - For real-time cryptocurrency pool data</li>
+                    <li>DeepSeek AI - For natural language processing and question answering</li>
+                </ul>
+                <p class="mt-3">
+                    Data is cached to minimize API calls and provide faster responses. Pool data is cached for 5 minutes,
+                    and simulation results are cached for 10 minutes.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
