@@ -212,9 +212,10 @@ def unsubscribe_user(user_id: int) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    user = User.query.get(user_id)
+    user = User.query.filter_by(telegram_id=user_id).first()
     
     if not user:
+        logger.warning(f"Cannot unsubscribe user {user_id}: user not found")
         return False
     
     user.is_subscribed = False
@@ -226,6 +227,7 @@ def unsubscribe_user(user_id: int) -> bool:
     # Update statistics
     update_bot_statistics()
     
+    logger.info(f"User {user_id} unsubscribed successfully")
     return True
 
 @handle_db_error
@@ -250,9 +252,10 @@ def verify_user(user_id: int, code: str) -> bool:
     Returns:
         True if verification successful, False otherwise
     """
-    user = User.query.get(user_id)
+    user = User.query.filter_by(telegram_id=user_id).first()
     
     if not user or not user.verification_code:
+        logger.warning(f"Cannot verify user {user_id}: user not found or no verification code")
         return False
     
     if user.verification_code == code:
@@ -262,8 +265,10 @@ def verify_user(user_id: int, code: str) -> bool:
         
         # Log verification
         log_user_activity(user_id, "user_verified", "User verified their account")
+        logger.info(f"User {user_id} verified successfully")
         return True
     
+    logger.warning(f"User {user_id} provided invalid verification code")
     return False
 
 @handle_db_error
@@ -279,9 +284,10 @@ def update_user_profile(user_id: int, field: str, value: Any) -> bool:
     Returns:
         True if update successful, False otherwise
     """
-    user = User.query.get(user_id)
+    user = User.query.filter_by(telegram_id=user_id).first()
     
     if not user:
+        logger.warning(f"Cannot update profile for user {user_id}: user not found")
         return False
     
     try:
@@ -296,6 +302,7 @@ def update_user_profile(user_id: int, field: str, value: Any) -> bool:
                 "profile_updated", 
                 f"User profile updated: {field}={value}"
             )
+            logger.info(f"User {user_id} profile updated: {field}={value}")
             return True
         else:
             logger.error(f"Field {field} does not exist in User model")
@@ -319,9 +326,10 @@ def generate_verification_code(user_id: int) -> Optional[str]:
     import random
     import string
     
-    user = User.query.get(user_id)
+    user = User.query.filter_by(telegram_id=user_id).first()
     
     if not user:
+        logger.warning(f"Cannot generate verification code for user {user_id}: user not found")
         return None
     
     # Generate a random 6-character alphanumeric code
@@ -332,6 +340,7 @@ def generate_verification_code(user_id: int) -> Optional[str]:
     # Log code generation
     log_user_activity(user_id, "verification_code_generated", "Verification code generated")
     
+    logger.info(f"Verification code generated for user {user_id}")
     return verification_code
 
 # Query and Log Functions
@@ -362,12 +371,21 @@ def log_user_query(user_id: int, command: str, query_text: str = None,
     db.session.add(query)
     
     # Increment message count for rate limiting
-    user = User.query.get(user_id)
+    user = User.query.filter_by(telegram_id=user_id).first()
     if user:
-        user.message_count += 1
-        user.last_message_time = datetime.datetime.utcnow()
+        user.message_count = user.message_count + 1 if hasattr(user, 'message_count') else 1
+        user.last_active_at = datetime.datetime.utcnow()
+        logger.debug(f"Updated message count for user {user_id} to {user.message_count}")
+    else:
+        logger.warning(f"Cannot update message count for user {user_id}: user not found")
     
-    db.session.commit()
+    try:
+        db.session.commit()
+        logger.debug(f"Logged query from user {user_id}, command: {command}")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error logging user query: {e}")
+        raise
     
     # Update bot statistics
     update_bot_statistics()
@@ -561,7 +579,7 @@ def update_bot_statistics() -> BotStatistics:
     # Update statistics
     stats.command_count = UserQuery.query.count()
     stats.active_user_count = User.query.filter(
-        User.last_active > (datetime.datetime.utcnow() - datetime.timedelta(days=1)),
+        User.last_active_at > (datetime.datetime.utcnow() - datetime.timedelta(days=1)),
         User.is_blocked == False
     ).count()
     stats.subscribed_user_count = User.query.filter_by(is_subscribed=True).count()
@@ -619,7 +637,7 @@ def create_database_backup() -> Optional[SystemBackup]:
                     'message_count': user.message_count,
                     'spam_score': user.spam_score,
                     'created_at': user.created_at.isoformat() if user.created_at else None,
-                    'last_active': user.last_active.isoformat() if user.last_active else None
+                    'last_active': user.last_active_at.isoformat() if user.last_active_at else None
                 }
                 for user in User.query.all()
             ],
@@ -726,7 +744,7 @@ def restore_database_from_backup(backup_id: int) -> bool:
                     user.created_at = datetime.datetime.fromisoformat(user_data['created_at'])
                 
                 if user_data['last_active']:
-                    user.last_active = datetime.datetime.fromisoformat(user_data['last_active'])
+                    user.last_active_at = datetime.datetime.fromisoformat(user_data['last_active'])
                 
                 db.session.add(user)
         
