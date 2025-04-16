@@ -6,7 +6,7 @@ Database models for the Telegram cryptocurrency pool bot
 """
 
 import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import Column, Integer, BigInteger, String, Float, Boolean, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from flask_sqlalchemy import SQLAlchemy
 from flask import Flask
@@ -19,8 +19,9 @@ class User(db.Model):
     """User model representing a Telegram user."""
     __tablename__ = "users"
     
-    id = Column(Integer, primary_key=True)
-    telegram_id = Column(Integer, unique=True, nullable=False)
+    # In the database, the 'id' column stores the Telegram user ID directly
+    # We use BigInteger to support large Telegram IDs
+    id = Column(BigInteger, primary_key=True)
     username = Column(String(255), nullable=True)
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
@@ -28,12 +29,15 @@ class User(db.Model):
     is_verified = Column(Boolean, default=False)
     is_subscribed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    # Note: In actual DB this is 'last_active' but we use property to handle this
     last_active_at = Column(DateTime, default=datetime.datetime.utcnow)
     verification_code = Column(String(8), nullable=True)
     verification_attempts = Column(Integer, default=0)
     ip_address = Column(String(50), nullable=True)
     user_agent = Column(String(255), nullable=True)
     block_reason = Column(String(255), nullable=True)
+    message_count = Column(Integer, default=0)
+    spam_score = Column(Integer, default=0)
     
     # Financial profile settings
     risk_profile = Column(String(20), default="moderate")  # conservative, moderate, aggressive
@@ -45,15 +49,29 @@ class User(db.Model):
     queries = relationship("UserQuery", back_populates="user", cascade="all, delete-orphan")
     activity_logs = relationship("UserActivityLog", back_populates="user", cascade="all, delete-orphan")
     
+    # Property to maintain backward compatibility
+    @property
+    def telegram_id(self):
+        return self.id
+    
+    # Property to handle the actual column name in the database
+    @property
+    def last_active(self):
+        return self.last_active_at
+    
+    @last_active.setter
+    def last_active(self, value):
+        self.last_active_at = value
+    
     def __repr__(self):
-        return f"<User telegram_id={self.telegram_id}, username={self.username}>"
+        return f"<User id={self.id}, username={self.username}>"
 
 class UserQuery(db.Model):
     """UserQuery model representing a query made by a user."""
     __tablename__ = "user_queries"
     
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     command = Column(String(50), nullable=True)
     query_text = Column(Text, nullable=True)
     response_text = Column(Text, nullable=True)
@@ -101,7 +119,7 @@ class UserActivityLog(db.Model):
     __tablename__ = "user_activity_logs"
     
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     activity_type = Column(String(50), nullable=False)
     details = Column(Text, nullable=True)
     ip_address = Column(String(50), nullable=True)
@@ -123,7 +141,7 @@ class ErrorLog(db.Model):
     error_message = Column(Text, nullable=False)
     traceback = Column(Text, nullable=True)
     module = Column(String(100), nullable=True)
-    user_id = Column(Integer, nullable=True)
+    user_id = Column(BigInteger, nullable=True)
     resolved = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
@@ -212,8 +230,8 @@ class SuspiciousURL(db.Model):
     id = Column(Integer, primary_key=True)
     url = Column(String(2000), nullable=False)
     category = Column(String(50), default="unknown")
-    detected_in_message_id = Column(Integer, nullable=True)
-    detected_from_user_id = Column(Integer, nullable=True)
+    detected_in_message_id = Column(BigInteger, nullable=True)
+    detected_from_user_id = Column(BigInteger, nullable=True)
     is_verified_threat = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
