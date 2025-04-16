@@ -1,0 +1,24 @@
+{
+  "pools": [
+    "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+    "AVs9TA4nWDzfPJE9gGVNJMVhcQy3V9PGazuz33BfG2RA",
+    "6UmmUiYoBjSrhakAobJw8BvkmJtDVxaeBtbt7rxWo1mg",
+    "AVoHTGKPFP6irad4cr5ML5YbRzAZsZLnLES3CJLXaP8K",
+    "2QXXnRnSBi4QY8Pe9VMXVJpE2RfpPaP4RLKjAHD99JYy"
+  ],
+  "api": {
+    "raydium_base_url": "https://api.raydium.io/v2",
+    "rate_limit": {
+      "calls_per_minute": 60,
+      "retry_after": 60
+    },
+    "cache": {
+      "pool_data_ttl": 300,
+      "simulation_ttl": 600
+    }
+  },
+  "notifications": {
+    "daily_update_time": "08:00",
+    "daily_update_enabled": true
+  }
+}

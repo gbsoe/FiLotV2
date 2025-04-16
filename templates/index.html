@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Crypto Pool Tracker Bot - Home{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card mb-4">
+            <div class="card-body text-center py-5">
+                <h1 class="display-4 mb-4">Cryptocurrency Pool Tracking Bot</h1>
+                <p class="lead">
+                    Track crypto pools on Raydium and simulate investment returns with our Telegram bot.
+                </p>
+                <div class="mt-4">
+                    <a href="https://telegram.me/your_bot_username" class="btn btn-primary btn-lg" target="_blank">
+                        <i class="bi bi-telegram"></i> Start Bot on Telegram
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-5">
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-graph-up text-primary" style="font-size: 3rem;"></i>
+                        <h3 class="card-title mt-3">Pool Tracking</h3>
+                        <p class="card-text">
+                            Get real-time information about cryptocurrency pools on Raydium including APR, volume, and liquidity data.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-calculator text-success" style="font-size: 3rem;"></i>
+                        <h3 class="card-title mt-3">Investment Simulation</h3>
+                        <p class="card-text">
+                            Simulate investment returns and analyze impermanent loss risk before committing your funds.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-robot text-info" style="font-size: 3rem;"></i>
+                        <h3 class="card-title mt-3">AI-Powered Answers</h3>
+                        <p class="card-text">
+                            Ask questions about crypto pools, impermanent loss, and investment strategies using our AI assistant.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-5">
+            <div class="card-header">
+                <h2>How to Use the Bot</h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>Basic Commands</h4>
+                        <ul class="list-group mb-4">
+                            <li class="list-group-item">/start - Start the bot</li>
+                            <li class="list-group-item">/help - Show help message</li>
+                            <li class="list-group-item">/info - Get information about crypto pools</li>
+                            <li class="list-group-item">/simulate &lt;amount&gt; - Simulate investment returns</li>
+                            <li class="list-group-item">/status - Check bot status</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h4>Advanced Features</h4>
+                        <ul class="list-group">
+                            <li class="list-group-item">/subscribe - Subscribe to daily updates</li>
+                            <li class="list-group-item">/unsubscribe - Unsubscribe from updates</li>
+                            <li class="list-group-item">/ask &lt;question&gt; - Ask an AI-powered question</li>
+                            <li class="list-group-item">Send a message - Get AI-powered responses</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
