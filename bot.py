@@ -36,10 +36,18 @@ ai_advisor = AnthropicAI(api_key=anthropic_api_key)
 # Load environment variables
 load_dotenv()
 
-# Configure logging
+# Configure logging to file
+import os
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
+    level=logging.INFO,
+    handlers=[
+        logging.StreamHandler(),  # Log to console
+        logging.FileHandler('logs/bot.log')  # Log to file
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -102,7 +110,9 @@ async def get_pool_data() -> List[Any]:
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a welcome message when the command /start is issued."""
     try:
+        logger.info("Starting command /start execution")
         user = update.effective_user
+        logger.info(f"User info retrieved: {user.id} - {user.username}")
         
         # Log user activity
         db_utils.get_or_create_user(
@@ -111,8 +121,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             first_name=user.first_name,
             last_name=user.last_name
         )
-        db_utils.log_user_activity(user.id, "start_command")
+        logger.info(f"User {user.id} created or retrieved from database")
         
+        db_utils.log_user_activity(user.id, "start_command")
+        logger.info(f"Activity logged for user {user.id}")
+        
+        logger.info(f"Sending welcome message to user {user.id}")
         await update.message.reply_markdown(
             f"👋 Welcome to FiLot, {user.first_name}!\n\n"
             "I'm your AI-powered investment assistant for cryptocurrency liquidity pools. "
@@ -716,8 +730,10 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         error = context.error
         trace = "".join(traceback.format_exception(None, error, error.__traceback__))
         
-        # Log error
+        # Log error with more details
         logger.error(f"Exception while handling an update: {error}\n{trace}")
+        logger.error(f"Update that caused error: {update}")
+        logger.error(f"Context info: {context}")
         
         # Store error in database
         error_type = type(error).__name__
@@ -727,22 +743,37 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         user_id = None
         if update and isinstance(update, Update) and update.effective_user:
             user_id = update.effective_user.id
+            logger.info(f"Error occurred for user {user_id}")
             
-        db_utils.log_error(
-            error_type=error_type,
-            error_message=error_message,
-            traceback=trace,
-            module="bot",
-            user_id=user_id
-        )
+        try:
+            # Only log to database if error is not related to database
+            if "SQLAlchemy" not in error_type and "no application context" not in error_message:
+                db_utils.log_error(
+                    error_type=error_type,
+                    error_message=error_message,
+                    traceback=trace,
+                    module="bot",
+                    user_id=user_id
+                )
+                logger.info(f"Error logged to database: {error_type}")
+            else:
+                logger.warning(f"Skipping database logging for SQLAlchemy error: {error_message}")
+        except Exception as db_error:
+            logger.error(f"Failed to log error to database: {db_error}")
         
         # Inform user
         if update and isinstance(update, Update) and update.effective_message:
-            await update.effective_message.reply_text(
-                "Sorry, an error occurred while processing your request. Please try again later."
-            )
+            try:
+                logger.info("Attempting to send error message to user")
+                await update.effective_message.reply_text(
+                    "Sorry, an error occurred while processing your request. Please try again later."
+                )
+                logger.info("Error message sent to user successfully")
+            except Exception as reply_error:
+                logger.error(f"Failed to send error message to user: {reply_error}")
     except Exception as e:
         logger.error(f"Error in error handler: {e}")
+        logger.error(traceback.format_exc())
 
 async def send_daily_updates() -> None:
     """Send daily updates to subscribed users."""

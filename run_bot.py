@@ -43,10 +43,18 @@ from app import app
 # Load environment variables from .env file if it exists
 load_dotenv()
 
-# Configure logging
+# Configure logging to file
+import os
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
+    level=logging.INFO,
+    handlers=[
+        logging.StreamHandler(),  # Log to console
+        logging.FileHandler('logs/telegram_bot.log')  # Log to file
+    ]
 )
 logger = logging.getLogger(__name__)
 
