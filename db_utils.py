@@ -415,10 +415,11 @@ def log_user_query(user_id: int, command: str, query_text: str = None,
     db.session.add(query)
     
     # Increment message count for rate limiting
-    user = User.query.filter_by(telegram_id=user_id).first()
+    # Direct primary key lookup since id IS the Telegram ID
+    user = User.query.get(user_id)
     if user:
         user.message_count = user.message_count + 1 if hasattr(user, 'message_count') else 1
-        user.last_active_at = datetime.datetime.utcnow()
+        user.last_active = datetime.datetime.utcnow()
         logger.debug(f"Updated message count for user {user_id} to {user.message_count}")
     else:
         logger.warning(f"Cannot update message count for user {user_id}: user not found")
@@ -623,7 +624,7 @@ def update_bot_statistics() -> BotStatistics:
     # Update statistics
     stats.command_count = UserQuery.query.count()
     stats.active_user_count = User.query.filter(
-        User.last_active_at > (datetime.datetime.utcnow() - datetime.timedelta(days=1)),
+        User.last_active > (datetime.datetime.utcnow() - datetime.timedelta(days=1)),
         User.is_blocked == False
     ).count()
     stats.subscribed_user_count = User.query.filter_by(is_subscribed=True).count()
@@ -681,7 +682,7 @@ def create_database_backup() -> Optional[SystemBackup]:
                     'message_count': user.message_count,
                     'spam_score': user.spam_score,
                     'created_at': user.created_at.isoformat() if user.created_at else None,
-                    'last_active': user.last_active_at.isoformat() if user.last_active_at else None
+                    'last_active': user.last_active.isoformat() if user.last_active else None
                 }
                 for user in User.query.all()
             ],
@@ -788,7 +789,7 @@ def restore_database_from_backup(backup_id: int) -> bool:
                     user.created_at = datetime.datetime.fromisoformat(user_data['created_at'])
                 
                 if user_data['last_active']:
-                    user.last_active_at = datetime.datetime.fromisoformat(user_data['last_active'])
+                    user.last_active = datetime.datetime.fromisoformat(user_data['last_active'])
                 
                 db.session.add(user)
         

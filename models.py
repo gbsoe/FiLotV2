@@ -54,14 +54,14 @@ class User(db.Model):
     def telegram_id(self):
         return self.id
     
-    # Property to handle the actual column name in the database
+    # Properties to maintain compatibility with code that uses last_active_at
     @property
-    def last_active(self):
-        return self.last_active_at
+    def last_active_at(self):
+        return self.last_active
     
-    @last_active.setter
-    def last_active(self, value):
-        self.last_active_at = value
+    @last_active_at.setter
+    def last_active_at(self, value):
+        self.last_active = value
     
     def __repr__(self):
         return f"<User id={self.id}, username={self.username}>"
