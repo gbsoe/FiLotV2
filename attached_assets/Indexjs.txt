@@ -1,0 +1,545 @@
+/***************************************************
+ * 1) Imports & Configuration
+ **************************************************/
+import SDK from "@raydium-io/raydium-sdk-v2"; // 
+import { Connection } from "@solana/web3.js"; // 
+import BN from "bn.js"; // 
+import Decimal from "decimal.js"; // 
+import express from "express"; // 
+import compression from "compression"; // 
+import fetch from "node-fetch"; // 
+import fs from "fs"; // 
+import path from "path"; // 
+import { fileURLToPath } from "url"; // 
+import dotenv from "dotenv"; // 
+dotenv.config(); // 
+
+// >>> NEW WALLET INTEGRATION & WALLETCONNECT IMPORTS <<<
+import {
+  connectWallet,
+  checkWalletBalance,
+  calculateDepositStrategy,
+  joinPoolTransaction,
+  stopPoolTransaction,
+} from "./walletintergration.js"; // 
+import {
+  createWCSession,
+  killWCSession,
+} from "./walletConnect.js"; // 
+
+const __filename = fileURLToPath(import.meta.url); // 
+const __dirname = path.dirname(__filename); // 
+
+// Load local JSON files
+const tokenMapping = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "tokenMapping.json"), "utf8")
+);
+let config = {};
+try {
+  config = JSON.parse(fs.readFileSync(path.join(__dirname, "config.json"), "utf8"));
+} catch (error) {
+  console.error('[CONFIG] Error loading config.json:', error.message);
+  // Use default configs if file read fails
+  config = {
+    "port": 3000,
+    "host": "0.0.0.0"
+  };
+}
+
+// Initialize Raydium / Solana connection
+const connection = new Connection("https://api.mainnet-beta.solana.com", "confirmed"); // 
+const poolIds = config.poolIds || []; // 
+
+// Create mint mapping from tokenMapping.json
+const tokenMappingData = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "tokenMapping.json"), "utf8")
+);
+const configData = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "config.json"), "utf8")
+);
+const mintMapping = {}; // 
+Object.values(tokenMappingData).forEach((pool) => { // 
+  if (pool.baseMint) mintMapping[pool.baseMint] = pool.tokenPair.split("/")[0]; // 
+  if (pool.quoteMint) mintMapping[pool.quoteMint] = pool.tokenPair.split("/")[1]; // 
+});
+
+/***************************************************
+ * 2) Fetch Pool Data using Raydium SDK
+ **************************************************/
+async function fetchAllPoolsData(raydium) { // 
+  if (!poolIds.length) { // 
+    throw new Error("No poolIds defined in config.json"); // 
+  } // 
+  const data = await raydium.api.fetchPoolById({ ids: poolIds }); // 
+  if (!data || data.length === 0) { // 
+    throw new Error("No pool data found."); // 
+  }
+  return data; // 
+} // 
+
+/***************************************************
+ * 3) Fetch Real-Time Token Prices (CoinGecko, Binance)
+ **************************************************/
+async function fetchAllTokenPrices() {
+  console.log("⏳ Fetching live token prices...");
+  try {
+    const response = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=solana%2Ctether%2Cusd-coin%2Craydium&vs_currencies=usd",
+      { timeout: 10000 }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Coingecko responded with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const prices = {
+      SOL: data.solana?.usd || 0,
+      USDT: data.tether?.usd || 1, // Fallback to 1 for stablecoins
+      USDC: data["usd-coin"]?.usd || 1, // Fallback to 1 for stablecoins
+      RAY: data.raydium?.usd || 0,
+    };
+
+    console.log("✅ Final live token prices:", prices);
+    return prices;
+  } catch (e) {
+    console.error("Coingecko API error:", e.message);
+    // Return fallback values if API fails
+    return {
+      SOL: 0,
+      USDT: 1,
+      USDC: 1,
+      RAY: 0
+    };
+  }
+}
+
+/***************************************************
+ * 4) Utility: Format APR & Price
+ **************************************************/
+function formatAPR(apr) { // 
+  if (!apr || isNaN(apr)) return 0; // 
+  return parseFloat(apr.toFixed(2)); // 
+} // 
+
+function formatPrice(numericPrice, tokenSymbol) { // 
+  if (!tokenSymbol) return `$${numericPrice.toFixed(2)}`; // 
+  if (tokenSymbol.toUpperCase() === "SOL") return `$${numericPrice.toFixed(1)}`; // 
+  return `$${numericPrice.toFixed(2)}`; // 
+} // 
+
+/***************************************************
+ * 5) Helper: Get Pool Mints
+ **************************************************/
+function getPoolMints(poolInfo) { // 
+  return { // 
+    baseMint: poolInfo.baseMint, // 
+    quoteMint: poolInfo.quoteMint, // 
+  };
+} // 
+
+/***************************************************
+ * 6) Helper: Derive Token Pair
+ **************************************************/
+function deriveTokenPair(poolInfo) { // 
+  if (poolInfo.tokenPair) return poolInfo.tokenPair; // 
+  return "Unknown"; // 
+} // 
+
+/***************************************************
+ * 7) Process Pools: Merge Data and Attach Prices
+ **************************************************/
+async function processPools() { // 
+  const raydium = await SDK.Raydium.load({ 
+  connection, 
+  cluster: "mainnet-beta",
+  httpConfig: {
+    timeout: 30000, // 30 second timeout
+    headers: { 'Keep-Alive': 'timeout=30, max=100' }
+  }
+}); // 
+  const pools = await fetchAllPoolsData(raydium); // 
+  const tokenPrices = await fetchAllTokenPrices(); // 
+
+  pools.forEach((poolInfo) => { // 
+    // Attach mapping info if available
+    const mappingInfo = tokenMapping[poolInfo.id]; // 
+    if (mappingInfo) { // 
+      poolInfo.tokenPair = mappingInfo.tokenPair; // 
+      poolInfo.baseMint = mappingInfo.baseMint; // 
+      poolInfo.quoteMint = mappingInfo.quoteMint; // 
+      poolInfo.priceToken = mappingInfo.priceToken; // 
+    }
+
+    // Format APRs
+    if (poolInfo.day && typeof poolInfo.day.apr === "number") { // 
+      poolInfo.day.apr = formatAPR(poolInfo.day.apr); // 
+    }
+    if (poolInfo.week && typeof poolInfo.week.apr === "number") { // 
+      poolInfo.week.apr = formatAPR(poolInfo.week.apr); // 
+    }
+
+ if (poolInfo.month && typeof poolInfo.month.apr === "number") { // 
+      poolInfo.month.apr = formatAPR(poolInfo.month.apr); // 
+    }
+
+    // Attach Price (Using SOL as example, adjust if needed based on priceToken)
+    // Example: always use SOL price for demonstration
+    const solPrice = tokenPrices["SOL"] || 0; // 
+    poolInfo.price = Number(solPrice.toFixed(1)); // 
+    poolInfo.priceToken = "SOL"; // // Ensure priceToken reflects the price used
+
+    // Debugging logs (can be removed in final production)
+    // console.log(`Processing Pool ID: ${poolInfo.id}`); // 
+    // console.log(`   Mapped Token Pair => ${poolInfo.tokenPair || "Unknown"}`); // 
+    // console.log(`   Assigned Price (${poolInfo.priceToken}) => ${formatPrice(poolInfo.price, poolInfo.priceToken)}`); // 
+  }); // 
+  return pools; // 
+}
+
+/***************************************************
+ * 8) Categorize Pools (Top APR & Mandatory)
+ **************************************************/
+async function getCategorizedPools() { // 
+  const pools = await processPools(); // 
+  const topAPR = pools // 
+    .filter((pool) => pool.week && typeof pool.week.apr === "number") // // Using week APR for sorting
+    .sort((a, b) => b.week.apr - a.week.apr) // 
+    .slice(0, 2); // Top 2 // 
+
+  const mandatory = pools // 
+    .filter((pool) => { // 
+      // Filter logic based on token pairs involving SOL/USDC/USDT or specific price tokens
+      const pair = String(pool.tokenPair || "").toUpperCase(); // 
+      const priceToken = String(pool.priceToken || "").toUpperCase(); // 
+      return ( // 
+        (pair.includes("SOL") && (pair.includes("USDC") || pair.includes("USDT"))) || // // SOL paired with stables
+        priceToken === "SOL" || // // Price derived from SOL
+        priceToken === "USDC" || // // Price derived from USDC
+        priceToken === "USDT" // // Price derived from USDT
+      );
+    })
+    .sort((a, b) => // 
+ (b.tvl || 0) - (a.tvl || 0)) // Sort mandatory by TVL descending // 
+    .slice(0, 3); // Top 3 mandatory // 
+
+  return { topAPR, mandatory }; // 
+} // 
+
+/***************************************************
+ * 9) Express Server Setup
+ **************************************************/
+import apiRouter from "./api_server.js"; // // If you have api_server.js
+import helmet from "helmet"; // 
+
+const app = express(); // 
+app.use(helmet()); // Secure HTTP headers // 
+app.use(compression()); // Compress responses // 
+app.use(express.json({ limit: "10kb" })); // Parse JSON bodies, limit size // 
+
+// --- Production Binding Adjustment ---
+// Define HOST and PORT for internal binding as per Instructions.md
+const PROD_HOST = "0.0.0.0"; // Bind to all interfaces
+const PROD_PORT = 3000; // Internal port for Node.js service
+const PROD_KEEP_ALIVE_TIMEOUT = 65000; // Increase keep-alive timeout
+
+// API Routes (Imported from api_server.js if used)
+app.use("/api", apiRouter); // // Mount your API routes
+
+// Basic health check route
+app.get("/health", (req, res) => { // // Define /health endpoint
+  // You can add more checks here (e.g., database connection)
+  res.status(200).json({ status: "OK", timestamp: new Date().toISOString() }); // 
+});
+
+// Root route for basic info (optional)
+app.get("/", (req, res) => { // 
+  res.send("Node.js Internal API Service is running. Access /pools or /health."); // 
+});
+
+// Pools endpoint for the Python bot
+app.get("/pools", async (req, res) => {
+  res.setTimeout(45000); // Increased timeout to 45 seconds
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] [SERVER] /pools API request received`);
+  try {
+    // Add retry logic for Raydium API
+    const MAX_RETRIES = 3;
+    let lastError;
+    
+    for(let i = 0; i < MAX_RETRIES; i++) {
+      try {
+        const data = await getCategorizedPools();
+        if(data) {
+          return res.json(data);
+        }
+      } catch(e) {
+        lastError = e;
+        console.error(`[${timestamp}] [SERVER] Attempt ${i + 1}/${MAX_RETRIES} failed:`, e.message);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s between retries
+      }
+    }
+    throw lastError || new Error('Failed to fetch pool data after retries');
+    if (!data || (!data.topAPR?.length && !data.mandatory?.length)) { // Use optional chaining // 
+      console.error(`[${timestamp}] [SERVER] No pool data available to return.`); // 
+      return res.status(503).json({ error: "Pool data currently unavailable. Please try again later." }); // Use 503 Service Unavailable // 
+    }
+    const poolCount = // 
+      (data.topAPR?.length || 0) + (data.mandatory?.length || 0); // 
+    console.log( // 
+
+ `[${timestamp}] [SERVER] Returning ${Object.keys(data).length} pool categories with ${poolCount} total pools` // 
+    );
+    // Optional: Log specific pool IDs returned
+    // if (data.topAPR?.length) { // 
+    //   console.log( // 
+    //     `[${timestamp}] [SERVER] Top APR pools: ${data.topAPR // 
+    //       .map((p) => p.id) // 
+    //       .join(", ")}` // 
+    //   );
+    // }
+    // if (data.mandatory?.length) { // 
+    //   console.log( // 
+    //     `[${timestamp}] [SERVER] Mandatory pools: ${data.mandatory // 
+
+    //       .map((p) => p.id) // 
+    //       .join(", ")}` // 
+    //   );
+    // } // 
+    res.json(data); // // Send the fetched data
+  } catch (error) { // 
+    console.error(`[${timestamp}] [SERVER] Critical Error in /pools endpoint:`, error); // 
+    const errorMessage = error.message || "Internal server error fetching pool data."; // 
+    res.status(500).json({ error: errorMessage, details: error.stack, timestamp }); // Include stack in dev if needed // 
+  }
+});
+
+/***************************************************
+ * >>> NEW WALLET INTEGRATION ENDPOINTS <<<
+ * These seem to be mostly placeholders or examples.
+ * Ensure they handle errors and security correctly.
+ **************************************************/
+// 1) Connect & Validate Wallet (Example)
+app.post("/wallet/connect", (req, res) => { // 
+  try { // 
+    const { walletAddress } = req.body; // 
+    if (!walletAddress) { // 
+      return res // 
+        .status(400) // 
+        .json({ error: "Missing walletAddress in request body." }); // 
+    }
+    // Assuming connectWallet validates the address format or performs a basic check
+    const result = connectWallet(walletAddress); // // Call your logic
+    return res.json({ success: true, walletAddress: result }); // 
+  } catch (error) { // 
+    console.error("[SERVER] Error connecting wallet:", error.message); // 
+
+   return res.status(400).json({ success: false, error: error.message }); // Return specific error // 
+  }
+});
+
+// 2) Check Wallet Balances (Example)
+app.get("/wallet/balance", async (req, res) => { // 
+  try { // 
+    const { walletAddress } = req.query; // 
+    if (!walletAddress) { // 
+      return res.status(400).json({ error: "Missing walletAddress in query parameters." }); // 
+    }
+    // Assuming checkWalletBalance fetches balances
+    const balances = await checkWalletBalance(walletAddress); // // Call async logic
+    return res.json({ success: true, balances }); // 
+  } catch (error) { // 
+    console.error("[SERVER] Error checking wallet balance:", error.message); // 
+    return res.status(500).json({ success: false, error: "Failed to retrieve wallet balance." }); // Generic error for security // 
+  }
+});
+
+// 3) Calculate Deposit Strategy (Example)
+app.get("/wallet/depositStrategy", async (req, res) => { // 
+  try { // 
+    const { walletAddress } = req.query; // 
+    if (!walletAddress) { // 
+      return res.status(400).json({ error: "Missing walletAddress in query parameters." }); // 
+    }
+    // Assuming calculateDepositStrategy performs calculations
+    const strategy = await calculateDepositStrategy(walletAddress); // // Call async logic
+    return res.json({ success: true, strategy }); // 
+  } catch (error) { // 
+    console.error("[SERVER] Error calculating deposit strategy:", error.message); // 
+    return res.status(500).json({ success: false, error: "Failed to calculate deposit strategy." }); // Generic error // 
+  }
+});
+
+// 4) Join Pool Transaction (Simulation Example)
+app.post("/wallet/joinPool", async (req, res) => { // 
+  try { // 
+    // Destructure and validate input
+    const { walletAddress, poolId, tokenA, tokenB, depositSol, depositUsdc } = // 
+      req.body; // 
+    if ( // 
+      !walletAddress || // 
+      !poolId || // 
+      depositSol === undefined || // 
+      depositUsdc === undefined // 
+    ) {
+      return res.status(400).json({ // 
+        error: // 
+          "Missing required fields: walletAddress, poolId, depositSol, depositUsdc", // 
+      });
+    }
+    // Assuming joinPoolTransaction performs the simulation/action
+    const finalTokenA = tokenA || "SOL"; // Default if not provided // 
+    const finalTokenB = tokenB || "USDC"; // Default if not provided // 
+    const success = joinPoolTransaction( // 
+      walletAddress,
+      poolId,
+      finalTokenA,
+      finalTokenB,
+      depositSol,
+      depositUsdc
+    );
+    return res.json({ // 
+      success, // 
+      message: success ? "Join pool transaction simulated/executed." : "Transaction failed.", // 
+    });
+  } catch (error) { // 
+    console.error("[SERVER] Error joining pool:", error.message); // 
+    return res.status(500).json({ success: false, error: "Failed to execute join pool action." }); // Generic error // 
+  }
+});
+
+// 5) Stop Pool Transaction (Simulation Example)
+app.post("/wallet/stopPool", async (req, res) => { // 
+  try { // 
+    const { walletAddress, poolId } = req.body; // 
+    if (!walletAddress || !poolId) { // 
+      return res // 
+        .status(400) // 
+        .json({ error: "Missing required fields: walletAddress, poolId" }); // 
+    }
+    // Assuming stopPoolTransaction performs the action
+    const success = stopPoolTransaction(walletAddress, poolId); // 
+    return res.json({ // 
+      success, // 
+      message: success ? "Stop pool transaction simulated/executed." : "Transaction failed.", // 
+
+    }); // 
+  } catch (error) { // 
+    console.error("[SERVER] Error stopping pool:", error.message); // 
+    return res.status(500).json({ success: false, error: "Failed to execute stop pool action." }); // Generic error // 
+  }
+});
+
+/***************************************************
+ * >>> NEW WALLETCONNECT ENDPOINTS <<<
+ * Ensure these are secure and handle session state correctly.
+ **************************************************/
+// Creates a new WalletConnect session via Reown + SQLite (Example)
+app.get("/wallet/connectSession", async (req, res) => { // 
+  try { // 
+    const sessionId = req.query.sessionId; // Get session ID from query // 
+    if (!sessionId) { // 
+      return res // 
+        .status(400) // 
+        .json({ success: false, error: "Missing sessionId parameter." }); // 
+    }
+    // Assuming createWCSession interacts with WalletConnect/Reown
+    const sessionData = await createWCSession(sessionId); // // Call async logic
+    res.json({ success: true, ...sessionData }); // Return session details // 
+  } catch (error) { // 
+    console.error("[SERVER] Error creating WalletConnect session:", error); // Log error // 
+    res.status(500).json({ success: false, error: "Failed to create WalletConnect session." }); // Generic error // 
+  }
+});
+
+// Kill an existing WalletConnect session (Example)
+app.post("/wallet/killSession", async (req, res) => { // 
+  try { // 
+    const { sessionId } = req.body; // Get session ID from body // 
+    if (!sessionId) { // 
+      return res // 
+        .status(400) // 
+        .json({ success: false, error: "Missing sessionId in request body." }); // 
+    }
+    // Assuming killWCSession performs the cleanup
+    await killWCSession(sessionId); // // Call async logic
+    res.json({ success: true, message: "WalletConnect session killed." }); // 
+  } catch (error) { // 
+    console.error("[SERVER] Error killing session:", error); // Log error // 
+    res.status(500).json({ success: false, error: error.message }); // Return specific error // 
+  }
+});
+
+/***************************************************
+ * Launch the Server - BOUND TO LOCALHOST:3000
+ **************************************************/
+const server = app
+  .listen(PROD_PORT, PROD_HOST, async () => { // Use PROD_HOST and PROD_PORT // 
+    // Initial log confirming the binding address and port
+    console.log(`[SERVER] Node.js Internal API Service running on http://${PROD_HOST}:${PROD_PORT}`); // // Confirm binding
+
+    // Optional: Fetch initial data on startup
+    try { // 
+      console.log("[SERVER] Fetching initial pool data on startup..."); // 
+      const data = await getCategorizedPools(); // 
+      console.log("[SERVER] == Initial Pool Data Fetched =="); // 
+      // Avoid logging sensitive data in production logs if necessary
+      // console.log(JSON.stringify(data, null, 2)); // 
+      console.log(`[SERVER] Initial fetch complete. Found ${data.topAPR?.length || 0} top APR pools and ${data.mandatory?.length || 0} mandatory pools.`); // 
+    } catch (err) { // 
+      console.error("[SERVER] CRITICAL: Failed to fetch initial pool data on startup:", err); // 
+    }
+  })
+  .on("error", (err) => { // // Handle server errors like EADDRINUSE
+    if (err.code === "EADDRINUSE") { // 
+      console.error(`[SERVER] FATAL: Port ${PROD_PORT} is already in use on ${PROD_HOST}. Cannot start server.`); // 
+      process.exit(1); // Exit if port is busy - no fallback needed for internal service
+    } else { // 
+      console.error("[SERVER] Unhandled server error:", err); // 
+    }
+  });
+
+
+/***************************************************
+ * Keep-Alive & Process Management
+ **************************************************/
+console.log("[PROCESS] Setting up keep-alive interval (15 minutes)..."); // 
+setInterval(async () => { // 
+  try { // 
+    console.log("[KEEPALIVE] ⏳ Keep-alive: Refetching pool data..."); // 
+    // Optional: Trigger GC if available and memory usage is a concern
+    if (global.gc) { // 
+      // console.log("[KEEPALIVE] Running garbage collection..."); // 
+      // global.gc(); // 
+    }
+    await processPools(); // Refetch data periodically // 
+    console.log("[KEEPALIVE] ✅ Pool data refreshed."); // 
+  } catch (e) { // 
+    console.error("[KEEPALIVE] ⚠️ Error during keep-alive data refresh:", e); // 
+  }
+}, 1000 * 60 * 15); // Run every 15 minutes // 
+
+// Graceful shutdown and error handling
+process.on("uncaughtException", (err) => { // 
+  console.error("[PROCESS] FATAL: Uncaught Exception:", err); // 
+  // Optional: Trigger GC
+  // if (global.gc) { // 
+  //   console.log("[PROCESS] Running garbage collection after error..."); // 
+  //   global.gc(); // 
+  // }
+  // Consider exiting gracefully after logging
+  // process.exit(1); // Force exit after fatal error
+});
+
+process.on("unhandledRejection", (reason, promise) => { // 
+  console.error("[PROCESS] Unhandled Rejection at:", promise, "reason:", reason); // 
+  // You might want to log more details or exit depending on the severity
+});
+
+process.on("warning", (warning) => { // 
+  console.warn(`[PROCESS] Warning: ${warning.name} - ${warning.message}`); // Log warnings // 
+  // Optional: Specific handling for memory warnings
+  // if (warning.name === "MaxListenersExceededWarning") { // 
+  //   console.error("Potential memory leak detected: MaxListenersExceededWarning"); // 
+  // }
+}); //
