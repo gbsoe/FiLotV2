@@ -85,7 +85,7 @@ def get_or_create_user(user_id: int, username: str = None, first_name: str = Non
                 first_name=first_name,
                 last_name=last_name,
                 created_at=datetime.datetime.utcnow(),
-                last_active_at=datetime.datetime.utcnow()
+                last_active=datetime.datetime.utcnow()
             )
             db.session.add(user)
             db.session.flush()  # Try to flush first to catch errors early
@@ -136,7 +136,7 @@ def get_or_create_user(user_id: int, username: str = None, first_name: str = Non
             changed = True
             
         # Update last active timestamp
-        user.last_active_at = datetime.datetime.utcnow()
+        user.last_active = datetime.datetime.utcnow()
         changed = True
         
         if changed:
