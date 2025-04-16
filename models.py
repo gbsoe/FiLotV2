@@ -29,8 +29,8 @@ class User(db.Model):
     is_verified = Column(Boolean, default=False)
     is_subscribed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    # Note: In actual DB this is 'last_active' but we use property to handle this
-    last_active_at = Column(DateTime, default=datetime.datetime.utcnow)
+    # The column name in the database is 'last_active'
+    last_active = Column(DateTime, default=datetime.datetime.utcnow)
     verification_code = Column(String(8), nullable=True)
     verification_attempts = Column(Integer, default=0)
     ip_address = Column(String(50), nullable=True)

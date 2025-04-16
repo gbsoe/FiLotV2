@@ -161,7 +161,8 @@ def block_user(user_id: int, reason: str = None) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    user = User.query.filter_by(telegram_id=user_id).first()
+    # Direct primary key lookup since id IS the Telegram ID
+    user = User.query.get(user_id)
     
     if not user:
         logger.warning(f"Cannot block user {user_id}: user not found")
@@ -191,7 +192,8 @@ def unblock_user(user_id: int) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    user = User.query.filter_by(telegram_id=user_id).first()
+    # Direct primary key lookup since id IS the Telegram ID
+    user = User.query.get(user_id)
     
     if not user:
         logger.warning(f"Cannot unblock user {user_id}: user not found")
@@ -220,7 +222,8 @@ def subscribe_user(user_id: int) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    user = User.query.filter_by(telegram_id=user_id).first()
+    # Direct primary key lookup since id IS the Telegram ID
+    user = User.query.get(user_id)
     
     if not user:
         logger.warning(f"Cannot subscribe user {user_id}: user not found")
@@ -249,7 +252,8 @@ def unsubscribe_user(user_id: int) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    user = User.query.filter_by(telegram_id=user_id).first()
+    # Direct primary key lookup since id IS the Telegram ID
+    user = User.query.get(user_id)
     
     if not user:
         logger.warning(f"Cannot unsubscribe user {user_id}: user not found")
@@ -289,7 +293,8 @@ def verify_user(user_id: int, code: str) -> bool:
     Returns:
         True if verification successful, False otherwise
     """
-    user = User.query.filter_by(telegram_id=user_id).first()
+    # Direct primary key lookup since id IS the Telegram ID
+    user = User.query.get(user_id)
     
     if not user or not user.verification_code:
         logger.warning(f"Cannot verify user {user_id}: user not found or no verification code")
@@ -321,7 +326,8 @@ def update_user_profile(user_id: int, field: str, value: Any) -> bool:
     Returns:
         True if update successful, False otherwise
     """
-    user = User.query.filter_by(telegram_id=user_id).first()
+    # Direct primary key lookup since id IS the Telegram ID
+    user = User.query.get(user_id)
     
     if not user:
         logger.warning(f"Cannot update profile for user {user_id}: user not found")
@@ -363,7 +369,8 @@ def generate_verification_code(user_id: int) -> Optional[str]:
     import random
     import string
     
-    user = User.query.filter_by(telegram_id=user_id).first()
+    # Direct primary key lookup since id IS the Telegram ID
+    user = User.query.get(user_id)
     
     if not user:
         logger.warning(f"Cannot generate verification code for user {user_id}: user not found")
