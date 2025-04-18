@@ -65,9 +65,9 @@ def main() -> None:
     # Use Flask app context for database operations
     with app.app_context():
         # Check for Telegram bot token
-        token = os.environ.get("TELEGRAM_BOT_TOKEN")
+        token = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("TELEGRAM_TOKEN")
         if not token:
-            logger.error("Telegram bot token not found. Please set the TELEGRAM_BOT_TOKEN environment variable.")
+            logger.error("Telegram bot token not found. Please set the TELEGRAM_BOT_TOKEN or TELEGRAM_TOKEN environment variable.")
             sys.exit(1)
         
         # Create the Application
