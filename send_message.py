@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 def send_telegram_message(chat_id, text):
     """Send a message to a Telegram chat."""
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("TELEGRAM_TOKEN")
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
-        logger.error("TELEGRAM_BOT_TOKEN or TELEGRAM_TOKEN environment variable not set")
+        logger.error("TELEGRAM_BOT_TOKEN environment variable not set")
         return False
         
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
