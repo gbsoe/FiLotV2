@@ -7,6 +7,8 @@ import logging
 import re
 import datetime
 import asyncio
+import io
+import qrcode
 from typing import Dict, List, Any, Optional, Union, Tuple
 import traceback
 
@@ -730,10 +732,40 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup=reply_markup
         )
         
-        # Send the raw WalletConnect URI as a separate message for easy copying
-        # Use a plain text message to prevent formatting issues with the URI
+        # Generate QR code for the WalletConnect URI
+        try:
+            # Create QR code
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=4,
+            )
+            qr.add_data(result.get('raw_wc_uri', raw_wc_uri))
+            qr.make(fit=True)
+            
+            # Create an image from the QR Code
+            img = qr.make_image(fill_color="black", back_color="white")
+            
+            # Save to a buffer
+            buffer = io.BytesIO()
+            img.save(buffer)
+            buffer.seek(0)
+            
+            # Send QR code as photo
+            await message.reply_photo(
+                photo=buffer,
+                caption="📱 Scan this QR code with your wallet app to connect"
+            )
+            
+            logger.info("QR code generated and sent successfully")
+        except Exception as qr_error:
+            logger.error(f"Error generating QR code: {qr_error}")
+            # If QR code generation fails, we'll still send the text version
+        
+        # Also send the raw WalletConnect URI as text for manual copying if needed
         await security_msg.reply_text(
-            "Connect your wallet with this WalletConnect link:\n\n"
+            "Alternatively, you can manually copy this WalletConnect link:\n\n"
             f"{result.get('raw_wc_uri', raw_wc_uri)}\n\n"
             "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions."
         )
@@ -1106,10 +1138,36 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                             "The wallet connection is still pending. Please open your wallet app and approve the connection.\n\n"
                         )
                         
-                        # Include the raw WC URI if available - using plain text to avoid formatting issues
+                        # Include the raw WC URI and QR code if available
                         if raw_wc_uri:
-                            # Send the URI in a separate message to avoid any formatting issues
-                            await query.message.reply_text(f"Connect with this WalletConnect URI:\n\n{raw_wc_uri}")
+                            try:
+                                # Generate QR code for the URI
+                                qr = qrcode.QRCode(
+                                    version=1,
+                                    error_correction=qrcode.constants.ERROR_CORRECT_L,
+                                    box_size=10,
+                                    border=4,
+                                )
+                                qr.add_data(raw_wc_uri)
+                                qr.make(fit=True)
+                                
+                                # Create and send the QR code image
+                                img = qr.make_image(fill_color="black", back_color="white")
+                                buffer = io.BytesIO()
+                                img.save(buffer)
+                                buffer.seek(0)
+                                
+                                await query.message.reply_photo(
+                                    photo=buffer,
+                                    caption="📱 Scan this QR code with your wallet app to connect"
+                                )
+                                
+                                # Also send the text version for manual copying
+                                await query.message.reply_text(f"Alternatively, you can manually copy this WalletConnect URI:\n\n{raw_wc_uri}")
+                            except Exception as qr_error:
+                                logger.error(f"Error generating QR code in callback: {qr_error}")
+                                # Fallback to text only if QR fails
+                                await query.message.reply_text(f"Connect with this WalletConnect URI:\n\n{raw_wc_uri}")
                             # Don't include it in the main message
                             
                         response_text += "Click 'Check Connection Status' after approving in your wallet."
