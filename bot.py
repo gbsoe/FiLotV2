@@ -237,9 +237,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "• /unsubscribe - Stop receiving updates\n"
             "• /status - Check bot status\n"
             "• /wallet - Manage your crypto wallet\n"
-            "• /walletconnect - Connect wallet using QR code (NEW!)\n"
+            "• /walletconnect - Connect wallet using QR code\n"
             "• /verify [code] - Verify your account\n" 
             "• /profile - Set your investment preferences\n"
+            "• /faq - Frequently asked questions (NEW!)\n"
+            "• /social - Our social media links (NEW!)\n"
             "• /help - Show this help message\n\n"
             "You can also ask me questions about FiLot, LA! Token, or DeFi concepts."
         )
@@ -654,6 +656,102 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         logger.error(f"Error in profile command: {e}")
         await update.message.reply_text(
             "Sorry, an error occurred while processing your request. Please try again later."
+        )
+        
+async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Display FAQ information when the command /faq is issued."""
+    try:
+        user = update.effective_user
+        db_utils.log_user_activity(user.id, "faq_command")
+        
+        # Format the FAQ content with emojis and clear sections
+        faq_text = """
+❓ *Frequently Asked Questions*
+
+*What does this bot do?*
+It helps track crypto earnings from AI-optimized liquidity pools and provides info on FiLot.
+
+*How do I earn with liquidity pools?*
+Contribute crypto to earn trading fees. FiLot aims to find high-yield, safer pools.
+
+*Is it risky?*
+All investments have risk. FiLot focuses on stable pools (like SOL-USDC) and uses AI to manage risk, but losses are possible.
+
+*What's Impermanent Loss (IL)?*
+Value changes in your deposited tokens compared to just holding them. AI aims to minimize this by selecting suitable pools.
+
+*What's APR?*
+Annual Percentage Rate - estimated yearly return. Pool APRs can be high (10-200%+) but fluctuate.
+
+*How do updates work?*
+Use /subscribe for automatic news. Use /unsubscribe to stop.
+
+*How does /simulate work?*
+It estimates earnings based on recent APRs: Earnings = Investment * (APR/100) * Time.
+
+*When is FiLot launching?*
+Coming soon! Use /subscribe for announcements.
+
+*How do I ask specific questions?*
+Use /ask Your question here... for product details, or just type general questions.
+
+Use /help to see all available commands!
+"""
+        
+        # Send the FAQ message
+        await update.message.reply_markdown(faq_text)
+        
+        logger.info(f"Sent FAQ to user {user.id}")
+        
+    except Exception as e:
+        logger.error(f"Error in FAQ command: {e}")
+        await update.message.reply_text(
+            "Sorry, an error occurred while sending the FAQ. Please try again later."
+        )
+
+async def social_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Display social media links when the command /social is issued."""
+    try:
+        user = update.effective_user
+        db_utils.log_user_activity(user.id, "social_command")
+        
+        # Format the social media content with emojis and links
+        social_text = """
+🤝 *Connect With Us!*
+
+Stay updated and join the community on our official channels:
+
+🐦 X (Twitter): [@CrazyRichLA](https://x.com/crazyrichla)
+📸 Instagram: [@CrazyRichLA](https://www.instagram.com/crazyrichla)
+🌐 Website: [CrazyRichLA](https://crazyrichla.replit.app/)
+
+Follow us for the latest news and launch announcements!
+"""
+        
+        # Create inline keyboard for the social links
+        keyboard = [
+            [
+                InlineKeyboardButton("Twitter 🐦", url="https://x.com/crazyrichla"),
+                InlineKeyboardButton("Instagram 📸", url="https://www.instagram.com/crazyrichla")
+            ],
+            [
+                InlineKeyboardButton("Website 🌐", url="https://crazyrichla.replit.app/")
+            ]
+        ]
+        
+        # Send the social media message with inline buttons
+        await update.message.reply_markdown(
+            social_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            disable_web_page_preview=True  # Disable preview to avoid showing Twitter/IG previews
+        )
+        
+        logger.info(f"Sent social media links to user {user.id}")
+        
+    except Exception as e:
+        logger.error(f"Error in social command: {e}")
+        await update.message.reply_text(
+            "Sorry, an error occurred while sending the social media links. Please try again later."
         )
 
 async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1321,6 +1419,8 @@ def create_application():
     application.add_handler(CommandHandler("wallet", wallet_command))
     application.add_handler(CommandHandler("walletconnect", walletconnect_command))
     application.add_handler(CommandHandler("profile", profile_command))
+    application.add_handler(CommandHandler("faq", faq_command))
+    application.add_handler(CommandHandler("social", social_command))
     
     # Register callback query handler
     application.add_handler(CallbackQueryHandler(handle_callback_query))
