@@ -19,20 +19,26 @@ def format_pool_info(pools: List) -> str:
     if not pools:
         return "No pools available at the moment. Please try again later."
     
-    # Sort pools by APR (24h) and TVL
+    # Exactly 2 pools for Best Performing Investments Today:
+    # 1. Highest 24h APR
+    # 2. Highest TVL
     pools_by_apr = sorted(pools, key=lambda p: p.apr_24h or 0, reverse=True)
     pools_by_tvl = sorted(pools, key=lambda p: p.tvl or 0, reverse=True)
     
-    # Get unique top pools (by APR and TVL) for "Best Performing" section (limit to 2)
+    top_apr_pool = pools_by_apr[0] if pools_by_apr else None
+    top_tvl_pool = pools_by_tvl[0] if pools_by_tvl else None
+    
+    # Make sure we have 2 different pools (if possible)
     top_pools = []
-    if pools_by_apr:
-        top_pools.append(pools_by_apr[0])  # Top by APR
-    if pools_by_tvl and pools_by_tvl[0] not in top_pools:
-        top_pools.append(pools_by_tvl[0])  # Top by TVL
+    if top_apr_pool:
+        top_pools.append(top_apr_pool)
+    if top_tvl_pool and top_tvl_pool.id != getattr(top_apr_pool, 'id', None):
+        top_pools.append(top_tvl_pool)
+    elif len(pools_by_apr) > 1:
+        # If top APR and TVL are the same pool, get the second highest APR
+        top_pools.append(pools_by_apr[1])
     
-    top_pools = top_pools[:2]  # Limit to 2 pools
-    
-    # Find stable pools (containing USDC, USDT, or similar)
+    # Find stable pools (SOL/USDC, SOL/RAY, etc.)
     stable_tokens = ["USDC", "USDT", "RAY"]
     stable_pools = []
     
@@ -47,10 +53,10 @@ def format_pool_info(pools: List) -> str:
     stable_pools = sorted(stable_pools, key=lambda p: p.apr_24h or 0, reverse=True)[:3]
     
     # Header
-    result = "📈 *Latest Crypto Investment Update:*\n\n"
+    result = "📈 Latest Crypto Investment Update:\n\n"
     
     # Best Performing Investments Today section
-    result += "*Best Performing Investments Today:*\n"
+    result += "Best Performing Investments Today:\n"
     for pool in top_pools:
         token_pair = f"{pool.token_a_symbol}/{pool.token_b_symbol}"
         token_a_price = pool.token_a_price or 0
@@ -66,7 +72,7 @@ def format_pool_info(pools: List) -> str:
         )
     
     # Top Stable Investments section
-    result += "*Top Stable Investments (e.g., SOL-USDC / SOL-USDT):*\n"
+    result += "Top Stable Investments (e.g., SOL-USDC / SOL-USDT):\n"
     for pool in stable_pools:
         token_pair = f"{pool.token_a_symbol}/{pool.token_b_symbol}"
         token_a_price = pool.token_a_price or 0
@@ -107,7 +113,7 @@ def format_simulation_results(pools: List, amount: float) -> str:
         return "No pools available for simulation. Please try again later."
     
     # Header
-    result = f"🚀 *Simulation for an Investment of ${amount:,.2f}:*\n\n"
+    result = f"🚀 Simulation for an Investment of ${amount:,.2f}:\n\n"
     
     # Calculate potential earnings
     apr_24h = top_pool.apr_24h
