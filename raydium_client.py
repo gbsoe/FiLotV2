@@ -57,7 +57,7 @@ class RaydiumClient:
         """Check if the API service is healthy."""
         logger.info("Checking API health")
         try:
-            response = self.session.get(f"{self.api_url}/health", headers=self.headers)
+            response = self.session.get(f"{self.api_url}/api/health", headers=self.headers)
             response.raise_for_status()
             logger.info("API health check successful")
             return response.json()
@@ -69,8 +69,7 @@ class RaydiumClient:
         """Get detailed metadata about the API service."""
         logger.info("Fetching API service metadata")
         try:
-            base_url = self.api_url.rstrip('/')
-            response = self.session.get(f"{base_url}/metadata", headers=self.headers)
+            response = self.session.get(f"{self.api_url}/api/metadata", headers=self.headers)
             response.raise_for_status()
             logger.info("Successfully retrieved API metadata")
             return response.json()
@@ -94,9 +93,8 @@ class RaydiumClient:
             if limit is not None:
                 params["limit"] = limit
                 
-            base_url = self.api_url.rstrip('/')
             response = self.session.get(
-                f"{base_url}/pools", 
+                f"{self.api_url}/api/pools", 
                 headers=self.headers,
                 params=params
             )
@@ -143,9 +141,8 @@ class RaydiumClient:
             if limit:
                 params["limit"] = limit
                 
-            base_url = self.api_url.rstrip('/')
             response = self.session.get(
-                f"{base_url}/pools/filter", 
+                f"{self.api_url}/api/pools/filter", 
                 headers=self.headers,
                 params=params
             )
@@ -161,8 +158,7 @@ class RaydiumClient:
         """Get cache statistics from the API service."""
         logger.info("Fetching cache statistics")
         try:
-            base_url = self.api_url.rstrip('/')
-            response = self.session.get(f"{base_url}/cache/stats", headers=self.headers)
+            response = self.session.get(f"{self.api_url}/api/cache/stats", headers=self.headers)
             response.raise_for_status()
             logger.info("Successfully retrieved cache statistics")
             return response.json()
@@ -174,8 +170,7 @@ class RaydiumClient:
         """Clear the API service cache."""
         logger.info("Clearing API cache")
         try:
-            base_url = self.api_url.rstrip('/')
-            response = self.session.post(f"{base_url}/cache/clear", headers=self.headers)
+            response = self.session.post(f"{self.api_url}/api/cache/clear", headers=self.headers)
             response.raise_for_status()
             logger.info("Successfully cleared API cache")
             return response.json()
@@ -200,9 +195,8 @@ class RaydiumClient:
             if symbols:
                 params["symbols"] = ",".join(symbols)
                 
-            base_url = self.api_url.rstrip('/')
             response = self.session.get(
-                f"{base_url}/tokens/prices", 
+                f"{self.api_url}/api/tokens/prices", 
                 headers=self.headers,
                 params=params
             )
