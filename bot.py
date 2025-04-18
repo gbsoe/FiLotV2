@@ -690,10 +690,15 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
         uri = result["uri"]
         session_id = result["session_id"]
         
-        # Save session to context
-        if not context.user_data:
-            context.user_data = {}
-        context.user_data["walletconnect_session"] = session_id
+        # Save session to context if available
+        try:
+            # The correct way to access user_data is to just use it directly
+            # We can't reassign the entire user_data object, just set values on it
+            context.user_data["walletconnect_session"] = session_id
+            logger.info(f"Saved session ID {session_id} to user context")
+        except Exception as user_data_error:
+            # Don't fail if we can't store in context
+            logger.warning(f"Could not store session in user_data: {user_data_error}")
         
         # Create keyboard with deep link and security info
         keyboard = [
