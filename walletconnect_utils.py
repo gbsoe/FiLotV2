@@ -105,8 +105,10 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
             logger.info(f"Creating mockup secure WalletConnect connection for user {telegram_user_id}")
             
             # Generate a mock WalletConnect URI that follows the standard format
-            # This is a placeholder that follows WalletConnect format but doesn't connect to a real service
-            mock_uri = f"wc:f8a054fde8e454d4860f76a7b656f80c33edde8c8bc3d04e7b70123b4f9b8915@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=49eb35de42352aefe25d52e009b1ac686e2c9d7cb1446d152aea3e2a1e8c3a33"
+            # For Telegram compatibility, we use https:// instead of wc: as Telegram only accepts http/https URLs
+            # The actual URI would start with wc: but we're using https:// for Telegram button compatibility
+            # The app would need to convert this back to wc: when used
+            mock_uri = f"https://walletconnect.org/connect?uri=wc:f8a054fde8e454d4860f76a7b656f80c33edde8c8bc3d04e7b70123b4f9b8915@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=49eb35de42352aefe25d52e009b1ac686e2c9d7cb1446d152aea3e2a1e8c3a33"
             
             # Create mock data that resembles what we would get from the API
             data = {

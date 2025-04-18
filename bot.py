@@ -701,6 +701,7 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
             logger.warning(f"Could not store session in user_data: {user_data_error}")
         
         # Create keyboard with deep link and security info
+        # Note: Now using https:// format which Telegram accepts
         keyboard = [
             [InlineKeyboardButton("Open in Wallet App", url=uri)],
             [InlineKeyboardButton("Check Connection Status", callback_data=f"check_wc_{session_id}")],
