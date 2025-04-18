@@ -91,21 +91,39 @@ def index():
 def pools():
     """Pool data page."""
     try:
-        # Get basic pool data directly from the database using text() to properly format SQL
+        # Make an extremely simplified version with minimal risk of string formatting issues
         pool_data = []
-        query = text("SELECT id, token_a_symbol, token_b_symbol, apr_24h, apr_7d, tvl, fee FROM pools ORDER BY apr_24h DESC")
+        # Use safer fields and convert everything to strings immediately
+        query = text("SELECT token_a_symbol, token_b_symbol, apr_24h, tvl, fee FROM pools LIMIT 10")
         cursor = db.session.execute(query)
+        
         for row in cursor:
+            # Convert numeric values to strings with simple formatting to avoid any issues
+            try:
+                apr = str(round(float(row.apr_24h or 0), 2)) + '%'
+            except:
+                apr = 'N/A'
+                
+            try:
+                tvl = '$' + str(round(float(row.tvl or 0), 2))
+            except:
+                tvl = 'N/A'
+                
+            try:
+                fee = str(round(float(row.fee or 0) * 100, 2)) + '%'
+            except:
+                fee = 'N/A'
+                
             pool_data.append({
                 'token_a_symbol': row.token_a_symbol or 'Unknown',
                 'token_b_symbol': row.token_b_symbol or 'Unknown',
-                'apr_24h': float(row.apr_24h or 0),
-                'apr_7d': float(row.apr_7d or 0),
-                'tvl': float(row.tvl or 0),
-                'fee': float(row.fee or 0) * 100  # Convert to percentage
+                'apr_24h': apr,
+                'tvl': tvl,
+                'fee': fee
             })
         
-        return render_template("simple_pools.html", pools=pool_data)
+        # Use the extremely simplified template
+        return render_template("minimal_pools.html", pools=pool_data)
     except Exception as e:
         logger.error(f"Error in pools route: {e}")
         return render_template("error.html", error=str(e))
@@ -125,10 +143,10 @@ def users():
                 is_blocked, 
                 is_verified, 
                 is_subscribed, 
-                created_at, 
-                last_active 
+                created_at
             FROM users 
             ORDER BY created_at DESC
+            LIMIT 10
         """)
         cursor = db.session.execute(user_query)
         
@@ -143,35 +161,57 @@ def users():
                 name = row.username
             else:
                 name = "Anonymous"
+            
+            # Format the created_at date to avoid template formatting issues
+            created_date = "N/A"
+            if row.created_at:
+                try:
+                    created_date = row.created_at.strftime('%Y-%m-%d')
+                except:
+                    created_date = "Unknown"
                 
             user_data.append({
                 'id': row.id,
                 'username': row.username,
                 'name': name,
-                'is_blocked': row.is_blocked,
-                'is_verified': row.is_verified,
-                'is_subscribed': row.is_subscribed,
+                'is_blocked': bool(row.is_blocked),
+                'is_verified': bool(row.is_verified),
+                'is_subscribed': bool(row.is_subscribed),
                 'created_at': row.created_at,
-                'last_active': row.last_active
+                'created_date': created_date
             })
         
-        # Get simple counts
-        counts = db.session.execute("""
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN is_blocked = true THEN 1 ELSE 0 END) as blocked,
-                SUM(CASE WHEN is_verified = true THEN 1 ELSE 0 END) as verified,
-                SUM(CASE WHEN is_subscribed = true THEN 1 ELSE 0 END) as subscribed
-            FROM users
-        """).fetchone()
+        # Get simple counts - using safe defaults in case query fails
+        total_users = 0
+        blocked_users = 0
+        verified_users = 0
+        subscribed_users = 0
+        
+        try:
+            counts_query = text("""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN is_blocked = true THEN 1 ELSE 0 END) as blocked,
+                    SUM(CASE WHEN is_verified = true THEN 1 ELSE 0 END) as verified,
+                    SUM(CASE WHEN is_subscribed = true THEN 1 ELSE 0 END) as subscribed
+                FROM users
+            """)
+            counts = db.session.execute(counts_query).fetchone()
+            
+            total_users = counts.total or 0
+            blocked_users = counts.blocked or 0
+            verified_users = counts.verified or 0
+            subscribed_users = counts.subscribed or 0
+        except Exception as e:
+            logger.error(f"Error getting user counts: {e}")
         
         return render_template(
-            "simple_users.html",
+            "minimal_users.html",
             users=user_data,
-            total_users=counts.total or 0,
-            blocked_users=counts.blocked or 0,
-            verified_users=counts.verified or 0,
-            subscribed_users=counts.subscribed or 0
+            total_users=total_users,
+            blocked_users=blocked_users,
+            verified_users=verified_users,
+            subscribed_users=subscribed_users
         )
     except Exception as e:
         logger.error(f"Error in users route: {e}")
@@ -210,7 +250,7 @@ def api_health():
     """Health check API endpoint."""
     try:
         # Check database connectivity
-        db.session.execute("SELECT 1")
+        db.session.execute(text("SELECT 1"))
         
         # Get uptime
         stats = BotStatistics.query.order_by(BotStatistics.id.desc()).first()

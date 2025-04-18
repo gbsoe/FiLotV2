@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Cryptocurrency Pools{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h1>Cryptocurrency Pools</h1>
+  
+  <div class="alert alert-info">
+    Viewing simplified list of cryptocurrency pools
+  </div>
+  
+  <table class="table table-striped table-dark">
+    <thead>
+      <tr>
+        <th>Pool</th>
+        <th>APR (24h)</th>
+        <th>TVL</th>
+        <th>Fee</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if pools %}
+        {% for pool in pools %}
+          <tr>
+            <td>{{ pool.token_a_symbol }}/{{ pool.token_b_symbol }}</td>
+            <td>{{ pool.apr_24h }}</td>
+            <td>{{ pool.tvl }}</td>
+            <td>{{ pool.fee }}</td>
+          </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="4" class="text-center">No pools available</td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

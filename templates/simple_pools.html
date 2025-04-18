@@ -48,10 +48,10 @@
                                 {% for pool in pools %}
                                 <tr>
                                     <td>{{ pool.token_a_symbol }}/{{ pool.token_b_symbol }}</td>
-                                    <td>{{ "%.2f"|format(pool.apr_24h) }}%</td>
-                                    <td>{{ "%.2f"|format(pool.apr_7d) }}%</td>
-                                    <td>${{ "{:,.2f}"|format(pool.tvl) }}</td>
-                                    <td>{{ "%.2f"|format(pool.fee) }}%</td>
+                                    <td>{{ pool.apr_24h }}%</td>
+                                    <td>{{ pool.apr_7d }}%</td>
+                                    <td>${{ pool.tvl }}</td>
+                                    <td>{{ pool.fee }}%</td>
                                 </tr>
                                 {% endfor %}
                             {% else %}
