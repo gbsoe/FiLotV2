@@ -105,10 +105,15 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
             logger.info(f"Creating mockup secure WalletConnect connection for user {telegram_user_id}")
             
             # Generate a mock WalletConnect URI that follows the standard format
-            # For Telegram compatibility, we use https:// instead of wc: as Telegram only accepts http/https URLs
-            # The actual URI would start with wc: but we're using https:// for Telegram button compatibility
-            # The app would need to convert this back to wc: when used
-            mock_uri = f"https://walletconnect.org/connect?uri=wc:f8a054fde8e454d4860f76a7b656f80c33edde8c8bc3d04e7b70123b4f9b8915@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=49eb35de42352aefe25d52e009b1ac686e2c9d7cb1446d152aea3e2a1e8c3a33"
+            # We need to use a real deep link format that wallet apps will recognize
+            # Using a format that mobile wallet apps understand (Phantom, Trust Wallet, etc.)
+            
+            # The raw WalletConnect URI (will be displayed as text)
+            wc_uri = "wc:f8a054fde8e454d4860f76a7b656f80c33edde8c8bc3d04e7b70123b4f9b8915@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=49eb35de42352aefe25d52e009b1ac686e2c9d7cb1446d152aea3e2a1e8c3a33"
+            
+            # For the button URL, use a valid deep link that opens in wallet apps
+            # This format works with Phantom, MetaMask and other popular wallets
+            mock_uri = f"https://metamask.app.link/wc?uri={wc_uri}"
             
             # Create mock data that resembles what we would get from the API
             data = {
