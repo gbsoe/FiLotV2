@@ -79,18 +79,19 @@ async def get_pool_data() -> List[Any]:
         # Try to get pools from database first
         pools = Pool.query.order_by(Pool.apr_24h.desc()).limit(5).all()
         
-        # If no pools in database, fetch from API
+        # If no pools in database, use the predefined data
         if not pools or len(pools) == 0:
             try:
-                # Get Raydium client and fetch pools
-                raydium_client = get_client()
-                # This is a synchronous client, no await needed
-                api_pools_response = raydium_client.get_pools(limit=5)
+                # Import here to avoid circular imports
+                from response_data import get_pool_data as get_predefined_pool_data
                 
-                # Process top APR pools from the response
-                api_pools = api_pools_response.get('topAPR', [])
+                # Get predefined pool data
+                predefined_data = get_predefined_pool_data()
                 
-                # Convert API pools to Pool objects for formatting
+                # Process top APR pools from the predefined data
+                api_pools = predefined_data.get('topAPR', [])
+                
+                # Convert pools to Pool objects for formatting
                 pools = []
                 for pool_data in api_pools:
                     pool = Pool()
@@ -121,10 +122,9 @@ async def get_pool_data() -> List[Any]:
                 # Save pools to database for future use
                 db.session.add_all(pools)
                 db.session.commit()
-                logger.info(f"Saved {len(pools)} pools to database")
+                logger.info(f"Saved {len(pools)} pools to database from predefined data")
             except Exception as e:
-                logger.error(f"Error fetching pools from Raydium API: {e}")
-                # If API fetch fails, return empty pool list
+                logger.error(f"Error using predefined pool data: {e}")
                 pools = []
         
         return pools

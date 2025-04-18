@@ -2,6 +2,124 @@
 Predefined response data for the Telegram bot
 """
 
+# Pool data for use when Raydium API is not available
+def get_pool_data():
+    """
+    Return predefined pool data for the bot.
+    This data is used when the Raydium API endpoints are not accessible.
+    """
+    return {
+        "topAPR": [
+            {
+                "id": "sol_usdc_pool",
+                "pairName": "SOL/USDC",
+                "apr": 12.5,
+                "aprWeekly": 11.8,
+                "aprMonthly": 10.9,
+                "liquidity": 5287600,
+                "fee": 0.0025,
+                "volume24h": 1245678,
+                "txCount": 3456,
+                "tokenPrices": {
+                    "SOL": 145.32,
+                    "USDC": 1.00
+                }
+            },
+            {
+                "id": "sol_usdt_pool",
+                "pairName": "SOL/USDT",
+                "apr": 11.8,
+                "aprWeekly": 10.9,
+                "aprMonthly": 10.2,
+                "liquidity": 4876500,
+                "fee": 0.0025,
+                "volume24h": 1123456,
+                "txCount": 3210,
+                "tokenPrices": {
+                    "SOL": 145.32,
+                    "USDT": 1.00
+                }
+            },
+            {
+                "id": "rndr_usdc_pool",
+                "pairName": "RNDR/USDC",
+                "apr": 18.6,
+                "aprWeekly": 17.2,
+                "aprMonthly": 15.8,
+                "liquidity": 2563800,
+                "fee": 0.0030,
+                "volume24h": 876543,
+                "txCount": 2345,
+                "tokenPrices": {
+                    "RNDR": 14.56,
+                    "USDC": 1.00
+                }
+            },
+            {
+                "id": "jto_usdc_pool",
+                "pairName": "JTO/USDC",
+                "apr": 16.2,
+                "aprWeekly": 15.5,
+                "aprMonthly": 14.8,
+                "liquidity": 1876500,
+                "fee": 0.0030,
+                "volume24h": 654321,
+                "txCount": 1987,
+                "tokenPrices": {
+                    "JTO": 2.38,
+                    "USDC": 1.00
+                }
+            },
+            {
+                "id": "btc_usdt_pool",
+                "pairName": "BTC/USDT",
+                "apr": 9.7,
+                "aprWeekly": 9.2,
+                "aprMonthly": 8.9,
+                "liquidity": 8765432,
+                "fee": 0.0020,
+                "volume24h": 3456789,
+                "txCount": 4321,
+                "tokenPrices": {
+                    "BTC": 64256.78,
+                    "USDT": 1.00
+                }
+            }
+        ],
+        "mandatory": [
+            {
+                "id": "eth_usdc_pool",
+                "pairName": "ETH/USDC",
+                "apr": 8.6,
+                "aprWeekly": 8.2,
+                "aprMonthly": 7.9,
+                "liquidity": 7654321,
+                "fee": 0.0020,
+                "volume24h": 2345678,
+                "txCount": 3987,
+                "tokenPrices": {
+                    "ETH": 3456.78,
+                    "USDC": 1.00
+                }
+            },
+            {
+                "id": "sol_eth_pool",
+                "pairName": "SOL/ETH",
+                "apr": 10.4,
+                "aprWeekly": 9.8,
+                "aprMonthly": 9.2,
+                "liquidity": 3456789,
+                "fee": 0.0025,
+                "volume24h": 987654,
+                "txCount": 2987,
+                "tokenPrices": {
+                    "SOL": 145.32,
+                    "ETH": 3456.78
+                }
+            }
+        ]
+    }
+
 def get_predefined_responses():
     """
     Return a dictionary of detailed predefined responses with canonical keys.
