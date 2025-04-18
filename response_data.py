@@ -159,6 +159,21 @@ def get_pool_data():
                             "SOL": token_prices.get("SOL", default_prices["SOL"]),
                             "RAY": token_prices.get("RAY", default_prices["RAY"])
                         }
+                    },
+                    {
+                        "id": "CYbD9RaToYMtWKA7QZyoLahnHdWq553Vm62Lh6qWtuxq",
+                        "pairName": "SOL/USDC",
+                        "apr": 31.65,
+                        "aprWeekly": 30.8,
+                        "aprMonthly": 31.2,
+                        "liquidity": 6254321.75,
+                        "fee": 0.0025,
+                        "volume24h": 1245678,
+                        "txCount": 3256,
+                        "tokenPrices": {
+                            "SOL": token_prices.get("SOL", default_prices["SOL"]),
+                            "USDC": token_prices.get("USDC", default_prices["USDC"])
+                        }
                     }
                 ],
                 "mandatory": [
@@ -200,6 +215,36 @@ def get_pool_data():
                         "fee": 0.0025,
                         "volume24h": 2500000,
                         "txCount": 5000,
+                        "tokenPrices": {
+                            "SOL": 131.7,
+                            "USDC": 1.00
+                        }
+                    },
+                    {
+                        "id": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
+                        "pairName": "SOL/RAY",
+                        "apr": 95.5,
+                        "aprWeekly": 48.2,
+                        "aprMonthly": 68.9,
+                        "liquidity": 3542987.62,
+                        "fee": 0.0025,
+                        "volume24h": 987654,
+                        "txCount": 2500,
+                        "tokenPrices": {
+                            "SOL": 131.7,
+                            "RAY": 0.75
+                        }
+                    },
+                    {
+                        "id": "CYbD9RaToYMtWKA7QZyoLahnHdWq553Vm62Lh6qWtuxq",
+                        "pairName": "SOL/USDC",
+                        "apr": 31.65,
+                        "aprWeekly": 30.8,
+                        "aprMonthly": 31.2,
+                        "liquidity": 6254321.75,
+                        "fee": 0.0025,
+                        "volume24h": 1245678,
+                        "txCount": 3256,
                         "tokenPrices": {
                             "SOL": 131.7,
                             "USDC": 1.00
