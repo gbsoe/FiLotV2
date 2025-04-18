@@ -25,13 +25,16 @@ class RaydiumClient:
     
     def __init__(self):
         """Initialize the client with configuration from environment variables."""
-        self.api_url = os.environ.get("NODE_SERVICE_URL")
-        self.api_key = os.environ.get("RAYDIUM_API_KEY")
+        self.api_url = os.environ.get("NODE_SERVICE_URL", "")
+        self.api_key = os.environ.get("RAYDIUM_API_KEY", "")
         
         if not self.api_url:
             raise ValueError("NODE_SERVICE_URL environment variable is required")
         if not self.api_key:
             raise ValueError("RAYDIUM_API_KEY environment variable is required")
+            
+        # Ensure api_url doesn't end with a slash to prevent double slashes in URLs
+        self.api_url = self.api_url.rstrip('/')
             
         # Headers for all requests
         self.headers = {
@@ -66,7 +69,8 @@ class RaydiumClient:
         """Get detailed metadata about the API service."""
         logger.info("Fetching API service metadata")
         try:
-            response = self.session.get(f"{self.api_url}/metadata", headers=self.headers)
+            base_url = self.api_url.rstrip('/')
+            response = self.session.get(f"{base_url}/metadata", headers=self.headers)
             response.raise_for_status()
             logger.info("Successfully retrieved API metadata")
             return response.json()
@@ -90,8 +94,9 @@ class RaydiumClient:
             if limit is not None:
                 params["limit"] = limit
                 
+            base_url = self.api_url.rstrip('/')
             response = self.session.get(
-                f"{self.api_url}/pools", 
+                f"{base_url}/pools", 
                 headers=self.headers,
                 params=params
             )
@@ -138,8 +143,9 @@ class RaydiumClient:
             if limit:
                 params["limit"] = limit
                 
+            base_url = self.api_url.rstrip('/')
             response = self.session.get(
-                f"{self.api_url}/pools/filter", 
+                f"{base_url}/pools/filter", 
                 headers=self.headers,
                 params=params
             )
@@ -155,7 +161,8 @@ class RaydiumClient:
         """Get cache statistics from the API service."""
         logger.info("Fetching cache statistics")
         try:
-            response = self.session.get(f"{self.api_url}/cache/stats", headers=self.headers)
+            base_url = self.api_url.rstrip('/')
+            response = self.session.get(f"{base_url}/cache/stats", headers=self.headers)
             response.raise_for_status()
             logger.info("Successfully retrieved cache statistics")
             return response.json()
@@ -167,7 +174,8 @@ class RaydiumClient:
         """Clear the API service cache."""
         logger.info("Clearing API cache")
         try:
-            response = self.session.post(f"{self.api_url}/cache/clear", headers=self.headers)
+            base_url = self.api_url.rstrip('/')
+            response = self.session.post(f"{base_url}/cache/clear", headers=self.headers)
             response.raise_for_status()
             logger.info("Successfully cleared API cache")
             return response.json()
@@ -192,8 +200,9 @@ class RaydiumClient:
             if symbols:
                 params["symbols"] = ",".join(symbols)
                 
+            base_url = self.api_url.rstrip('/')
             response = self.session.get(
-                f"{self.api_url}/tokens/prices", 
+                f"{base_url}/tokens/prices", 
                 headers=self.headers,
                 params=params
             )
