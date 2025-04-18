@@ -33,8 +33,9 @@ def main():
         print("API HEALTH CHECK")
         print("=" * 40)
         health = client.check_health()
-        print(f"API Status: {health['status']}")
-        print(f"Timestamp: {health['timestamp']}")
+        print(f"API Status: {health.get('status', 'Unknown')}")
+        print(f"API Message: {health.get('message', 'Unknown')}")
+        print(f"API Service: {health.get('service', 'Unknown')}")
         
         # Get top APR pools
         print("\n" + "=" * 40)

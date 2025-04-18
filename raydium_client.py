@@ -35,6 +35,10 @@ class RaydiumClient:
             
         # Ensure api_url doesn't end with a slash to prevent double slashes in URLs
         self.api_url = self.api_url.rstrip('/')
+        
+        # Ensure we're using HTTPS
+        if not self.api_url.startswith('https://') and not self.api_url.startswith('http://'):
+            self.api_url = f"https://{self.api_url}"
             
         # Headers for all requests
         self.headers = {
