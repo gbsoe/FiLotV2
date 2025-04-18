@@ -47,6 +47,16 @@ with app.app_context():
     except Exception as e:
         logger.error(f"Error creating database tables: {e}")
 
+# Add health check endpoint
+@app.route("/health")
+def health():
+    """Health check endpoint for monitoring application status."""
+    return jsonify({
+        "status": "ok",
+        "timestamp": datetime.datetime.now().isoformat(),
+        "app": "telegram-crypto-pool-bot"
+    })
+
 # Routes
 
 @app.route("/")
