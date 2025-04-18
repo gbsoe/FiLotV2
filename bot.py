@@ -1300,10 +1300,10 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
 def create_application():
     """Register all necessary handlers to the application and return the Application instance."""
-    # Check for Telegram bot token
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    # Check for Telegram bot token (first look for the secret, then fallback to env var for backward compatibility)
+    token = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
-        logger.error("Telegram bot token not found. Please set the TELEGRAM_BOT_TOKEN environment variable.")
+        logger.error("Telegram bot token not found. Please set the TELEGRAM_TOKEN secret.")
         raise ValueError("Telegram bot token not found")
     
     # Create the Application

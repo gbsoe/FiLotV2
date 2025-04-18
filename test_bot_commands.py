@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 def get_bot_updates():
     """Get bot updates."""
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    bot_token = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
-        logger.error("TELEGRAM_BOT_TOKEN environment variable not set")
+        logger.error("TELEGRAM_TOKEN secret not set")
         return False
         
     url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
