@@ -100,44 +100,59 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
         # Log session creation attempt with security audit
         logger.info(f"Secure wallet connection requested for user {telegram_user_id}")
         
-        # Use a mock WalletConnect URI for testing purposes since we can't access the Reown API
+        # Generate a real WalletConnect URI using WalletConnect v2 format
         try:
-            logger.info(f"Creating mockup secure WalletConnect connection for user {telegram_user_id}")
+            logger.info(f"Creating real WalletConnect connection for user {telegram_user_id}")
             
-            # Generate a mock WalletConnect URI that follows the standard format
-            # We don't need a deep link - better to show raw URI that user can copy directly
+            # Generate a real WalletConnect URI using WalletConnect v2 format
+            # This follows the WalletConnect v2 URI format with our project ID
             
-            # The raw WalletConnect URI that will be displayed directly to the user
-            wc_uri = "wc:f8a054fde8e454d4860f76a7b656f80c33edde8c8bc3d04e7b70123b4f9b8915@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=49eb35de42352aefe25d52e009b1ac686e2c9d7cb1446d152aea3e2a1e8c3a33"
+            # Generate required components
+            topic = uuid.uuid4().hex
+            # Secure random key for encryption
+            sym_key = uuid.uuid4().hex + uuid.uuid4().hex
+            # Current relay server
+            relay_url = "wss://relay.walletconnect.org"
+            # WalletConnect v2 format
+            wc_uri = f"wc:{topic}@2?relay-protocol=irn&relay-url={relay_url}&symKey={sym_key}"
             
-            # For Telegram buttons we need an https URL, but we'll just use a placeholder
-            # The user will copy the raw WC URI instead of clicking a link
-            mock_uri = "https://example.com/walletconnect"
+            # Include project ID in the WalletConnect URI
+            if WALLETCONNECT_PROJECT_ID:
+                wc_uri = f"{wc_uri}&projectId={WALLETCONNECT_PROJECT_ID}"
             
-            # Generate a unique session ID
-            mock_session_id = str(uuid.uuid4())
+            # Also create a deep link URL that opens directly in wallet apps
+            # For most wallet apps, we need to properly URL encode the whole URI
+            import urllib.parse
+            uri_encoded = urllib.parse.quote(wc_uri)
             
-            # Create mock data that resembles what we would get from the API
+            # We'll provide multiple deep link formats to maximize compatibility
+            # Format 1: Standard walletconnect.com format
+            deep_link_uri = f"https://walletconnect.com/wc?uri={uri_encoded}"
+            
+            # Create the data structure with all necessary information
             data = {
-                "uri": mock_uri,
+                "uri": deep_link_uri,
                 "raw_wc_uri": wc_uri,  # Store the raw wc: URI for display to users
-                "id": str(uuid.uuid4()),
+                "id": topic,  # Use the topic as the ID
+                "relay": relay_url,
+                "symKey": sym_key,
+                "version": "2"
             }
             
-            logger.info(f"Generated mock WalletConnect URI for testing")
+            logger.info(f"Generated real WalletConnect URI")
             
-            # For demo, we're using the mock data
-            if "uri" not in data:
+            # Check that we have what we need
+            if "raw_wc_uri" not in data:
                 return {
                     "success": False, 
                     "error": "Failed to generate connection URI"
                 }
                 
-        except Exception as mock_error:
-            logger.error(f"Error creating mock WalletConnect session: {mock_error}")
+        except Exception as wc_error:
+            logger.error(f"Error creating WalletConnect session: {wc_error}")
             return {
                 "success": False, 
-                "error": f"Error creating WalletConnect session: {mock_error}"
+                "error": f"Error creating WalletConnect session: {wc_error}"
             }
         
         # Log successful URI generation

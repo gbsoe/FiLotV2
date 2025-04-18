@@ -212,6 +212,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             "🔹 Use /simulate [amount] to calculate potential earnings\n"
             "🔹 Use /subscribe to receive daily updates\n"
             "🔹 Use /wallet to manage your crypto wallet\n"
+            "🔹 Use /walletconnect to connect with QR code (NEW!)\n"
             "🔹 Use /help to see all available commands\n\n"
             "You can also ask me any questions about FiLot, LA! Token, or crypto investing in general."
         )
@@ -236,7 +237,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "• /unsubscribe - Stop receiving updates\n"
             "• /status - Check bot status\n"
             "• /wallet - Manage your crypto wallet\n"
-            "• /verify [code] - Verify your account\n"
+            "• /walletconnect - Connect wallet using QR code (NEW!)\n"
+            "• /verify [code] - Verify your account\n" 
+            "• /profile - Set your investment preferences\n"
             "• /help - Show this help message\n\n"
             "You can also ask me questions about FiLot, LA! Token, or DeFi concepts."
         )
