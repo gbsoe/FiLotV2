@@ -1,0 +1,76 @@
+This is error log in production server 
+
+04-19 02:57:56
+starting up user application
+04-19 02:57:56
+forwarding local port 5000 to external port 80 (mapped as 1104)
+04-19 02:57:57
+[2025-04-18 19:57:57 +0000] [26] [INFO] Starting gunicorn 23.0.0
+04-19 02:57:57
+[2025-04-18 19:57:57 +0000] [26] [INFO] Listening at: http://0.0.0.0:5000 (26)
+04-19 02:57:57
+[2025-04-18 19:57:57 +0000] [26] [INFO] Using worker: sync
+04-19 02:57:57
+[2025-04-18 19:57:57 +0000] [31] [INFO] Booting worker with pid: 31
+04-19 02:58:08
+2025-04-18 19:58:08,284 [INFO] app: Database tables created successfully
+04-19 02:58:08
+2025-04-18 19:58:08,284 [INFO] app: Database tables created successfully
+04-19 02:58:11
+2025-04-18 19:58:11,612 [INFO] walletconnect_utils: Database initialized successfully
+04-19 02:58:25
+[2025-04-18 19:58:25 +0000] [26] [INFO] Handling signal: term
+04-19 02:58:25
+system: received signal terminated
+04-19 02:58:25
+[2025-04-18 19:58:25 +0000] [31] [INFO] Worker exiting (pid: 31)
+04-19 02:58:26
+[2025-04-18 19:58:26 +0000] [26] [INFO] Shutting down: Master
+04-19 02:58:26
+command finished successfully with exit code 0
+04-19 02:58:26
+main done, exiting
+04-19 02:59:21
+system: received signal terminated
+04-19 02:59:21
+[2025-04-18 19:59:21 +0000] [24] [INFO] Handling signal: term
+04-19 02:59:21
+[2025-04-18 19:59:21 +0000] [29] [INFO] Worker exiting (pid: 29)
+04-19 02:59:21
+[2025-04-18 19:59:21 +0000] [24] [INFO] Shutting down: Master
+04-19 02:59:21
+command finished successfully with exit code 0
+04-19 02:59:21
+main done, exiting
+04-19 02:59:38
+starting up user application
+04-19 02:59:38
+forwarding local port 5000 to external port 80 (mapped as 1104)
+04-19 02:59:39
+[2025-04-18 19:59:39 +0000] [23] [INFO] Starting gunicorn 23.0.0
+04-19 02:59:39
+[2025-04-18 19:59:39 +0000] [23] [INFO] Listening at: http://0.0.0.0:5000 (23)
+04-19 02:59:39
+[2025-04-18 19:59:39 +0000] [23] [INFO] Using worker: sync
+04-19 02:59:39
+[2025-04-18 19:59:39 +0000] [28] [INFO] Booting worker with pid: 28
+04-19 02:59:45
+2025-04-18 19:59:45,797 [INFO] app: Database tables created successfully
+04-19 02:59:48
+2025-04-18 19:59:48,328 [INFO] walletconnect_utils: Database initialized successfully
+04-19 02:59:50
+starting up user application
+04-19 02:59:50
+forwarding local port 5000 to external port 80 (mapped as 1104)
+04-19 02:59:51
+[2025-04-18 19:59:51 +0000] [27] [INFO] Starting gunicorn 23.0.0
+04-19 02:59:51
+[2025-04-18 19:59:51 +0000] [27] [INFO] Listening at: http://0.0.0.0:5000 (27)
+04-19 02:59:51
+[2025-04-18 19:59:51 +0000] [27] [INFO] Using worker: sync
+04-19 02:59:51
+[2025-04-18 19:59:51 +0000] [32] [INFO] Booting worker with pid: 32
+04-19 03:00:00
+2025-04-18 20:00:00,153 [INFO] app: Database tables created successfully
+04-19 03:00:01
+2025-04-18 20:00:01,609 [INFO] walletconnect_utils: Database initialized successfully
