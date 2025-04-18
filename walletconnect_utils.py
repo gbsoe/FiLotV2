@@ -106,18 +106,24 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
             
             # Generate a mock WalletConnect URI that follows the standard format
             # We need to use a real deep link format that wallet apps will recognize
-            # Using a format that mobile wallet apps understand (Phantom, Trust Wallet, etc.)
             
-            # The raw WalletConnect URI (will be displayed as text)
+            # The raw WalletConnect URI (will be displayed as text and stored for reference)
             wc_uri = "wc:f8a054fde8e454d4860f76a7b656f80c33edde8c8bc3d04e7b70123b4f9b8915@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=49eb35de42352aefe25d52e009b1ac686e2c9d7cb1446d152aea3e2a1e8c3a33"
             
-            # For the button URL, use a valid deep link that opens in wallet apps
-            # This format works with Phantom, MetaMask and other popular wallets
-            mock_uri = f"https://metamask.app.link/wc?uri={wc_uri}"
+            # Create a universal link that works with Telegram buttons
+            # Telegram requires URLs to start with http/https
+            # Using a format that's compatible with most wallet apps
+            
+            # Using a wallet link scheme that's universally compatible
+            mock_uri = f"https://link.walletconnect.org/?uri={wc_uri}"
+            
+            # Store both URIs - the mock_uri for the button and the wc_uri for display
+            mock_session_id = str(uuid.uuid4())
             
             # Create mock data that resembles what we would get from the API
             data = {
                 "uri": mock_uri,
+                "raw_wc_uri": wc_uri,  # Store the raw wc: URI for display to users
                 "id": str(uuid.uuid4()),
             }
             
@@ -146,6 +152,7 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
         
         session_data = {
             "uri": data["uri"],
+            "raw_wc_uri": data.get("raw_wc_uri", ""),  # Store the raw WC URI for direct display
             "created": int(time.time()),
             "reown_session_id": data.get("id", ""),
             "security_level": "read_only",  # Mark this as read-only permissions

@@ -20,12 +20,13 @@ from models import User, Pool, UserQuery, db
 from question_detector import get_predefined_response, is_question
 from raydium_client import get_client
 from utils import format_pool_info, format_simulation_results, format_daily_update
-from wallet_utils import connect_wallet, check_wallet_balance, calculate_deposit_strategy
+from wallet_utils import connect_wallet, check_wallet_balance, calculate_deposit_strategy, get_wallet_balances
 from walletconnect_utils import (
     create_walletconnect_session, 
     check_walletconnect_session, 
     kill_walletconnect_session,
-    get_user_walletconnect_sessions
+    get_user_walletconnect_sessions,
+    get_db_connection
 )
 from anthropic_service import AnthropicAI
 
@@ -722,13 +723,17 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup=reply_markup
         )
         
-        # Include the raw WalletConnect URI for copy/paste in case the button doesn't work
-        # Extract the raw WC URI from the link for display to user
-        wc_uri = uri.split("uri=")[1] if "uri=" in uri else uri
+        # Get the raw WalletConnect URI for display
+        # Try to extract from URL if needed
+        raw_wc_uri = ""
+        if "uri=" in uri:
+            raw_wc_uri = uri.split("uri=")[1]
+        else:
+            raw_wc_uri = uri
         
         # Send the QR code URL separately with security reminder
         await security_msg.reply_text(
-            f"Connect your wallet with this WalletConnect link:\n`{wc_uri}`\n\n"
+            f"Connect your wallet with this WalletConnect link:\n`{raw_wc_uri}`\n\n"
             "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions."
         )
     except Exception as e:
@@ -1050,45 +1055,69 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                     conn.close()
                 
                 if status == "connected":
-                    # Get mock wallet data for display
-                    wallet_data = await get_wallet_balances(user.id)
-                    token_list = ", ".join([f"{token} ({balance})" for token, balance in wallet_data.get("balances", {}).items()])
-                    
-                    await query.message.reply_markdown(
-                        "✅ *Wallet Connected Successfully!*\n\n"
-                        f"Your wallet is now connected in read-only mode.\n\n"
-                        f"*Detected tokens:*\n{token_list}\n\n"
-                        "You can now get personalized pool recommendations based on your holdings.\n\n"
-                        "Use /info to see available pools or /simulate to calculate potential earnings."
-                    )
-                else:
-                    # For buttons in the message
-                    # Extract the raw WC URI for creating the open in wallet app button
-                    uri = session_info.get("session_data", {}).get("uri", "")
-                    
-                    # Create updated keyboard with check status button
-                    keyboard = [
-                        [InlineKeyboardButton("Check Connection Status", callback_data=f"check_wc_{session_id}")],
-                        [InlineKeyboardButton("Cancel Connection", callback_data=f"cancel_wc_{session_id}")]
-                    ]
-                    
-                    # Add wallet app button only if we have a valid URI
-                    if uri and uri.startswith("https://"):
-                        keyboard.insert(0, [InlineKeyboardButton("Open in Wallet App", url=uri)])
-                    
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    
-                    # Only update the reply markup if there's a change
                     try:
-                        await query.message.edit_reply_markup(reply_markup=reply_markup)
-                    except Exception as edit_error:
-                        logger.warning(f"Could not update message markup: {edit_error}")
-                    
-                    await query.message.reply_markdown(
-                        "⏳ *Waiting for Connection*\n\n"
-                        "The wallet connection is still pending. Please open your wallet app and approve the connection.\n\n"
-                        "Click 'Check Connection Status' after approving in your wallet."
-                    )
+                        # Get mock wallet data for display
+                        wallet_data = await get_wallet_balances(user.id)
+                        token_list = ", ".join([f"{token} ({balance})" for token, balance in wallet_data.get("balances", {}).items()])
+                        
+                        await query.message.reply_markdown(
+                            "✅ *Wallet Connected Successfully!*\n\n"
+                            f"Your wallet is now connected in read-only mode.\n\n"
+                            f"*Detected tokens:*\n{token_list}\n\n"
+                            "You can now get personalized pool recommendations based on your holdings.\n\n"
+                            "Use /info to see available pools or /simulate to calculate potential earnings."
+                        )
+                    except Exception as e:
+                        logger.error(f"Error handling connected wallet: {e}")
+                        await query.message.reply_markdown(
+                            "✅ *Wallet Connected!*\n\n"
+                            "Your wallet is now connected in read-only mode.\n\n"
+                            "Use /info to see available pools or /simulate to calculate potential earnings."
+                        )
+                else:
+                    try:
+                        # For buttons in the message
+                        # Get connection URIs from session data
+                        session_data = session_info.get("session_data", {})
+                        uri = session_data.get("uri", "")  # HTTPS URI for Telegram buttons
+                        raw_wc_uri = session_data.get("raw_wc_uri", "")  # Raw WC URI for display
+                        
+                        # Create updated keyboard with check status button
+                        keyboard = [
+                            [InlineKeyboardButton("Check Connection Status", callback_data=f"check_wc_{session_id}")],
+                            [InlineKeyboardButton("Cancel Connection", callback_data=f"cancel_wc_{session_id}")]
+                        ]
+                        
+                        # Add wallet app button only if we have a valid URI
+                        if uri and uri.startswith("https://"):
+                            keyboard.insert(0, [InlineKeyboardButton("Open in Wallet App", url=uri)])
+                        
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+                        
+                        # Only update the reply markup if there's a change
+                        try:
+                            await query.message.edit_reply_markup(reply_markup=reply_markup)
+                        except Exception as edit_error:
+                            logger.warning(f"Could not update message markup: {edit_error}")
+                        
+                        response_text = (
+                            "⏳ *Waiting for Connection*\n\n"
+                            "The wallet connection is still pending. Please open your wallet app and approve the connection.\n\n"
+                        )
+                        
+                        # Include the raw WC URI if available
+                        if raw_wc_uri:
+                            response_text += f"Connect with this WalletConnect URI:\n`{raw_wc_uri}`\n\n"
+                            
+                        response_text += "Click 'Check Connection Status' after approving in your wallet."
+                        
+                        await query.message.reply_markdown(response_text)
+                    except Exception as e:
+                        logger.error(f"Error processing pending connection: {e}")
+                        await query.message.reply_markdown(
+                            "⏳ *Waiting for Connection*\n\n"
+                            "Please open your wallet app and approve the connection, then click 'Check Connection Status'."
+                        )
             except Exception as e:
                 logger.error(f"Error checking WalletConnect session: {e}")
                 await query.message.reply_text(
