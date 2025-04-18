@@ -656,8 +656,17 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
         user = update.effective_user
         db_utils.log_user_activity(user.id, "walletconnect_command")
         
+        # Determine if this is a callback or direct command
+        is_callback = update.callback_query is not None
+        
+        # Get the appropriate message object based on the update type
+        if is_callback:
+            message = update.callback_query.message
+        else:
+            message = update.message
+        
         # Send security information message first
-        await update.message.reply_markdown(
+        security_msg = await message.reply_markdown(
             "🔒 *Secure Wallet Connection*\n\n"
             "Our wallet connection process is designed with your security in mind:\n\n"
             "• Your private keys remain in your wallet app\n"
@@ -671,7 +680,7 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
         result = await create_walletconnect_session(user.id)
         
         if not result["success"]:
-            await update.message.reply_markdown(
+            await security_msg.reply_markdown(
                 f"❌ Error: {result.get('error', 'Unknown error')}\n\n"
                 "Please try again later."
             )
@@ -694,7 +703,8 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_markdown(
+        # Send the main wallet connect message
+        await security_msg.reply_markdown(
             "🔗 *WalletConnect Session Created*\n\n"
             "Scan the QR code with your wallet app to connect, or click the button below to open in your wallet app.\n\n"
             f"Session ID: `{session_id}`\n\n"
@@ -707,15 +717,23 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
         )
         
         # Send the QR code URL separately with security reminder
-        await update.message.reply_text(
+        await security_msg.reply_text(
             f"Connect your wallet with this link: {uri}\n\n"
             "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions."
         )
     except Exception as e:
         logger.error(f"Error in walletconnect command: {e}")
-        await update.message.reply_text(
-            "Sorry, an error occurred while processing your request. Please try again later."
-        )
+        try:
+            if update.callback_query:
+                await update.callback_query.message.reply_text(
+                    "Sorry, an error occurred while processing your request. Please try again later."
+                )
+            else:
+                await update.message.reply_text(
+                    "Sorry, an error occurred while processing your request. Please try again later."
+                )
+        except Exception as reply_error:
+            logger.error(f"Error sending error message: {reply_error}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
