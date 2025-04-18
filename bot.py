@@ -737,32 +737,79 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
         
         # Generate QR code for the WalletConnect URI
         try:
-            # Create QR code using the simpler API
-            qr_img = qrcode.make(result.get('raw_wc_uri', raw_wc_uri))
+            # Make sure we're using the raw wc: URI for the QR code (not the deep link)
+            wc_uri_for_qr = result.get('raw_wc_uri', raw_wc_uri)
+            logger.info(f"Generating QR code for URI: {wc_uri_for_qr}")
+            
+            # Import directly to confirm PIL is available
+            from PIL import Image
+            logger.info("PIL is available")
+            
+            # Create QR code with explicit imports to ensure we have all needed components
+            import qrcode
+            from qrcode.image.pil import PilImage
+            
+            # Use the most basic qrcode creation method
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=4,
+            )
+            qr.add_data(wc_uri_for_qr)
+            qr.make(fit=True)
+            qr_img = qr.make_image(fill_color="black", back_color="white")
+            
+            logger.info(f"QR code image created, type: {type(qr_img)}")
             
             # Save to a buffer
             buffer = io.BytesIO()
-            qr_img.save(buffer)
+            qr_img.save(buffer, format="PNG")  # Explicitly set format
             buffer.seek(0)
+            logger.info(f"QR saved to buffer, size: {len(buffer.getvalue())} bytes")
             
-            # Send QR code as photo
-            await message.reply_photo(
+            # Send QR code as photo with more detailed caption
+            current_time = datetime.datetime.now().strftime("%H:%M:%S")
+            sent_msg = await message.reply_photo(
                 photo=buffer,
-                caption="📱 Scan this QR code with your wallet app to connect"
+                caption=f"📱 Scan this QR code with your wallet app to connect\n(Generated at {current_time})"
             )
             
-            logger.info("QR code generated and sent successfully")
+            logger.info(f"QR code sent successfully: {sent_msg.message_id}")
+        except ImportError as imp_err:
+            logger.error(f"Import error for QR generation: {imp_err}")
+            logger.error(traceback.format_exc())
+            
+            # Try alternative QR display via text
+            await message.reply_text(
+                "Unable to generate QR code image. Please use the text link below instead."
+            )
         except Exception as qr_error:
             logger.error(f"Error generating QR code: {qr_error}")
+            logger.error(traceback.format_exc())
             # If QR code generation fails, we'll still send the text version
         
         # Also send the raw WalletConnect URI as text for manual copying if needed
         # Format with code block and timestamp for better visibility
         current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Get the WalletConnect URI
+        wallet_connect_uri = result.get('raw_wc_uri', raw_wc_uri)
+        
+        # Create a cleaner and more focused message with just the WalletConnect URI
+        # Using a dedicated message specifically for copying
+        # Using monospace font with a standalone message makes it easier to copy
+        copy_msg = await message.reply_text(
+            f"📋 *COPY THIS LINK* (tap to select):\n\n"
+            f"`{wallet_connect_uri}`\n\n"
+            f"Generated at {current_time}",
+            parse_mode="Markdown"
+        )
+        
+        # Add the detailed explanation in a separate message
         await security_msg.reply_text(
-            f"Alternatively, you can manually copy this WalletConnect link (generated at {current_time}):\n\n"
-            f"```\n{result.get('raw_wc_uri', raw_wc_uri)}\n```\n\n"
-            "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions."
+            "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions.\n\n"
+            "If the QR code doesn't work, manually copy the link above and paste it into your wallet app."
         )
     except Exception as e:
         logger.error(f"Error in walletconnect command: {e}")
