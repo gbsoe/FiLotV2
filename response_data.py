@@ -49,137 +49,165 @@ TVL_RANGES = {
 
 def get_pool_data():
     """
-    Return pool data for the bot with real pool IDs and accurate token prices.
-    This is used when the Raydium API endpoints are not accessible.
+    Return pool data for the bot from the Raydium API service.
+    Falls back to default data if the API is not accessible.
     """
     try:
-        # Get all unique token symbols from pool pairs
-        token_symbols = set()
-        for token_a, token_b in POOL_TOKEN_PAIRS.values():
-            token_symbols.add(token_a)
-            token_symbols.add(token_b)
+        # Using the external Raydium API service at https://raydium-trader-filot.replit.app/
+        import requests
         
-        # Fetch real token prices from CoinGecko
-        token_prices = coingecko_utils.get_multiple_token_prices(list(token_symbols))
-        logger.info(f"Fetched token prices: {token_prices}")
+        # Set API endpoint URL
+        api_url = "https://raydium-trader-filot.replit.app/api/pools"
         
-        # Use default price if CoinGecko price not available
-        default_prices = {
-            "SOL": 125.0,
-            "ETH": 3000.0,
-            "RAY": 0.75,
-            "USDC": 1.0,
-            "USDT": 1.0,
-            "BTC": 65000.0
-        }
+        # Try to fetch data from the API
+        logger.info(f"Fetching pool data from Raydium API service at {api_url}")
+        response = requests.get(api_url, timeout=10)
         
-        # Combine real prices with defaults for missing tokens
-        for symbol, price in default_prices.items():
-            if symbol not in token_prices:
-                token_prices[symbol] = price
-        
-        pool_data_list = []
-        for pool_id in REAL_POOL_IDS:
-            token_a, token_b = POOL_TOKEN_PAIRS.get(pool_id, ("Unknown", "Unknown"))
-            pair_name = f"{token_a}/{token_b}"
+        # Check if response was successful
+        if response.status_code == 200:
+            pools_data = response.json()
+            logger.info(f"Successfully retrieved data from Raydium API service: {len(pools_data.get('topAPR', []))} top APR pools")
             
-            # Get realistic APR and TVL ranges for this pool type
-            apr_range = APR_RANGES.get(pair_name, APR_RANGES["default"])
-            tvl_range = TVL_RANGES.get(pair_name, TVL_RANGES["default"])
+            # Fetch real token prices from CoinGecko to supplement the API data
+            token_symbols = set()
+            for pool in pools_data.get('topAPR', []):
+                pair_name = pool.get('pairName', '')
+                if '/' in pair_name:
+                    token_a, token_b = pair_name.split('/')
+                    token_symbols.add(token_a)
+                    token_symbols.add(token_b)
             
-            # Generate realistic pool data
-            apr_24h = random.uniform(apr_range[0], apr_range[1])
-            apr_7d = apr_24h * random.uniform(0.4, 0.7)  # Weekly APR is typically lower
-            apr_30d = apr_24h * random.uniform(0.6, 0.9)  # Monthly APR is somewhere in between
+            # Get token prices from CoinGecko
+            token_prices = coingecko_utils.get_multiple_token_prices(list(token_symbols))
+            logger.info(f"Fetched token prices: {token_prices}")
             
-            liquidity = random.uniform(tvl_range[0], tvl_range[1])
-            volume_24h = liquidity * random.uniform(0.1, 0.3)  # Volume is typically 10-30% of TVL
-            tx_count = int(volume_24h / random.uniform(2000, 5000))  # Average transaction size
+            # Update pool data with actual token prices if they're not already included
+            for pool in pools_data.get('topAPR', []):
+                if 'tokenPrices' not in pool:
+                    pair_name = pool.get('pairName', '')
+                    if '/' in pair_name:
+                        token_a, token_b = pair_name.split('/')
+                        pool['tokenPrices'] = {
+                            token_a: token_prices.get(token_a, 0),
+                            token_b: token_prices.get(token_b, 0)
+                        }
             
-            # Typical fee rates
-            fee = 0.0025  # 0.25% fee
+            return pools_data
+        else:
+            logger.error(f"Failed to fetch pool data from API: HTTP {response.status_code}")
+            raise ValueError(f"API returned status code {response.status_code}")
             
-            pool_data = {
-                "id": pool_id,
-                "pairName": pair_name,
-                "apr": apr_24h,
-                "aprWeekly": apr_7d,
-                "aprMonthly": apr_30d,
-                "liquidity": liquidity,
-                "fee": fee,
-                "volume24h": volume_24h,
-                "txCount": tx_count,
-                "tokenPrices": {
-                    token_a: token_prices.get(token_a, 0),
-                    token_b: token_prices.get(token_b, 0)
-                }
-            }
-            
-            pool_data_list.append(pool_data)
-        
-        # Add the existing mandatory pools
-        mandatory_pools = [
-            {
-                "id": "eth_usdc_pool",
-                "pairName": "ETH/USDC",
-                "apr": 8.6,
-                "aprWeekly": 8.2,
-                "aprMonthly": 7.9,
-                "liquidity": 7654321,
-                "fee": 0.0020,
-                "volume24h": 2345678,
-                "txCount": 3987,
-                "tokenPrices": {
-                    "ETH": token_prices.get("ETH", default_prices["ETH"]),
-                    "USDC": token_prices.get("USDC", default_prices["USDC"])
-                }
-            },
-            {
-                "id": "sol_eth_pool",
-                "pairName": "SOL/ETH",
-                "apr": 10.4,
-                "aprWeekly": 9.8,
-                "aprMonthly": 9.2,
-                "liquidity": 3456789,
-                "fee": 0.0025,
-                "volume24h": 987654,
-                "txCount": 2987,
-                "tokenPrices": {
-                    "SOL": token_prices.get("SOL", default_prices["SOL"]),
-                    "ETH": token_prices.get("ETH", default_prices["ETH"])
-                }
-            }
-        ]
-        
-        return {
-            "topAPR": pool_data_list,
-            "mandatory": mandatory_pools
-        }
-    
     except Exception as e:
-        logger.error(f"Error generating pool data with real prices: {e}")
-        # Return simplified fallback data if an error occurs
-        default_data = {
-            "topAPR": [
-                {
-                    "id": "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv",
-                    "pairName": "SOL/USDC",
-                    "apr": 134.0,
-                    "aprWeekly": 68.5,
-                    "aprMonthly": 95.7,
-                    "liquidity": 9051107.35,
-                    "fee": 0.0025,
-                    "volume24h": 2500000,
-                    "txCount": 5000,
-                    "tokenPrices": {
-                        "SOL": 131.7,
-                        "USDC": 1.00
+        logger.error(f"Error fetching pool data from Raydium API service: {e}")
+        
+        # Fallback to using CoinGecko prices with predefined pool structure
+        try:
+            # Get all unique token symbols from pool pairs
+            token_symbols = set()
+            for token_a, token_b in POOL_TOKEN_PAIRS.values():
+                token_symbols.add(token_a)
+                token_symbols.add(token_b)
+            
+            # Fetch real token prices from CoinGecko
+            token_prices = coingecko_utils.get_multiple_token_prices(list(token_symbols))
+            logger.info(f"Fetched token prices for fallback: {token_prices}")
+            
+            # Use default price if CoinGecko price not available
+            default_prices = {
+                "SOL": 125.0,
+                "ETH": 3000.0,
+                "RAY": 0.75,
+                "USDC": 1.0,
+                "USDT": 1.0,
+                "BTC": 65000.0
+            }
+            
+            # Combine real prices with defaults for missing tokens
+            for symbol, price in default_prices.items():
+                if symbol not in token_prices:
+                    token_prices[symbol] = price
+            
+            # Return simplified fallback data with real token prices
+            default_data = {
+                "topAPR": [
+                    {
+                        "id": "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv",
+                        "pairName": "SOL/USDC",
+                        "apr": 134.0,
+                        "aprWeekly": 68.5,
+                        "aprMonthly": 95.7,
+                        "liquidity": 9051107.35,
+                        "fee": 0.0025,
+                        "volume24h": 2500000,
+                        "txCount": 5000,
+                        "tokenPrices": {
+                            "SOL": token_prices.get("SOL", default_prices["SOL"]),
+                            "USDC": token_prices.get("USDC", default_prices["USDC"])
+                        }
+                    },
+                    {
+                        "id": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
+                        "pairName": "SOL/RAY",
+                        "apr": 95.5,
+                        "aprWeekly": 48.2,
+                        "aprMonthly": 68.9,
+                        "liquidity": 3542987.62,
+                        "fee": 0.0025,
+                        "volume24h": 987654,
+                        "txCount": 2500,
+                        "tokenPrices": {
+                            "SOL": token_prices.get("SOL", default_prices["SOL"]),
+                            "RAY": token_prices.get("RAY", default_prices["RAY"])
+                        }
                     }
-                }
-            ],
-            "mandatory": []
-        }
-        return default_data
+                ],
+                "mandatory": [
+                    {
+                        "id": "eth_usdc_pool",
+                        "pairName": "ETH/USDC",
+                        "apr": 8.6,
+                        "aprWeekly": 8.2,
+                        "aprMonthly": 7.9,
+                        "liquidity": 7654321,
+                        "fee": 0.0020,
+                        "volume24h": 2345678,
+                        "txCount": 3987,
+                        "tokenPrices": {
+                            "ETH": token_prices.get("ETH", default_prices["ETH"]),
+                            "USDC": token_prices.get("USDC", default_prices["USDC"])
+                        }
+                    }
+                ]
+            }
+            
+            logger.info("Using fallback pool data with real token prices")
+            return default_data
+            
+        except Exception as fallback_error:
+            logger.error(f"Error generating fallback pool data: {fallback_error}")
+            
+            # Ultimate fallback with hardcoded values
+            logger.info("Using ultimate fallback data with hardcoded values")
+            return {
+                "topAPR": [
+                    {
+                        "id": "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv",
+                        "pairName": "SOL/USDC",
+                        "apr": 134.0,
+                        "aprWeekly": 68.5,
+                        "aprMonthly": 95.7,
+                        "liquidity": 9051107.35,
+                        "fee": 0.0025,
+                        "volume24h": 2500000,
+                        "txCount": 5000,
+                        "tokenPrices": {
+                            "SOL": 131.7,
+                            "USDC": 1.00
+                        }
+                    }
+                ],
+                "mandatory": []
+            }
 
 def get_predefined_responses():
     """
