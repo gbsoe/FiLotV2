@@ -1,0 +1,68 @@
+04-19 03:24:28
+starting up user application
+04-19 03:24:28
+forwarding local port 5000 to external port 80 (mapped as 1104)
+04-19 03:24:29
+[2025-04-18 20:24:29 +0000] [27] [INFO] Starting gunicorn 23.0.0
+04-19 03:24:29
+[2025-04-18 20:24:29 +0000] [27] [INFO] Listening at: http://0.0.0.0:5000 (27)
+04-19 03:24:29
+[2025-04-18 20:24:29 +0000] [27] [INFO] Using worker: sync
+04-19 03:24:29
+[2025-04-18 20:24:29 +0000] [32] [INFO] Booting worker with pid: 32
+04-19 03:24:36
+2025-04-18 20:24:36,728 [INFO] app: Starting anti-idle thread to prevent timeout
+04-19 03:24:36
+2025-04-18 20:24:36,728 [INFO] app: Anti-idle thread started
+04-19 03:24:37
+2025-04-18 20:24:37,265 [INFO] app: Anti-idle thread: Database ping successful, result=(1,)
+04-19 03:24:37
+2025-04-18 20:24:37,408 [INFO] app: Anti-idle thread: Recorded keep-alive activity to prevent timeout
+04-19 03:24:37
+2025-04-18 20:24:37,495 [INFO] app: Database tables created successfully
+04-19 03:24:38
+2025-04-18 20:24:38,657 [INFO] walletconnect_utils: Database initialized successfully
+04-19 03:24:43
+system: received signal terminated
+04-19 03:24:43
+[2025-04-18 20:24:43 +0000] [27] [INFO] Handling signal: term
+04-19 03:24:43
+[2025-04-18 20:24:43 +0000] [32] [INFO] Worker exiting (pid: 32)
+04-19 03:24:44
+[2025-04-18 20:24:44 +0000] [27] [INFO] Shutting down: Master
+04-19 03:24:44
+command finished successfully with exit code 0
+04-19 03:24:44
+main done, exiting
+04-19 03:24:46
+starting up user application
+04-19 03:24:47
+forwarding local port 5000 to external port 80 (mapped as 1104)
+04-19 03:24:47
+[2025-04-18 20:24:47 +0000] [26] [INFO] Starting gunicorn 23.0.0
+04-19 03:24:47
+[2025-04-18 20:24:47 +0000] [26] [INFO] Listening at: http://0.0.0.0:5000 (26)
+04-19 03:24:47
+[2025-04-18 20:24:47 +0000] [26] [INFO] Using worker: sync
+04-19 03:24:47
+[2025-04-18 20:24:47 +0000] [31] [INFO] Booting worker with pid: 31
+04-19 03:24:55
+2025-04-18 20:24:55,673 [INFO] app: Starting anti-idle thread to prevent timeout
+04-19 03:24:55
+2025-04-18 20:24:55,673 [INFO] app: Anti-idle thread started
+04-19 03:24:56
+2025-04-18 20:24:56,192 [INFO] app: Anti-idle thread: Database ping successful, result=(1,)
+04-19 03:24:56
+2025-04-18 20:24:56,324 [INFO] app: Anti-idle thread: Recorded keep-alive activity to prevent timeout
+04-19 03:24:56
+2025-04-18 20:24:56,440 [INFO] app: Database tables created successfully
+04-19 03:24:57
+2025-04-18 20:24:57,489 [INFO] walletconnect_utils: Database initialized successfully
+04-19 03:25:56
+2025-04-18 20:25:56,408 [INFO] app: Anti-idle thread: Database ping successful, result=(1,)
+04-19 03:25:56
+2025-04-18 20:25:56,831 [INFO] app: Anti-idle thread: Recorded keep-alive activity to prevent timeout
+04-19 03:26:56
+2025-04-18 20:26:56,918 [INFO] app: Anti-idle thread: Database ping successful, result=(1,)
+04-19 03:26:57
+2025-04-18 20:26:57,231 [INFO] app: Anti-idle thread: Recorded keep-alive activity to prevent timeout
