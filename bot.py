@@ -757,9 +757,11 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
             # If QR code generation fails, we'll still send the text version
         
         # Also send the raw WalletConnect URI as text for manual copying if needed
+        # Format with code block and timestamp for better visibility
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         await security_msg.reply_text(
-            "Alternatively, you can manually copy this WalletConnect link:\n\n"
-            f"{result.get('raw_wc_uri', raw_wc_uri)}\n\n"
+            f"Alternatively, you can manually copy this WalletConnect link (generated at {current_time}):\n\n"
+            f"```\n{result.get('raw_wc_uri', raw_wc_uri)}\n```\n\n"
             "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions."
         )
     except Exception as e:
