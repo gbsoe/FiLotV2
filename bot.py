@@ -251,14 +251,22 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         await update.message.reply_text("Fetching the latest pool data...")
         
-        pools = await get_pool_data()
-        if not pools:
+        # Import at function level to avoid circular imports
+        from response_data import get_pool_data as get_predefined_pool_data
+        
+        # Get predefined pool data directly as dictionaries
+        predefined_data = get_predefined_pool_data()
+        
+        # Process top APR pools from the predefined data
+        pool_list = predefined_data.get('topAPR', [])
+        
+        if not pool_list:
             await update.message.reply_text(
                 "Sorry, I couldn't retrieve pool data at the moment. Please try again later."
             )
             return
             
-        formatted_info = format_pool_info(pools)
+        formatted_info = format_pool_info(pool_list)
         # Use regular reply_text to avoid markdown formatting issues
         await update.message.reply_text(formatted_info)
         logger.info("Sent pool info response")
@@ -294,14 +302,22 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             
         await update.message.reply_text("Calculating potential returns...")
         
-        pools = await get_pool_data()
-        if not pools:
+        # Import at function level to avoid circular imports
+        from response_data import get_pool_data as get_predefined_pool_data
+        
+        # Get predefined pool data directly as dictionaries
+        predefined_data = get_predefined_pool_data()
+        
+        # Process top APR pools from the predefined data
+        pool_list = predefined_data.get('topAPR', [])
+        
+        if not pool_list:
             await update.message.reply_text(
                 "Sorry, I couldn't retrieve pool data at the moment. Please try again later."
             )
             return
             
-        formatted_simulation = format_simulation_results(pools, amount)
+        formatted_simulation = format_simulation_results(pool_list, amount)
         
         # Add wallet connection option
         keyboard = [
