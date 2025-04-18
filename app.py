@@ -121,10 +121,20 @@ with app.app_context():
 @app.route("/health")
 def health():
     """Health check endpoint for monitoring application status."""
+    # Check if the Telegram token is in environment variables
+    token_status = "available" if (os.environ.get('TELEGRAM_TOKEN') or os.environ.get('TELEGRAM_BOT_TOKEN')) else "missing"
+    
+    # Check for active threads that might be running the bot
+    bot_threads = [t for t in threading.enumerate() if 'telegram' in t.name.lower() or 'bot' in t.name.lower()]
+    bot_thread_names = [t.name for t in bot_threads]
+    
     return jsonify({
         "status": "ok",
         "timestamp": datetime.datetime.now().isoformat(),
-        "app": "telegram-crypto-pool-bot"
+        "app": "telegram-crypto-pool-bot",
+        "telegram_token": token_status,
+        "threads": len(threading.enumerate()),
+        "bot_threads": bot_thread_names
     })
 
 # Routes
