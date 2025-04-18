@@ -259,7 +259,9 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             return
             
         formatted_info = format_pool_info(pools)
-        await update.message.reply_markdown(formatted_info)
+        # Use regular reply_text to avoid markdown formatting issues
+        await update.message.reply_text(formatted_info)
+        logger.info("Sent pool info response")
     except Exception as e:
         logger.error(f"Error in info command: {e}")
         await update.message.reply_text(
@@ -307,7 +309,9 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_markdown(formatted_simulation, reply_markup=reply_markup)
+        # Use regular reply_text to avoid markdown formatting issues
+        await update.message.reply_text(formatted_simulation, reply_markup=reply_markup)
+        logger.info("Sent simulation response")
     except Exception as e:
         logger.error(f"Error in simulate command: {e}")
         await update.message.reply_text(
