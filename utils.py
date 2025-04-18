@@ -3,15 +3,15 @@ Utility functions for the Telegram cryptocurrency pool bot
 """
 
 import math
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from datetime import datetime, timedelta
 
-def format_pool_info(pools: List) -> str:
+def format_pool_info(pools: List[Dict[str, Any]]) -> str:
     """
     Format pool information for display in Telegram messages.
     
     Args:
-        pools: List of Pool objects
+        pools: List of pool dictionaries from API or response_data
         
     Returns:
         Formatted string
@@ -19,11 +19,45 @@ def format_pool_info(pools: List) -> str:
     if not pools:
         return "No pools available at the moment. Please try again later."
     
+    # Helper function to safely get dictionary values
+    def get_value(pool, key, default=0):
+        # Handle the different key names in our response_data vs. API
+        value_map = {
+            'apr_24h': ['apr', 'apr_24h'],
+            'apr_7d': ['aprWeekly', 'apr_7d'],
+            'apr_30d': ['aprMonthly', 'apr_30d'],
+            'tvl': ['liquidity', 'tvl'],
+            'id': ['id'],
+            'token_a_symbol': [],
+            'token_b_symbol': []
+        }
+        
+        # For token symbols, extract from pairName if available
+        if key in ['token_a_symbol', 'token_b_symbol']:
+            pair_name = pool.get('pairName', '')
+            if '/' in pair_name:
+                token_a, token_b = pair_name.split('/')
+                return token_a if key == 'token_a_symbol' else token_b
+            return ''
+            
+        # Try all possible keys
+        for possible_key in value_map.get(key, [key]):
+            if possible_key in pool:
+                return pool[possible_key]
+                
+        return default
+        
+    # Helper function to get token price
+    def get_token_price(pool, token_symbol):
+        if 'tokenPrices' in pool and token_symbol in pool['tokenPrices']:
+            return pool['tokenPrices'][token_symbol]
+        return 0
+    
     # Exactly 2 pools for Best Performing Investments Today:
     # 1. Highest 24h APR
     # 2. Highest TVL
-    pools_by_apr = sorted(pools, key=lambda p: p.apr_24h or 0, reverse=True)
-    pools_by_tvl = sorted(pools, key=lambda p: p.tvl or 0, reverse=True)
+    pools_by_apr = sorted(pools, key=lambda p: get_value(p, 'apr_24h'), reverse=True)
+    pools_by_tvl = sorted(pools, key=lambda p: get_value(p, 'tvl'), reverse=True)
     
     top_apr_pool = pools_by_apr[0] if pools_by_apr else None
     top_tvl_pool = pools_by_tvl[0] if pools_by_tvl else None
@@ -32,7 +66,7 @@ def format_pool_info(pools: List) -> str:
     top_pools = []
     if top_apr_pool:
         top_pools.append(top_apr_pool)
-    if top_tvl_pool and top_tvl_pool.id != getattr(top_apr_pool, 'id', None):
+    if top_tvl_pool and get_value(top_tvl_pool, 'id') != get_value(top_apr_pool, 'id', None):
         top_pools.append(top_tvl_pool)
     elif len(pools_by_apr) > 1:
         # If top APR and TVL are the same pool, get the second highest APR
@@ -43,14 +77,12 @@ def format_pool_info(pools: List) -> str:
     stable_pools = []
     
     for pool in pools:
-        token_a = pool.token_a_symbol or ""
-        token_b = pool.token_b_symbol or ""
-        
-        if any(stable in token_a or stable in token_b for stable in stable_tokens):
+        pair_name = pool.get('pairName', '')
+        if any(stable in pair_name for stable in stable_tokens):
             stable_pools.append(pool)
     
     # Sort stable pools by APR and take top 3
-    stable_pools = sorted(stable_pools, key=lambda p: p.apr_24h or 0, reverse=True)[:3]
+    stable_pools = sorted(stable_pools, key=lambda p: get_value(p, 'apr_24h'), reverse=True)[:3]
     
     # Header
     result = "📈 Latest Crypto Investment Update:\n\n"
@@ -58,46 +90,51 @@ def format_pool_info(pools: List) -> str:
     # Best Performing Investments Today section
     result += "Best Performing Investments Today:\n"
     for pool in top_pools:
-        token_pair = f"{pool.token_a_symbol}/{pool.token_b_symbol}"
-        token_a_price = pool.token_a_price or 0
+        token_a = get_value(pool, 'token_a_symbol')
+        token_b = get_value(pool, 'token_b_symbol')
+        token_pair = f"{token_a}/{token_b}"
+        token_a_price = get_token_price(pool, token_a)
         
         result += (
-            f"• Pool ID: 📋 {pool.id}\n"
+            f"• Pool ID: 📋 {get_value(pool, 'id')}\n"
             f"  Token Pair: {token_pair}\n"
-            f"  24h APR: {pool.apr_24h:.2f}%\n"
-            f"  7d APR: {pool.apr_7d:.2f}%\n"
-            f"  30d APR: {pool.apr_30d:.2f}%\n"
-            f"  TVL (USD): ${pool.tvl:,.2f}\n"
-            f"  Current Price (USD): ${token_a_price:.1f} per {pool.token_a_symbol}\n\n"
+            f"  24h APR: {get_value(pool, 'apr_24h'):.2f}%\n"
+            f"  7d APR: {get_value(pool, 'apr_7d'):.2f}%\n"
+            f"  30d APR: {get_value(pool, 'apr_30d'):.2f}%\n"
+            f"  TVL (USD): ${get_value(pool, 'tvl'):,.2f}\n"
+            f"  Current Price (USD): ${token_a_price} per {token_a}\n"
         )
+        result += "\n"
     
     # Top Stable Investments section
     result += "Top Stable Investments (e.g., SOL-USDC / SOL-USDT):\n"
     for pool in stable_pools:
-        token_pair = f"{pool.token_a_symbol}/{pool.token_b_symbol}"
-        token_a_price = pool.token_a_price or 0
+        token_a = get_value(pool, 'token_a_symbol')
+        token_b = get_value(pool, 'token_b_symbol')
+        token_pair = f"{token_a}/{token_b}"
+        token_a_price = get_token_price(pool, token_a)
         
         result += (
-            f"• Pool ID: 📋 {pool.id}\n"
+            f"• Pool ID: 📋 {get_value(pool, 'id')}\n"
             f"  Token Pair: {token_pair}\n"
-            f"  24h APR: {pool.apr_24h:.2f}%\n"
-            f"  7d APR: {pool.apr_7d:.2f}%\n"
-            f"  30d APR: {pool.apr_30d:.2f}%\n"
-            f"  TVL (USD): ${pool.tvl:,.2f}\n"
-            f"  Current Price (USD): ${token_a_price:.1f} per {pool.token_a_symbol}\n\n"
+            f"  24h APR: {get_value(pool, 'apr_24h'):.2f}%\n"
+            f"  7d APR: {get_value(pool, 'apr_7d'):.2f}%\n"
+            f"  30d APR: {get_value(pool, 'apr_30d'):.2f}%\n"
+            f"  TVL (USD): ${get_value(pool, 'tvl'):,.2f}\n"
+            f"  Current Price (USD): ${token_a_price} per {token_a}\n"
         )
+        result += "\n"
     
-    # Footer
     result += "\nWant to see your potential earnings? Try /simulate amount (default is $1000)."
     
     return result
 
-def format_simulation_results(pools: List, amount: float) -> str:
+def format_simulation_results(pools: List[Dict[str, Any]], amount: float) -> str:
     """
     Format investment simulation results for display in Telegram messages.
     
     Args:
-        pools: List of Pool objects
+        pools: List of pool dictionaries
         amount: Investment amount in USD
         
     Returns:
@@ -106,8 +143,36 @@ def format_simulation_results(pools: List, amount: float) -> str:
     if not pools:
         return "No pools available for simulation. Please try again later."
     
+    # Helper function to safely get dictionary values
+    def get_value(pool, key, default=0):
+        # Handle the different key names in our response_data vs. API
+        value_map = {
+            'apr_24h': ['apr', 'apr_24h'],
+            'apr_7d': ['aprWeekly', 'apr_7d'],
+            'apr_30d': ['aprMonthly', 'apr_30d'],
+            'tvl': ['liquidity', 'tvl'],
+            'id': ['id'],
+            'token_a_symbol': [],
+            'token_b_symbol': []
+        }
+        
+        # For token symbols, extract from pairName if available
+        if key in ['token_a_symbol', 'token_b_symbol']:
+            pair_name = pool.get('pairName', '')
+            if '/' in pair_name:
+                token_a, token_b = pair_name.split('/')
+                return token_a if key == 'token_a_symbol' else token_b
+            return ''
+            
+        # Try all possible keys
+        for possible_key in value_map.get(key, [key]):
+            if possible_key in pool:
+                return pool[possible_key]
+                
+        return default
+    
     # Sort pools by APR (24h) to get top pool for simulation
-    top_pool = sorted(pools, key=lambda p: p.apr_24h or 0, reverse=True)[0] if pools else None
+    top_pool = sorted(pools, key=lambda p: get_value(p, 'apr_24h'), reverse=True)[0] if pools else None
     
     if not top_pool:
         return "No pools available for simulation. Please try again later."
@@ -116,7 +181,7 @@ def format_simulation_results(pools: List, amount: float) -> str:
     result = f"🚀 Simulation for an Investment of ${amount:,.2f}:\n\n"
     
     # Calculate potential earnings
-    apr_24h = top_pool.apr_24h
+    apr_24h = get_value(top_pool, 'apr_24h')
     daily_rate = apr_24h / 365
     
     # Calculate earnings for different time periods
@@ -126,11 +191,13 @@ def format_simulation_results(pools: List, amount: float) -> str:
     yearly_earnings = amount * (apr_24h / 100)
     
     # Token pair and pool ID
-    token_pair = f"{top_pool.token_a_symbol}/{top_pool.token_b_symbol}"
+    token_a = get_value(top_pool, 'token_a_symbol')
+    token_b = get_value(top_pool, 'token_b_symbol')
+    token_pair = f"{token_a}/{token_b}"
     
     # Format the simulation result
     result += (
-        f"• Pool ID: 📋 {top_pool.id} - {token_pair}\n"
+        f"• Pool ID: 📋 {get_value(top_pool, 'id')} - {token_pair}\n"
         f"  - Daily Earnings: ${daily_earnings:.2f}\n"
         f"  - Weekly Earnings: ${weekly_earnings:.2f}\n"
         f"  - Monthly Earnings: ${monthly_earnings:.2f}\n"
@@ -139,12 +206,12 @@ def format_simulation_results(pools: List, amount: float) -> str:
     
     return result
 
-def format_daily_update(pools: List) -> str:
+def format_daily_update(pools: List[Dict[str, Any]]) -> str:
     """
     Format daily update message for subscribed users.
     
     Args:
-        pools: List of Pool objects
+        pools: List of pool dictionaries
         
     Returns:
         Formatted string
@@ -152,7 +219,7 @@ def format_daily_update(pools: List) -> str:
     today = datetime.now().strftime("%Y-%m-%d")
     
     # Header
-    result = f"📊 *Daily Pool Update - {today}* 📊\n\n"
+    result = f"📊 Daily Pool Update - {today} 📊\n\n"
     
     # Add pool information
     result += format_pool_info(pools)
