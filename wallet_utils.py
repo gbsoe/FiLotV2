@@ -176,7 +176,7 @@ async def get_token_balance(wallet_address: str, token_mint: str) -> float:
         logger.error(f"Error fetching token balance: {e}")
         return 0.0
 
-async def check_wallet_balance(wallet_address: str) -> Dict[str, float]:
+async def check_wallet_balance(wallet_address: str) -> Dict[str, Any]:
     """
     Check and return the wallet's balance for SOL and key tokens.
     
@@ -184,7 +184,7 @@ async def check_wallet_balance(wallet_address: str) -> Dict[str, float]:
         wallet_address: The wallet address to check
         
     Returns:
-        Dictionary of token symbols to balances
+        Dictionary of token symbols to balances or error message
     """
     if not validate_wallet_address(wallet_address):
         logger.error(f"Invalid wallet address: {wallet_address}")
@@ -335,12 +335,12 @@ def stop_pool_transaction(wallet_address: str, pool_id: str) -> bool:
         return False
 
 # This function can be used to format wallet balance information for the Telegram bot
-def format_wallet_info(balances: Dict[str, float]) -> str:
+def format_wallet_info(balances: Dict[str, Any]) -> str:
     """
     Format wallet balance information for display in Telegram messages.
     
     Args:
-        balances: Dictionary of token symbols to balances
+        balances: Dictionary of token symbols to balances or error message
         
     Returns:
         Formatted string

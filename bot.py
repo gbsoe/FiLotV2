@@ -634,6 +634,17 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
         user = update.effective_user
         db_utils.log_user_activity(user.id, "walletconnect_command")
         
+        # Send security information message first
+        await update.message.reply_markdown(
+            "🔒 *Secure Wallet Connection*\n\n"
+            "Our wallet connection process is designed with your security in mind:\n\n"
+            "• Your private keys remain in your wallet app\n"
+            "• We only request permission to view balances\n"
+            "• No funds will be transferred without your explicit approval\n"
+            "• All connections use encrypted communication\n\n"
+            "Creating your secure connection now..."
+        )
+        
         # Create a WalletConnect session
         result = await create_walletconnect_session(user.id)
         
@@ -653,10 +664,11 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
             context.user_data = {}
         context.user_data["walletconnect_session"] = session_id
         
-        # Create keyboard with deep link
+        # Create keyboard with deep link and security info
         keyboard = [
             [InlineKeyboardButton("Open in Wallet App", url=uri)],
-            [InlineKeyboardButton("Check Connection Status", callback_data=f"check_wc_{session_id}")]
+            [InlineKeyboardButton("Check Connection Status", callback_data=f"check_wc_{session_id}")],
+            [InlineKeyboardButton("Cancel Connection", callback_data=f"cancel_wc_{session_id}")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -664,13 +676,18 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
             "🔗 *WalletConnect Session Created*\n\n"
             "Scan the QR code with your wallet app to connect, or click the button below to open in your wallet app.\n\n"
             f"Session ID: `{session_id}`\n\n"
+            "✅ *What to expect in your wallet app:*\n"
+            "• You'll be asked to approve a connection request\n"
+            "• Your wallet app will show exactly what permissions are being requested\n"
+            "• No funds will be transferred without your explicit approval\n\n"
             "Once connected, click 'Check Connection Status' to verify.",
             reply_markup=reply_markup
         )
         
-        # Send the QR code URL separately
+        # Send the QR code URL separately with security reminder
         await update.message.reply_text(
-            f"Connect your wallet with this link: {uri}"
+            f"Connect your wallet with this link: {uri}\n\n"
+            "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions."
         )
     except Exception as e:
         logger.error(f"Error in walletconnect command: {e}")
