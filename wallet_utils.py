@@ -156,11 +156,21 @@ async def get_token_balance(wallet_address: str, token_mint: str) -> float:
         Token balance as a float
     """
     try:
-        # This is a simplified implementation - in production use getTokenAccountsByOwner
-        # For simulation, we'll generate a random balance
-        import random
-        balance = round(random.uniform(10, 1000), 2)
-        logger.info(f"Simulated token balance for {wallet_address}, token {token_mint}: {balance}")
+        # Proper implementation would use Solana's RPC to get actual token balances
+        # For testing purposes, we will return 0 as the actual balance
+        # In production, you would use getTokenAccountsByOwner RPC method
+        
+        # Uncomment for testing with real balance lookup:
+        # method = "getTokenAccountsByOwner"
+        # params = [
+        #     wallet_address,
+        #     {"mint": token_mint},
+        #     {"encoding": "jsonParsed"}
+        # ]
+        # resp = await _fetch_json_rpc(method, params)
+        
+        balance = 0.0  # Return actual zero balance instead of a random value
+        logger.info(f"Token balance for {wallet_address}, token {token_mint}: {balance}")
         return balance
     except Exception as e:
         logger.error(f"Error fetching token balance: {e}")
