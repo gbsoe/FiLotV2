@@ -731,9 +731,10 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
         )
         
         # Send the raw WalletConnect URI as a separate message for easy copying
-        await security_msg.reply_markdown(
-            "*Connect your wallet with this WalletConnect link:*\n\n"
-            f"`{result.get('raw_wc_uri', raw_wc_uri)}`\n\n"
+        # Use a plain text message to prevent formatting issues with the URI
+        await security_msg.reply_text(
+            "Connect your wallet with this WalletConnect link:\n\n"
+            f"{result.get('raw_wc_uri', raw_wc_uri)}\n\n"
             "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions."
         )
     except Exception as e:
@@ -1105,9 +1106,11 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                             "The wallet connection is still pending. Please open your wallet app and approve the connection.\n\n"
                         )
                         
-                        # Include the raw WC URI if available
+                        # Include the raw WC URI if available - using plain text to avoid formatting issues
                         if raw_wc_uri:
-                            response_text += f"Connect with this WalletConnect URI:\n`{raw_wc_uri}`\n\n"
+                            # Send the URI in a separate message to avoid any formatting issues
+                            await query.message.reply_text(f"Connect with this WalletConnect URI:\n\n{raw_wc_uri}")
+                            # Don't include it in the main message
                             
                         response_text += "Click 'Check Connection Status' after approving in your wallet."
                         
