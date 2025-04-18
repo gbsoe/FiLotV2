@@ -91,32 +91,49 @@ def index():
 def pools():
     """Pool data page."""
     try:
-        # Make an extremely simplified version with minimal risk of string formatting issues
-        pool_data = []
-        # Use safer fields and convert everything to strings immediately
-        query = text("SELECT token_a_symbol, token_b_symbol, apr_24h, tvl, fee FROM pools LIMIT 10")
-        cursor = db.session.execute(query)
+        # Get pool data from response_data.py, the same source as the /info command
+        from response_data import get_pool_data
         
-        for row in cursor:
-            # Convert numeric values to strings with simple formatting to avoid any issues
+        # Get the data from the unified source
+        all_pool_data = get_pool_data()
+        
+        # Transform the response to match the template format
+        pool_data = []
+        
+        # Process top APR pools from the predefined data
+        pool_list = all_pool_data.get('topAPR', [])
+        
+        if not pool_list:
+            return render_template("minimal_pools.html", pools=[])
+            
+        # Format the data for the template
+        for pool in pool_list:
+            # Extract token symbols from pair name
+            pair_name = pool.get("pairName", "UNKNOWN/UNKNOWN")
+            token_symbols = pair_name.split("/")
+            
+            token_a_symbol = token_symbols[0] if len(token_symbols) > 0 else "Unknown"
+            token_b_symbol = token_symbols[1] if len(token_symbols) > 1 else "Unknown"
+            
+            # Format the values
             try:
-                apr = str(round(float(row.apr_24h or 0), 2)) + '%'
+                apr = str(round(float(pool.get("apr", 0)), 2)) + '%'
             except:
                 apr = 'N/A'
                 
             try:
-                tvl = '$' + str(round(float(row.tvl or 0), 2))
+                tvl = '$' + str(round(float(pool.get("liquidity", 0)), 2))
             except:
                 tvl = 'N/A'
                 
             try:
-                fee = str(round(float(row.fee or 0) * 100, 2)) + '%'
+                fee = str(round(float(pool.get("fee", 0)) * 100, 2)) + '%'
             except:
                 fee = 'N/A'
                 
             pool_data.append({
-                'token_a_symbol': row.token_a_symbol or 'Unknown',
-                'token_b_symbol': row.token_b_symbol or 'Unknown',
+                'token_a_symbol': token_a_symbol,
+                'token_b_symbol': token_b_symbol,
                 'apr_24h': apr,
                 'tvl': tvl,
                 'fee': fee
@@ -299,24 +316,49 @@ def api_stats():
 def api_pools():
     """Pools API endpoint."""
     try:
-        # Get all pools
-        pools = Pool.query.order_by(Pool.apr_24h.desc()).all()
+        # Get pool data from response_data.py (same as /info command and pools page)
+        from response_data import get_pool_data
         
-        pool_data = [{
-            "id": pool.id,  # Using id directly instead of the property
-            "token_a_symbol": pool.token_a_symbol,
-            "token_b_symbol": pool.token_b_symbol,
-            "token_a_price": pool.token_a_price,
-            "token_b_price": pool.token_b_price,
-            "apr_24h": pool.apr_24h,
-            "apr_7d": pool.apr_7d,
-            "apr_30d": pool.apr_30d,
-            "tvl": pool.tvl,
-            "fee": pool.fee,
-            "volume_24h": pool.volume_24h,
-            "tx_count_24h": pool.tx_count_24h,
-            "updated_at": pool.last_updated.isoformat() if pool.last_updated else None
-        } for pool in pools]
+        # Get the data from the unified source
+        all_pool_data = get_pool_data()
+        
+        # Process top APR pools from the predefined data
+        pool_list = all_pool_data.get('topAPR', [])
+        
+        if not pool_list:
+            return jsonify([])
+            
+        # Format the pool data for the API response
+        pool_data = []
+        for pool in pool_list:
+            # Extract token symbols from pair name
+            pair_name = pool.get("pairName", "UNKNOWN/UNKNOWN")
+            token_symbols = pair_name.split("/")
+            
+            token_a_symbol = token_symbols[0] if len(token_symbols) > 0 else "Unknown"
+            token_b_symbol = token_symbols[1] if len(token_symbols) > 1 else "Unknown"
+            
+            # Extract token prices
+            token_prices = pool.get("tokenPrices", {})
+            token_a_price = token_prices.get(token_a_symbol, 0)
+            token_b_price = token_prices.get(token_b_symbol, 0)
+            
+            # Build response object
+            pool_data.append({
+                "id": pool.get("id", "unknown"),
+                "token_a_symbol": token_a_symbol,
+                "token_b_symbol": token_b_symbol,
+                "token_a_price": token_a_price,
+                "token_b_price": token_b_price,
+                "apr_24h": pool.get("apr", 0),
+                "apr_7d": pool.get("aprWeekly", 0),
+                "apr_30d": pool.get("aprMonthly", 0),
+                "tvl": pool.get("liquidity", 0),
+                "fee": pool.get("fee", 0),
+                "volume_24h": pool.get("volume24h", 0),
+                "tx_count_24h": pool.get("txCount", 0),
+                "updated_at": datetime.datetime.utcnow().isoformat()
+            })
         
         return jsonify(pool_data)
     except Exception as e:
