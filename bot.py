@@ -249,7 +249,18 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         user = update.effective_user
         db_utils.log_user_activity(user.id, "info_command")
         
-        await update.message.reply_text("Fetching the latest pool data...")
+        # Determine whether this is a direct command or a callback query
+        is_callback = update.callback_query is not None
+        
+        # Handle both regular commands and callback queries
+        if is_callback:
+            # For callback queries (from buttons)
+            message = update.callback_query.message
+        else:
+            # For direct commands
+            message = update.message
+            # Only send this initial message for direct commands
+            await message.reply_text("Fetching the latest pool data...")
         
         # Import at function level to avoid circular imports
         from response_data import get_pool_data as get_predefined_pool_data
@@ -261,20 +272,31 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         pool_list = predefined_data.get('topAPR', [])
         
         if not pool_list:
-            await update.message.reply_text(
+            await message.reply_text(
                 "Sorry, I couldn't retrieve pool data at the moment. Please try again later."
             )
             return
             
         formatted_info = format_pool_info(pool_list)
+        
         # Use regular reply_text to avoid markdown formatting issues
-        await update.message.reply_text(formatted_info)
+        await message.reply_text(formatted_info)
         logger.info("Sent pool info response")
     except Exception as e:
-        logger.error(f"Error in info command: {e}")
-        await update.message.reply_text(
-            "Sorry, an error occurred while processing your request. Please try again later."
-        )
+        logger.error(f"Error in info command: {e}, type: {type(e)}")
+        
+        # Handle errors for both command types
+        try:
+            if update.callback_query:
+                await update.callback_query.message.reply_text(
+                    "Sorry, an error occurred while processing your request. Please try again later."
+                )
+            else:
+                await update.message.reply_text(
+                    "Sorry, an error occurred while processing your request. Please try again later."
+                )
+        except Exception as reply_error:
+            logger.error(f"Error sending error message: {reply_error}")
 
 async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Simulate investment returns when the command /simulate is issued."""
@@ -1028,12 +1050,36 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             
         elif callback_data == "view_pools":
             # Send a confirmation message that we're fetching pool information
-            await query.message.reply_markdown(
+            loading_message = await query.message.reply_markdown(
                 "🔍 *Fetching Pool Opportunities*\n\n"
                 "Please wait while I gather the latest data on available liquidity pools..."
             )
-            # Call the info command to display pool information
-            await info_command(update, context)
+            
+            try:
+                # Import at function level to avoid circular imports
+                from response_data import get_pool_data as get_predefined_pool_data
+                
+                # Get predefined pool data directly as dictionaries
+                predefined_data = get_predefined_pool_data()
+                
+                # Process top APR pools from the predefined data
+                pool_list = predefined_data.get('topAPR', [])
+                
+                if not pool_list:
+                    await loading_message.reply_text(
+                        "Sorry, I couldn't retrieve pool data at the moment. Please try again later."
+                    )
+                    return
+                    
+                formatted_info = format_pool_info(pool_list)
+                # Use regular reply_text to avoid markdown formatting issues
+                await loading_message.reply_text(formatted_info)
+                logger.info("Sent pool info response for view_pools callback")
+            except Exception as e:
+                logger.error(f"Error fetching pool data via callback: {e}")
+                await loading_message.reply_text(
+                    "Sorry, an error occurred while retrieving pool data. Please try again later."
+                )
             
         elif callback_data.startswith("wallet_connect_"):
             # Extract amount from callback data
