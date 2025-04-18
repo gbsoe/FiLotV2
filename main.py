@@ -87,8 +87,14 @@ def main() -> None:
     application.add_error_handler(error_handler)
     
     # Start the bot inside Flask application context
-    logger.info("Starting bot...")
+    logger.info("Starting bot with token: %s...", token[:5] if token else "None")
+    
+    # Log environment and settings
+    for handler in application.handlers:
+        logger.info("Bot has registered handler: %s", handler)
+        
     with app.app_context():
+        logger.info("Running bot polling within Flask app context")
         application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
