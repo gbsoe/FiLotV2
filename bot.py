@@ -11,13 +11,13 @@ from typing import Dict, List, Any, Optional, Union, Tuple
 import traceback
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from dotenv import load_dotenv
 
 # Import local modules
 import db_utils
 from models import User, Pool, UserQuery, db
-from response_data import get_predefined_response
+from question_detector import get_predefined_response, is_question
 from raydium_client import get_client
 from utils import format_pool_info, format_simulation_results, format_daily_update
 from wallet_utils import connect_wallet, check_wallet_balance, calculate_deposit_strategy
@@ -679,32 +679,58 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
         )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle user messages that are not commands."""
+    """
+    Handle user messages that are not commands.
+    Intelligently detects questions and provides predefined answers or 
+    routes to AI for specialized financial advice.
+    """
     try:
         user = update.effective_user
         message_text = update.message.text
         
-        # Log the query
+        # Log the user's message
+        logger.info(f"Received message from user {user.id}: {message_text}")
+        
+        # Log the query in the database
         query = db_utils.log_user_query(
             user_id=user.id,
-            command=None,
+            command=None,  # Not a command
             query_text=message_text
         )
         
-        # First check for predefined responses
-        response = get_predefined_response(message_text)
+        # First, check if this is a question
+        question_detected = is_question(message_text)
+        logger.info(f"Is question detection: {question_detected}")
         
-        if response:
+        # Check for predefined responses
+        predefined_response = get_predefined_response(message_text)
+        
+        if predefined_response:
+            logger.info(f"Found predefined response for: {message_text[:30]}...")
+            
             # Send predefined response
-            await update.message.reply_markdown(response)
+            await update.message.reply_markdown(predefined_response)
+            
+            # Update the query with the response
+            if query:
+                query.response_text = predefined_response
+                query.processing_time = (datetime.datetime.now() - query.timestamp).total_seconds() * 1000
+                # Save to db in a non-blocking way
+                asyncio.create_task(update_query_response(query.id, predefined_response, query.processing_time))
+            
+            # Log that we've responded with a predefined answer
+            db_utils.log_user_activity(user.id, "predefined_response", details=f"Question: {message_text[:50]}")
+            
         else:
             # No predefined response available, use Anthropic AI for specialized financial advice
+            logger.info(f"No predefined response for: {message_text}, using AI advisor")
             
             # Send typing indicator while processing
             await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
             
             # Try to identify if this is a financial question
             classification = await ai_advisor.classify_financial_question(message_text)
+            logger.info(f"AI classification: {classification}")
             
             # Get user profile if available
             user_db = db_utils.get_or_create_user(user.id)
@@ -716,6 +742,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             
             if classification == "pool_advice":
                 # Question about specific liquidity pools
+                logger.info("Generating pool advice")
                 ai_response = await ai_advisor.get_financial_advice(
                     message_text, 
                     pool_data=pools,
@@ -726,6 +753,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 
             elif classification == "strategy_help":
                 # Question about investment strategies
+                logger.info("Generating investment strategy")
                 amount = 1000  # Default amount for strategy examples
                 # Check if user mentioned an amount
                 amount_match = re.search(r'(\$?[0-9,]+)', message_text)
@@ -745,6 +773,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 
             elif classification == "risk_assessment":
                 # Question about risk assessment
+                logger.info("Generating risk assessment")
                 # Find the pool with highest APR for risk assessment example
                 highest_apr_pool = {}
                 if pools and len(pools) > 0:
@@ -783,9 +812,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 )
                 
                 await update.message.reply_markdown(formatted_response)
+                ai_response = formatted_response  # Use the formatted response for the query update
                 
             elif classification == "defi_explanation":
                 # Question about DeFi concepts - extract the concept
+                logger.info("Generating DeFi concept explanation")
                 concept_match = re.search(r'(what is|explain|how does|tell me about) ([\w\s]+)', message_text.lower())
                 concept = concept_match.group(2).strip() if concept_match else message_text
                 
@@ -794,6 +825,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 
             else:
                 # General financial advice
+                logger.info("Generating general financial advice")
                 ai_response = await ai_advisor.get_financial_advice(
                     message_text, 
                     pool_data=pools,
@@ -804,15 +836,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 
             # Update the query with the response
             if query:
-                query.response_text = ai_response
+                query.response_text = ai_response if isinstance(ai_response, str) else str(ai_response)
                 query.processing_time = (datetime.datetime.now() - query.timestamp).total_seconds() * 1000
                 # Save to db in a non-blocking way
-                asyncio.create_task(update_query_response(query.id, ai_response, query.processing_time))
+                asyncio.create_task(update_query_response(query.id, query.response_text, query.processing_time))
                 
+            # Log that we've responded with an AI-generated answer
+            db_utils.log_user_activity(user.id, "ai_response", details=f"Classification: {classification}")
+            
     except Exception as e:
         logger.error(f"Error handling message: {e}")
+        logger.error(traceback.format_exc())
         await update.message.reply_text(
-            "Sorry, an error occurred while processing your message. Please try again later."
+            "Sorry, I encountered an error while processing your request. Please try again later."
         )
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1006,7 +1042,7 @@ def create_application():
         raise ValueError("Telegram bot token not found")
     
     # Create the Application
-    application = telegram.ext.Application.builder().token(token).build()
+    application = Application.builder().token(token).build()
     
     # Register command handlers
     application.add_handler(CommandHandler("start", start_command))
