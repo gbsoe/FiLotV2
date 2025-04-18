@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}FiLot Bot - Users (Simple){% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="mb-0">User Management</h2>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    Manage users and their settings in the Telegram bot system.
+                </p>
+                <div class="mt-3">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white mb-3">
+                                <div class="card-body text-center">
+                                    <h3 class="display-4">{{ total_users }}</h3>
+                                    <h5>Total Users</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white mb-3">
+                                <div class="card-body text-center">
+                                    <h3 class="display-4">{{ verified_users }}</h3>
+                                    <h5>Verified Users</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white mb-3">
+                                <div class="card-body text-center">
+                                    <h3 class="display-4">{{ subscribed_users }}</h3>
+                                    <h5>Subscribed Users</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-danger text-white mb-3">
+                                <div class="card-body text-center">
+                                    <h3 class="display-4">{{ blocked_users }}</h3>
+                                    <h5>Blocked Users</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">User List</h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Last Active</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if users %}
+                                {% for user in users %}
+                                <tr>
+                                    <td>{{ user.id }}</td>
+                                    <td>{{ user.username or 'N/A' }}</td>
+                                    <td>{{ user.name }}</td>
+                                    <td>
+                                        {% if user.is_blocked %}
+                                            <span class="badge bg-danger">Blocked</span>
+                                        {% elif user.is_verified %}
+                                            <span class="badge bg-success">Verified</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">Pending</span>
+                                        {% endif %}
+                                        
+                                        {% if user.is_subscribed %}
+                                            <span class="badge bg-info">Subscribed</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                                    <td>{{ user.last_active.strftime('%Y-%m-%d %H:%M') if user.last_active else 'Never' }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center">No users available</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

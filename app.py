@@ -12,6 +12,7 @@ from flask import Flask, render_template, jsonify, request, redirect, url_for, a
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import text
 from models import db, User, Pool, BotStatistics, UserQuery, UserActivityLog, ErrorLog
 
 # Load environment variables
@@ -90,25 +91,21 @@ def index():
 def pools():
     """Pool data page."""
     try:
-        # Get all pools, sorted by APR
-        all_pools = Pool.query.order_by(Pool.apr_24h.desc()).all()
+        # Get basic pool data directly from the database using text() to properly format SQL
+        pool_data = []
+        query = text("SELECT id, token_a_symbol, token_b_symbol, apr_24h, apr_7d, tvl, fee FROM pools ORDER BY apr_24h DESC")
+        cursor = db.session.execute(query)
+        for row in cursor:
+            pool_data.append({
+                'token_a_symbol': row.token_a_symbol or 'Unknown',
+                'token_b_symbol': row.token_b_symbol or 'Unknown',
+                'apr_24h': float(row.apr_24h or 0),
+                'apr_7d': float(row.apr_7d or 0),
+                'tvl': float(row.tvl or 0),
+                'fee': float(row.fee or 0) * 100  # Convert to percentage
+            })
         
-        # Convert pool data to a safe format to avoid template issues
-        safe_pools = []
-        for pool in all_pools:
-            safe_pool = {
-                'token_a_symbol': pool.token_a_symbol or 'Unknown',
-                'token_b_symbol': pool.token_b_symbol or 'Unknown',
-                'apr_24h': float(pool.apr_24h or 0),
-                'apr_7d': float(pool.apr_7d or 0),
-                'tvl': float(pool.tvl or 0),
-                'volume_24h': float(pool.volume_24h or 0) if pool.volume_24h else None,
-                'fee': float(pool.fee or 0),
-                'last_updated': pool.last_updated
-            }
-            safe_pools.append(safe_pool)
-        
-        return render_template("pools.html", pools=safe_pools)
+        return render_template("simple_pools.html", pools=pool_data)
     except Exception as e:
         logger.error(f"Error in pools route: {e}")
         return render_template("error.html", error=str(e))
@@ -117,44 +114,64 @@ def pools():
 def users():
     """User management page."""
     try:
-        # Get all users - using only columns that we've verified exist in the database
-        all_users = db.session.query(
-            User.id, 
-            User.username, 
-            User.first_name, 
-            User.last_name,
-            User.is_blocked,
-            User.is_verified,
-            User.is_subscribed,
-            User.created_at,
-            User.last_active,
-            User.verification_code,
-            User.verification_attempts,
-            User.message_count,
-            User.spam_score,
-            User.preferred_pools,
-            User.investment_goals
-        ).order_by(User.created_at.desc()).all()
+        # Get user data with direct SQL to avoid ORM issues
+        user_data = []
+        user_query = text("""
+            SELECT 
+                id, 
+                username, 
+                first_name, 
+                last_name, 
+                is_blocked, 
+                is_verified, 
+                is_subscribed, 
+                created_at, 
+                last_active 
+            FROM users 
+            ORDER BY created_at DESC
+        """)
+        cursor = db.session.execute(user_query)
         
-        # Get counts
-        total_users = User.query.count()
-        blocked_users = User.query.filter_by(is_blocked=True).count()
-        verified_users = User.query.filter_by(is_verified=True).count()
-        subscribed_users = User.query.filter_by(is_subscribed=True).count()
+        for row in cursor:
+            # Process each user record safely
+            name = ""
+            if row.first_name:
+                name = row.first_name
+                if row.last_name:
+                    name += " " + row.last_name
+            elif row.username:
+                name = row.username
+            else:
+                name = "Anonymous"
+                
+            user_data.append({
+                'id': row.id,
+                'username': row.username,
+                'name': name,
+                'is_blocked': row.is_blocked,
+                'is_verified': row.is_verified,
+                'is_subscribed': row.is_subscribed,
+                'created_at': row.created_at,
+                'last_active': row.last_active
+            })
         
-        # Get recent user queries
-        recent_queries = UserQuery.query.order_by(
-            UserQuery.timestamp.desc()
-        ).limit(20).all()
+        # Get simple counts
+        counts = db.session.execute("""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN is_blocked = true THEN 1 ELSE 0 END) as blocked,
+                SUM(CASE WHEN is_verified = true THEN 1 ELSE 0 END) as verified,
+                SUM(CASE WHEN is_subscribed = true THEN 1 ELSE 0 END) as subscribed
+            FROM users
+        """).fetchone()
         
         return render_template(
-            "users.html",
-            users=all_users,
-            total_users=total_users,
-            blocked_users=blocked_users,
-            verified_users=verified_users,
-            subscribed_users=subscribed_users,
-            recent_queries=recent_queries
+            "simple_users.html",
+            users=user_data,
+            total_users=counts.total or 0,
+            blocked_users=counts.blocked or 0,
+            verified_users=counts.verified or 0,
+            subscribed_users=counts.subscribed or 0
         )
     except Exception as e:
         logger.error(f"Error in users route: {e}")
