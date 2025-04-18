@@ -701,19 +701,26 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
             # Don't fail if we can't store in context
             logger.warning(f"Could not store session in user_data: {user_data_error}")
         
-        # Create keyboard with deep link and security info
-        # Note: Now using https:// format which Telegram accepts
+        # Create simplified keyboard without the unreliable "Open in Wallet App" button
         keyboard = [
-            [InlineKeyboardButton("Open in Wallet App", url=uri)],
             [InlineKeyboardButton("Check Connection Status", callback_data=f"check_wc_{session_id}")],
             [InlineKeyboardButton("Cancel Connection", callback_data=f"cancel_wc_{session_id}")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
+        # Get the raw WalletConnect URI directly
+        # Check if it's in the session result first
+        session_data = result.get("session_data", {})
+        
+        # Get the raw WC URI from our stored session data
+        raw_wc_uri = uri
+        if "raw_wc_uri" in session_data:
+            raw_wc_uri = session_data["raw_wc_uri"]
+            
         # Send the main wallet connect message
         await security_msg.reply_markdown(
             "🔗 *WalletConnect Session Created*\n\n"
-            "Scan the QR code with your wallet app to connect, or click the button below to open in your wallet app.\n\n"
+            "Copy the connection code below and paste it into your wallet app to connect.\n\n"
             f"Session ID: `{session_id}`\n\n"
             "✅ *What to expect in your wallet app:*\n"
             "• You'll be asked to approve a connection request\n"
@@ -723,17 +730,10 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup=reply_markup
         )
         
-        # Get the raw WalletConnect URI for display
-        # Try to extract from URL if needed
-        raw_wc_uri = ""
-        if "uri=" in uri:
-            raw_wc_uri = uri.split("uri=")[1]
-        else:
-            raw_wc_uri = uri
-        
-        # Send the QR code URL separately with security reminder
-        await security_msg.reply_text(
-            f"Connect your wallet with this WalletConnect link:\n`{raw_wc_uri}`\n\n"
+        # Send the raw WalletConnect URI as a separate message for easy copying
+        await security_msg.reply_markdown(
+            "*Connect your wallet with this WalletConnect link:*\n\n"
+            f"`{result.get('raw_wc_uri', raw_wc_uri)}`\n\n"
             "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions."
         )
     except Exception as e:

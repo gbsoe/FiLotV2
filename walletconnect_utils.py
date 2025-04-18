@@ -105,19 +105,16 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
             logger.info(f"Creating mockup secure WalletConnect connection for user {telegram_user_id}")
             
             # Generate a mock WalletConnect URI that follows the standard format
-            # We need to use a real deep link format that wallet apps will recognize
+            # We don't need a deep link - better to show raw URI that user can copy directly
             
-            # The raw WalletConnect URI (will be displayed as text and stored for reference)
+            # The raw WalletConnect URI that will be displayed directly to the user
             wc_uri = "wc:f8a054fde8e454d4860f76a7b656f80c33edde8c8bc3d04e7b70123b4f9b8915@1?bridge=https%3A%2F%2Fbridge.walletconnect.org&key=49eb35de42352aefe25d52e009b1ac686e2c9d7cb1446d152aea3e2a1e8c3a33"
             
-            # Create a universal link that works with Telegram buttons
-            # Telegram requires URLs to start with http/https
-            # Using a format that's compatible with most wallet apps
+            # For Telegram buttons we need an https URL, but we'll just use a placeholder
+            # The user will copy the raw WC URI instead of clicking a link
+            mock_uri = "https://example.com/walletconnect"
             
-            # Using a wallet link scheme that's universally compatible
-            mock_uri = f"https://link.walletconnect.org/?uri={wc_uri}"
-            
-            # Store both URIs - the mock_uri for the button and the wc_uri for display
+            # Generate a unique session ID
             mock_session_id = str(uuid.uuid4())
             
             # Create mock data that resembles what we would get from the API
@@ -177,6 +174,7 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
             "success": True,
             "session_id": session_id,
             "uri": data["uri"],
+            "raw_wc_uri": data.get("raw_wc_uri", ""),  # Include the raw WC URI
             "telegram_user_id": telegram_user_id,
             "security_level": "read_only",
             "expires_in_seconds": 3600
