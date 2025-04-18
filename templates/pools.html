@@ -54,8 +54,8 @@
                                     <td>{{ "%.2f"|format(pool.apr_7d) if pool.apr_7d else 'N/A' }}%</td>
                                     <td>${{ "{:,.2f}"|format(pool.tvl) }}</td>
                                     <td>${{ "{:,.2f}"|format(pool.volume_24h) if pool.volume_24h else 'N/A' }}</td>
-                                    <td>{{ "%.2f"|format(pool.fee * 100) }}%</td>
-                                    <td>{{ pool.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>{{ "%.2f"|format(pool.fee) }}%</td>
+                                    <td>{{ pool.last_updated.strftime('%Y-%m-%d %H:%M') if pool.last_updated else 'N/A' }}</td>
                                 </tr>
                                 {% endfor %}
                             {% else %}

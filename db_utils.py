@@ -459,11 +459,14 @@ def log_user_activity(user_id: int, activity_type: str, details: str = None,
             logger.warning(f"User ID {user_id} is too large for the database, cannot log activity")
             return None
             
+        # Based on our database schema query, these columns exist
         activity = UserActivityLog(
             user_id=user_id,
             activity_type=activity_type,
             details=details,
-            # Skip ip_address and user_agent since they might not exist in the database schema
+            ip_address=ip_address,
+            user_agent=user_agent,
+            timestamp=datetime.datetime.utcnow()
         )
         db.session.add(activity)
         db.session.commit()

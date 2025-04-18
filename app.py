@@ -102,7 +102,7 @@ def pools():
 def users():
     """User management page."""
     try:
-        # Get all users - only select columns that are known to exist in the database
+        # Get all users - using only columns that we've verified exist in the database
         all_users = db.session.query(
             User.id, 
             User.username, 
@@ -115,11 +115,8 @@ def users():
             User.last_active,
             User.verification_code,
             User.verification_attempts,
-            User.block_reason,
             User.message_count,
             User.spam_score,
-            User.risk_profile,
-            User.investment_horizon,
             User.preferred_pools,
             User.investment_goals
         ).order_by(User.created_at.desc()).all()
