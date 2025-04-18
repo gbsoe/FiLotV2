@@ -1027,6 +1027,12 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             )
             
         elif callback_data == "view_pools":
+            # Send a confirmation message that we're fetching pool information
+            await query.message.reply_markdown(
+                "🔍 *Fetching Pool Opportunities*\n\n"
+                "Please wait while I gather the latest data on available liquidity pools..."
+            )
+            # Call the info command to display pool information
             await info_command(update, context)
             
         elif callback_data.startswith("wallet_connect_"):
