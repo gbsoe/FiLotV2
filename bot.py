@@ -734,22 +734,12 @@ async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TY
         
         # Generate QR code for the WalletConnect URI
         try:
-            # Create QR code
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=4,
-            )
-            qr.add_data(result.get('raw_wc_uri', raw_wc_uri))
-            qr.make(fit=True)
-            
-            # Create an image from the QR Code
-            img = qr.make_image(fill_color="black", back_color="white")
+            # Create QR code using the simpler API
+            qr_img = qrcode.make(result.get('raw_wc_uri', raw_wc_uri))
             
             # Save to a buffer
             buffer = io.BytesIO()
-            img.save(buffer)
+            qr_img.save(buffer)
             buffer.seek(0)
             
             # Send QR code as photo
@@ -1141,20 +1131,12 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                         # Include the raw WC URI and QR code if available
                         if raw_wc_uri:
                             try:
-                                # Generate QR code for the URI
-                                qr = qrcode.QRCode(
-                                    version=1,
-                                    error_correction=qrcode.constants.ERROR_CORRECT_L,
-                                    box_size=10,
-                                    border=4,
-                                )
-                                qr.add_data(raw_wc_uri)
-                                qr.make(fit=True)
+                                # Generate QR code for the URI using simple API
+                                qr_img = qrcode.make(raw_wc_uri)
                                 
                                 # Create and send the QR code image
-                                img = qr.make_image(fill_color="black", back_color="white")
                                 buffer = io.BytesIO()
-                                img.save(buffer)
+                                qr_img.save(buffer)
                                 buffer.seek(0)
                                 
                                 await query.message.reply_photo(
