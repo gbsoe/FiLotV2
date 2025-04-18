@@ -93,7 +93,22 @@ def pools():
         # Get all pools, sorted by APR
         all_pools = Pool.query.order_by(Pool.apr_24h.desc()).all()
         
-        return render_template("pools.html", pools=all_pools)
+        # Convert pool data to a safe format to avoid template issues
+        safe_pools = []
+        for pool in all_pools:
+            safe_pool = {
+                'token_a_symbol': pool.token_a_symbol or 'Unknown',
+                'token_b_symbol': pool.token_b_symbol or 'Unknown',
+                'apr_24h': float(pool.apr_24h or 0),
+                'apr_7d': float(pool.apr_7d or 0),
+                'tvl': float(pool.tvl or 0),
+                'volume_24h': float(pool.volume_24h or 0) if pool.volume_24h else None,
+                'fee': float(pool.fee or 0),
+                'last_updated': pool.last_updated
+            }
+            safe_pools.append(safe_pool)
+        
+        return render_template("pools.html", pools=safe_pools)
     except Exception as e:
         logger.error(f"Error in pools route: {e}")
         return render_template("error.html", error=str(e))

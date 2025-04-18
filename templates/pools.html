@@ -50,11 +50,11 @@
                                 {% for pool in pools %}
                                 <tr>
                                     <td>{{ pool.token_a_symbol }}/{{ pool.token_b_symbol }}</td>
-                                    <td>{{ "%.2f"|format(pool.apr_24h) }}%</td>
-                                    <td>{{ "%.2f"|format(pool.apr_7d) if pool.apr_7d else 'N/A' }}%</td>
-                                    <td>${{ "{:,.2f}"|format(pool.tvl) }}</td>
-                                    <td>${{ "{:,.2f}"|format(pool.volume_24h) if pool.volume_24h else 'N/A' }}</td>
-                                    <td>{{ "%.2f"|format(pool.fee) }}%</td>
+                                    <td>{{ "%.2f"|format(pool.apr_24h|float) if pool.apr_24h is not none else 'N/A' }}%</td>
+                                    <td>{{ "%.2f"|format(pool.apr_7d|float) if pool.apr_7d is not none else 'N/A' }}%</td>
+                                    <td>${{ "{:,.2f}"|format(pool.tvl|float) if pool.tvl is not none else 'N/A' }}</td>
+                                    <td>${{ "{:,.2f}"|format(pool.volume_24h|float) if pool.volume_24h is not none else 'N/A' }}</td>
+                                    <td>{{ "%.2f"|format(pool.fee|float) if pool.fee is not none else 'N/A' }}%</td>
                                     <td>{{ pool.last_updated.strftime('%Y-%m-%d %H:%M') if pool.last_updated else 'N/A' }}</td>
                                 </tr>
                                 {% endfor %}
