@@ -549,6 +549,88 @@ def get_variations() -> Dict[str, List[str]]:
             "prevent impermanent loss",
             "how does impermanent loss work"
         ],
+        "how does filot work": [
+            "how does filot work",
+            "how filot works",
+            "filot process",
+            "filot workflow",
+            "filot functioning",
+            "filot mechanism",
+            "how does it work",
+            "explain how filot works",
+            "filot operation"
+        ],
+        "security measures": [
+            "security measures",
+            "how secure is filot",
+            "filot security",
+            "data protection",
+            "how safe is filot",
+            "security features",
+            "wallet security",
+            "protect my assets",
+            "security protocols"
+        ],
+        "investment strategies": [
+            "investment strategies",
+            "investment methods",
+            "strategies for investing",
+            "how to invest",
+            "investment approaches",
+            "best strategies",
+            "investment tactics",
+            "filot strategies",
+            "investment styles"
+        ],
+        "difference between defi and cefi": [
+            "difference between defi and cefi",
+            "defi vs cefi",
+            "cefi vs defi",
+            "defi or cefi",
+            "compare defi and cefi",
+            "centralized vs decentralized finance",
+            "traditional finance vs defi"
+        ],
+        "yield farming": [
+            "yield farming",
+            "what is yield farming",
+            "explain yield farming",
+            "farming yields",
+            "liquidity farming",
+            "farming in defi",
+            "yield generation",
+            "what are farms"
+        ],
+        "best time to invest": [
+            "best time to invest",
+            "when to invest",
+            "timing investments",
+            "investment timing",
+            "optimal investment time",
+            "market timing",
+            "when should i invest",
+            "good time to invest"
+        ],
+        "tax implications": [
+            "tax implications",
+            "crypto taxes",
+            "taxation of defi",
+            "tax on investments",
+            "reporting crypto taxes",
+            "tax considerations",
+            "how are pools taxed",
+            "tax treatment"
+        ],
+        "how to start with $100": [
+            "how to start with $100",
+            "invest with 100",
+            "small investments",
+            "begin with little money",
+            "start small",
+            "minimum investment",
+            "low amount investing",
+            "beginner investment amount"
+        ],
         "start": [
             "start",
             "let's start",
@@ -681,7 +763,20 @@ def get_predefined_response(query: str) -> Optional[str]:
         ('what', 'ask'): 'what can i ask',
         ('apy', 'mean'): 'what is apy',
         ('bank', 'interest'): 'compare bank interest',
-        ('difference', 'apr', 'apy'): 'what is apy'
+        ('difference', 'apr', 'apy'): 'what is apy',
+        ('how', 'filot', 'work'): 'how does filot work',
+        ('how', 'work'): 'how does filot work',
+        ('security', 'measures'): 'security measures',
+        ('how', 'secure'): 'security measures',
+        ('investment', 'strategy'): 'investment strategies',
+        ('defi', 'cefi'): 'difference between defi and cefi',
+        ('defi', 'vs'): 'difference between defi and cefi',
+        ('yield', 'farm'): 'yield farming',
+        ('when', 'invest'): 'best time to invest',
+        ('best', 'time'): 'best time to invest',
+        ('tax', 'crypto'): 'tax implications',
+        ('small', 'investment'): 'how to start with $100',
+        ('$100', 'invest'): 'how to start with $100'
     }
     for keywords, response_key in keyword_combinations.items():
         if all(keyword in query_lower for keyword in keywords):
@@ -701,7 +796,15 @@ def get_predefined_response(query: str) -> Optional[str]:
         "what is liquidity pool": ["provide liquidity", "lp", "pooling", "amm", "pool"],
         "impermanent loss": ["risk", "loss", "divergence", "price change"],
         "what is apr": ["interest", "return", "yield", "earn", "profit", "reward"],
-        "compare bank interest": ["savings", "traditional", "bank", "investment", "return"]
+        "compare bank interest": ["savings", "traditional", "bank", "investment", "return"],
+        "how does filot work": ["mechanism", "process", "operation", "function", "algorithm", "system"],
+        "security measures": ["safety", "protection", "secure", "safeguard", "encryption", "protection"],
+        "investment strategies": ["approach", "method", "technique", "tactic", "plan", "portfolio"],
+        "difference between defi and cefi": ["centralized", "decentralized", "comparison", "versus", "traditional"],
+        "yield farming": ["staking", "liquidity mining", "rewards", "incentives", "defi yields"],
+        "best time to invest": ["timing", "entry", "market timing", "when to buy", "opportunity"],
+        "tax implications": ["taxation", "reporting", "irs", "tax treatment", "capital gains"],
+        "how to start with $100": ["beginner", "small amount", "low budget", "minimal", "starting capital"]
     }
     
     for topic, keywords in topics.items():
