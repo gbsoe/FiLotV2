@@ -138,7 +138,7 @@ def format_simulation_results(pools: List[Dict[str, Any]], amount: float) -> str
         amount: Investment amount in USD
         
     Returns:
-        Formatted string
+        Formatted string showing potential earnings for top pools
     """
     if not pools:
         return "No pools available for simulation. Please try again later."
@@ -171,38 +171,48 @@ def format_simulation_results(pools: List[Dict[str, Any]], amount: float) -> str
                 
         return default
     
-    # Sort pools by APR (24h) to get top pool for simulation
-    top_pool = sorted(pools, key=lambda p: get_value(p, 'apr_24h'), reverse=True)[0] if pools else None
+    # Sort pools by APR (24h) for better display
+    sorted_pools = sorted(pools, key=lambda p: get_value(p, 'apr_24h'), reverse=True)
     
-    if not top_pool:
+    # Limit to top 3 pools to avoid overly long messages
+    display_pools = sorted_pools[:3]
+    
+    if not display_pools:
         return "No pools available for simulation. Please try again later."
     
     # Header
     result = f"🚀 Simulation for an Investment of ${amount:,.2f}:\n\n"
     
-    # Calculate potential earnings
-    apr_24h = get_value(top_pool, 'apr_24h')
-    daily_rate = apr_24h / 365
+    # Generate simulations for each pool
+    for pool in display_pools:
+        # Calculate potential earnings
+        apr_24h = get_value(pool, 'apr_24h')
+        daily_rate = apr_24h / 365
+        
+        # Calculate earnings for different time periods
+        daily_earnings = amount * (daily_rate / 100)
+        weekly_earnings = daily_earnings * 7
+        monthly_earnings = daily_earnings * 30
+        yearly_earnings = amount * (apr_24h / 100)
+        
+        # Token pair and pool ID
+        token_a = get_value(pool, 'token_a_symbol')
+        token_b = get_value(pool, 'token_b_symbol')
+        token_pair = f"{token_a}/{token_b}"
+        
+        # Format each pool's simulation results
+        result += (
+            f"• Pool ID: 📋 {get_value(pool, 'id')}\n"
+            f"  Token Pair: {token_pair}\n"
+            f"  - Daily Earnings: ${daily_earnings:.2f}\n"
+            f"  - Weekly Earnings: ${weekly_earnings:.2f}\n"
+            f"  - Monthly Earnings: ${monthly_earnings:.2f}\n"
+            f"  - Annual Earnings: ${yearly_earnings:.2f}\n"
+            f"\n"
+        )
     
-    # Calculate earnings for different time periods
-    daily_earnings = amount * (daily_rate / 100)
-    weekly_earnings = daily_earnings * 7
-    monthly_earnings = daily_earnings * 30
-    yearly_earnings = amount * (apr_24h / 100)
-    
-    # Token pair and pool ID
-    token_a = get_value(top_pool, 'token_a_symbol')
-    token_b = get_value(top_pool, 'token_b_symbol')
-    token_pair = f"{token_a}/{token_b}"
-    
-    # Format the simulation result
-    result += (
-        f"• Pool ID: 📋 {get_value(top_pool, 'id')} - {token_pair}\n"
-        f"  - Daily Earnings: ${daily_earnings:.2f}\n"
-        f"  - Weekly Earnings: ${weekly_earnings:.2f}\n"
-        f"  - Monthly Earnings: ${monthly_earnings:.2f}\n"
-        f"  - Annual Earnings: ${yearly_earnings:.2f}\n"
-    )
+    # Add disclaimer
+    result += "Disclaimer: The numbers above are estimations and actual earnings may vary."
     
     return result
 

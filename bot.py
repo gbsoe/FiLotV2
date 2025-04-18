@@ -282,23 +282,20 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         user = update.effective_user
         db_utils.log_user_activity(user.id, "simulate_command")
         
-        # Check if amount is provided
-        if not context.args or not context.args[0]:
-            await update.message.reply_text(
-                "Please provide an investment amount. Example: /simulate 1000"
-            )
-            return
-            
-        # Parse amount
-        try:
-            amount = float(context.args[0])
-            if amount <= 0:
-                raise ValueError("Amount must be positive")
-        except ValueError:
-            await update.message.reply_text(
-                "Please provide a valid positive number. Example: /simulate 1000"
-            )
-            return
+        # Set default amount to 1000 if not provided
+        amount = 1000.0
+        
+        # Check if amount is provided and parse it
+        if context.args and context.args[0]:
+            try:
+                amount = float(context.args[0])
+                if amount <= 0:
+                    raise ValueError("Amount must be positive")
+            except ValueError:
+                await update.message.reply_text(
+                    "Please provide a valid positive number. Example: /simulate 1000"
+                )
+                return
             
         await update.message.reply_text("Calculating potential returns...")
         
@@ -327,7 +324,7 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         
         # Use regular reply_text to avoid markdown formatting issues
         await update.message.reply_text(formatted_simulation, reply_markup=reply_markup)
-        logger.info("Sent simulation response")
+        logger.info(f"Sent simulation response for amount ${amount:.2f}")
     except Exception as e:
         logger.error(f"Error in simulate command: {e}")
         await update.message.reply_text(
