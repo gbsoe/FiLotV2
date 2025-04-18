@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 import db_utils
 from models import User, Pool, UserQuery, db
 from response_data import get_predefined_response
-from raydium_client import get_pools, get_token_prices
+from raydium_client import get_client
 from utils import format_pool_info, format_simulation_results, format_daily_update
 from wallet_utils import connect_wallet, check_wallet_balance, calculate_deposit_strategy
 from walletconnect_utils import (
@@ -81,24 +81,51 @@ async def get_pool_data() -> List[Any]:
         
         # If no pools in database, fetch from API
         if not pools or len(pools) == 0:
-            api_pools = await get_pools(limit=5)
-            # Convert API pools to Pool objects for formatting
-            pools = []
-            for pool_data in api_pools:
-                pool = Pool()
-                pool.id = pool_data.get("id", "unknown")
-                pool.token_a_symbol = pool_data.get("token_a", {}).get("symbol", "Unknown")
-                pool.token_b_symbol = pool_data.get("token_b", {}).get("symbol", "Unknown")
-                pool.token_a_price = pool_data.get("token_a", {}).get("price", 0)
-                pool.token_b_price = pool_data.get("token_b", {}).get("price", 0)
-                pool.apr_24h = pool_data.get("apr_24h", 0)
-                pool.apr_7d = pool_data.get("apr_7d", 0)
-                pool.apr_30d = pool_data.get("apr_30d", 0)
-                pool.tvl = pool_data.get("tvl", 0)
-                pool.fee = pool_data.get("fee", 0)
-                pool.volume_24h = pool_data.get("volume_24h", 0)
-                pool.tx_count_24h = pool_data.get("tx_count_24h", 0)
-                pools.append(pool)
+            try:
+                # Get Raydium client and fetch pools
+                raydium_client = get_client()
+                # This is a synchronous client, no await needed
+                api_pools_response = raydium_client.get_pools(limit=5)
+                
+                # Process top APR pools from the response
+                api_pools = api_pools_response.get('topAPR', [])
+                
+                # Convert API pools to Pool objects for formatting
+                pools = []
+                for pool_data in api_pools:
+                    pool = Pool()
+                    pool.id = pool_data.get("id", "unknown")
+                    
+                    # Extract token symbols from pair name
+                    pair_name = pool_data.get("pairName", "UNKNOWN/UNKNOWN")
+                    token_symbols = pair_name.split("/")
+                    
+                    pool.token_a_symbol = token_symbols[0] if len(token_symbols) > 0 else "Unknown"
+                    pool.token_b_symbol = token_symbols[1] if len(token_symbols) > 1 else "Unknown"
+                    
+                    # Get token prices if available
+                    token_prices = pool_data.get("tokenPrices", {})
+                    pool.token_a_price = token_prices.get(pool.token_a_symbol, 0)
+                    pool.token_b_price = token_prices.get(pool.token_b_symbol, 0)
+                    
+                    # Extract other pool data
+                    pool.apr_24h = pool_data.get("apr", 0)
+                    pool.apr_7d = pool_data.get("aprWeekly", 0)
+                    pool.apr_30d = pool_data.get("aprMonthly", 0)
+                    pool.tvl = pool_data.get("liquidity", 0)
+                    pool.fee = pool_data.get("fee", 0) * 100  # Convert from decimal to percentage
+                    pool.volume_24h = pool_data.get("volume24h", 0)
+                    pool.tx_count_24h = pool_data.get("txCount", 0)
+                    pools.append(pool)
+                
+                # Save pools to database for future use
+                db.session.add_all(pools)
+                db.session.commit()
+                logger.info(f"Saved {len(pools)} pools to database")
+            except Exception as e:
+                logger.error(f"Error fetching pools from Raydium API: {e}")
+                # If API fetch fails, return empty pool list
+                pools = []
         
         return pools
     except Exception as e:

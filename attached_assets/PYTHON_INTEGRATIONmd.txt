@@ -1,0 +1,318 @@
+# Raydium API Service - Python Integration Guide
+
+This guide provides comprehensive instructions for connecting your Python application to the Raydium API service.
+
+## 1. Setting Up API Secrets
+
+### Required Secrets
+
+Your Python application needs these two secrets to securely connect to the Raydium API:
+
+| Secret Name | Example Value | Description |
+|-------------|---------------|-------------|
+| `NODE_SERVICE_URL` | `https://raydium-trader-filot.replit.app` | The deployed URL of the Raydium API service |
+| `RAYDIUM_API_KEY` | `9feae0d0af47e4948e061f2d7820461e374e040c21cf65c087166d7ed18f5ed6` | The API key for authentication |
+
+### Adding Secrets in Replit
+
+1. In your Python Replit project, click on the **Secrets** tool (lock icon) in the left sidebar
+2. Add each secret individually with the name and value
+3. Click "Add Secret" after entering each one
+
+## 2. Required Python Packages
+
+Ensure your Python environment has these packages:
+
+```
+requests>=2.28.0
+```
+
+Install via the Replit package manager or run:
+```bash
+pip install requests
+```
+
+## 3. Python Code for API Integration
+
+### Basic Client main.py Setup
+
+```python
+import os
+import json
+import requests
+from typing import Dict, Any, Optional, List
+
+class RaydiumClient:
+    """Client for interacting with the Raydium API Service."""
+    
+    def __init__(self):
+        """Initialize the client with configuration from environment variables."""
+        self.api_url = os.environ.get("NODE_SERVICE_URL")
+        self.api_key = os.environ.get("RAYDIUM_API_KEY")
+        
+        if not self.api_url:
+            raise ValueError("NODE_SERVICE_URL environment variable is required")
+        if not self.api_key:
+            raise ValueError("RAYDIUM_API_KEY environment variable is required")
+            
+        # Headers for all requests
+        self.headers = {
+            "x-api-key": self.api_key,
+            "Content-Type": "application/json"
+        }
+    
+    def check_health(self) -> Dict[str, Any]:
+        """Check if the API service is healthy."""
+        response = requests.get(f"{self.api_url}/health", headers=self.headers)
+        response.raise_for_status()
+        return response.json()
+    
+    def get_service_metadata(self) -> Dict[str, Any]:
+        """Get detailed metadata about the API service."""
+        response = requests.get(f"{self.api_url}/metadata", headers=self.headers)
+        response.raise_for_status()
+        return response.json()
+    
+    def get_pools(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Get categorized liquidity pools with APR data."""
+        response = requests.get(f"{self.api_url}/pools", headers=self.headers)
+        response.raise_for_status()
+        return response.json()
+    
+    def filter_pools(
+        self,
+        token_symbol: Optional[str] = None, 
+        token_address: Optional[str] = None,
+        min_apr: Optional[float] = None,
+        max_apr: Optional[float] = None,
+        limit: int = 10
+    ) -> Dict[str, Any]:
+        """
+        Filter liquidity pools based on criteria.
+        
+        Args:
+            token_symbol: Filter pools containing this token symbol (e.g., "SOL")
+            token_address: Filter pools containing this token address
+            min_apr: Minimum APR threshold
+            max_apr: Maximum APR threshold
+            limit: Maximum number of results to return
+            
+        Returns:
+            Dictionary with count and filtered pools
+        """
+        params = {}
+        if token_symbol:
+            params["tokenSymbol"] = token_symbol
+        if token_address:
+            params["tokenAddress"] = token_address
+        if min_apr is not None:
+            params["minApr"] = min_apr
+        if max_apr is not None:
+            params["maxApr"] = max_apr
+        if limit:
+            params["limit"] = limit
+            
+        response = requests.get(
+            f"{self.api_url}/pools/filter", 
+            headers=self.headers,
+            params=params
+        )
+        response.raise_for_status()
+        return response.json()
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics from the API service."""
+        response = requests.get(f"{self.api_url}/cache/stats", headers=self.headers)
+        response.raise_for_status()
+        return response.json()
+    
+    def clear_cache(self) -> Dict[str, Any]:
+        """Clear the API service cache."""
+        response = requests.post(f"{self.api_url}/cache/clear", headers=self.headers)
+        response.raise_for_status()
+        return response.json()
+```
+
+### Example Usage
+
+Create a file named `test_raydium_api.py` to test the connection:
+
+```python
+from raydium_client import RaydiumClient
+import json
+
+# Pretty print helper
+def print_json(data):
+    print(json.dumps(data, indent=2))
+
+# Testing the Raydium API
+def main():
+    try:
+        # Initialize client
+        client = RaydiumClient()
+        
+        # Test health check
+        print("Checking API health...")
+        health = client.check_health()
+        print(f"API Status: {health['status']}")
+        print(f"Timestamp: {health['timestamp']}")
+        print("\n" + "-" * 40 + "\n")
+        
+        # Get top APR pools
+        print("Getting top APR pools...")
+        pools = client.get_pools()
+        print(f"Top APR Pools: {len(pools['topAPR'])}")
+        print(f"Mandatory Pools: {len(pools['mandatory'])}")
+        
+        # Print first pool details
+        if pools['topAPR']:
+            first_pool = pools['topAPR'][0]
+            print("\nHighest APR Pool:")
+            print(f"  Pair: {first_pool['pairName']}")
+            print(f"  APR: {first_pool['apr']}%")
+            print(f"  Liquidity: {first_pool['liquidity']}")
+        print("\n" + "-" * 40 + "\n")
+        
+        # Filter pools for SOL
+        print("Filtering pools with SOL...")
+        sol_pools = client.filter_pools(token_symbol="SOL", limit=3)
+        print(f"Found {sol_pools['count']} SOL pools")
+        for pool in sol_pools['pools']:
+            print(f"  {pool['pairName']} - APR: {pool['apr']}%")
+        
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    main()
+```
+
+## 4. Error Handling and Best Practices
+
+### Exception Handling
+
+Improve your code with proper exception handling:
+
+```python
+try:
+    pools = client.get_pools()
+    # Process pools...
+except requests.exceptions.HTTPError as http_err:
+    print(f"HTTP error occurred: {http_err}")
+    if http_err.response.status_code == 401:
+        print("Authentication failed. Check your API key.")
+    elif http_err.response.status_code == 429:
+        print("Rate limit exceeded. Try again later.")
+except requests.exceptions.ConnectionError:
+    print("Connection error. Check if the API service is running.")
+except requests.exceptions.Timeout:
+    print("Request timed out. Try again later.")
+except Exception as err:
+    print(f"Other error occurred: {err}")
+```
+
+### Connection Pooling
+
+For high-volume applications, implement connection pooling:
+
+```python
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+# Create a session with retry strategy
+session = requests.Session()
+retry_strategy = Retry(
+    total=3,
+    backoff_factor=1,
+    status_forcelist=[429, 500, 502, 503, 504]
+)
+adapter = HTTPAdapter(max_retries=retry_strategy)
+session.mount("http://", adapter)
+session.mount("https://", adapter)
+
+# Use session instead of requests directly
+response = session.get(url, headers=headers)
+```
+
+## 5. Production Considerations
+
+### Secret Management
+
+In production environments:
+1. Never hardcode the API key in your code
+2. Use environment variables or a secure key management system
+3. Rotate the API key periodically
+
+### Rate Limiting Awareness
+
+The Raydium API implements rate limiting. Implement backoff strategies in your code to handle 429 responses.
+
+### Monitoring and Logging
+
+Add proper logging to track API usage and detect issues:
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('raydium_client')
+
+# In your client methods:
+logger.info("Fetching pools data")
+try:
+    response = requests.get(url, headers=headers)
+    # Process response...
+    logger.info("Successfully retrieved pools data")
+except Exception as e:
+    logger.error(f"Error fetching pools data: {e}")
+    raise
+```
+
+## 6. API Reference
+
+| Endpoint | Method | Description | Parameters |
+|----------|--------|-------------|------------|
+| `/health` | GET | Health check | None |
+| `/metadata` | GET | Service metadata | None |
+| `/pools` | GET | All liquidity pools | None |
+| `/pools/filter` | GET | Filter pools | tokenSymbol, tokenAddress, minApr, maxApr, limit |
+| `/cache/stats` | GET | Cache statistics | None |
+| `/cache/clear` | POST | Clear cache | None |
+
+## 7. Deployment Information
+
+The Raydium API Service is deployed and available at:
+
+1. Deployment URL: `https://raydium-trader-filot.replit.app`
+2. Set your `NODE_SERVICE_URL` secret to this URL
+3. Make sure your API key matches the one in the Raydium service
+
+## 8. Important Security Notes
+
+- Always use HTTPS for production communication
+- Don't share or expose your API key
+- Implement proper error handling in your application
+- Monitor for suspicious activity or unauthorized access attempts
+
+## 9. Need Help?
+
+If you encounter issues:
+1. Check the service health endpoint
+2. Verify your API key is correct
+3. Look for error messages in the response
+4. Check the logs in both your Python application and the Raydium service
+
+---
+
+**IMPORTANT: Update these values in your secrets:**
+
+```
+NODE_SERVICE_URL=https://raydium-trader-filot.replit.app
+RAYDIUM_API_KEY=9feae0d0af47e4948e061f2d7820461e374e040c21cf65c087166d7ed18f5ed6
+```
+
+These values are ready to use with your deployed Raydium API service.

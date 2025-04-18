@@ -13,7 +13,9 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "python-dotenv>=1.1.0",
     "python-telegram-bot[all]==20.6",
+    "requests>=2.32.3",
     "sqlalchemy>=2.0.40",
     "telegram>=0.0.1",
     "trafilatura>=2.0.0",
+    "urllib3>=2.4.0",
 ]

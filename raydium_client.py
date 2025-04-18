@@ -1,297 +1,220 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """
-Client for fetching pool data from Raydium API and token prices from CoinGecko
+Client for interacting with the Raydium API Service.
 """
 
 import os
 import json
-import asyncio
 import logging
-import aiohttp
-from typing import List, Dict, Any, Optional, Tuple
+import requests
+from typing import Dict, Any, Optional, List
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('raydium_client')
 
-# Load config
-CONFIG_PATH = "config.json"
-config = {}
-try:
-    with open(CONFIG_PATH, "r") as f:
-        config = json.load(f)
-except Exception as e:
-    logger.error(f"Error loading config.json: {e}")
-    config = {"poolIds": []}
-
-# Default pool IDs if not in config
-DEFAULT_POOL_IDS = [
-    "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
-    "7XawhbbxtsRcQA8KTkHT9f9nc6d69UwqCDh6U5EEbEmX",
-    "6UmmUiYoBjSrhakAobJw8BvkmJtDVxaeBtbt7rxWo1mg"
-]
-POOL_IDS = config.get("poolIds", DEFAULT_POOL_IDS)
-
-# Relevant token symbols to track
-TOKEN_SYMBOLS = ["SOL", "USDC", "USDT", "RAY"]
-
-async def _fetch_json(url: str, timeout: int = 30) -> Dict[str, Any]:
-    """Fetch JSON data from a URL with timeout."""
-    async with aiohttp.ClientSession() as session:
+class RaydiumClient:
+    """Client for interacting with the Raydium API Service."""
+    
+    def __init__(self):
+        """Initialize the client with configuration from environment variables."""
+        self.api_url = os.environ.get("NODE_SERVICE_URL")
+        self.api_key = os.environ.get("RAYDIUM_API_KEY")
+        
+        if not self.api_url:
+            raise ValueError("NODE_SERVICE_URL environment variable is required")
+        if not self.api_key:
+            raise ValueError("RAYDIUM_API_KEY environment variable is required")
+            
+        # Headers for all requests
+        self.headers = {
+            "x-api-key": self.api_key,
+            "Content-Type": "application/json"
+        }
+        
+        # Create a session with retry strategy for connection pooling
+        self.session = requests.Session()
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+    
+    def check_health(self) -> Dict[str, Any]:
+        """Check if the API service is healthy."""
+        logger.info("Checking API health")
         try:
-            async with session.get(url, timeout=timeout) as response:
-                if response.status != 200:
-                    logger.error(f"Error fetching from {url}: Status {response.status}")
-                    return {}
-                return await response.json()
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout when fetching from {url}")
-            return {}
+            response = self.session.get(f"{self.api_url}/health", headers=self.headers)
+            response.raise_for_status()
+            logger.info("API health check successful")
+            return response.json()
         except Exception as e:
-            logger.error(f"Error fetching from {url}: {e}")
-            return {}
-
-async def fetch_token_prices() -> Dict[str, float]:
-    """
-    Fetch token prices from CoinGecko API.
-    Returns a dictionary of token symbols to USD prices.
-    """
-    logger.info("Fetching token prices from CoinGecko")
-    coingecko_url = "https://api.coingecko.com/api/v3/simple/price?ids=solana%2Ctether%2Cusd-coin%2Craydium&vs_currencies=usd"
+            logger.error(f"API health check failed: {e}")
+            raise
     
-    try:
-        data = await _fetch_json(coingecko_url, timeout=10)
-        if not data:
-            logger.warning("No data received from CoinGecko")
-            return _get_fallback_prices()
-            
-        prices = {
-            "SOL": data.get("solana", {}).get("usd", 0),
-            "USDT": data.get("tether", {}).get("usd", 1),  # Default to 1 for stablecoins
-            "USDC": data.get("usd-coin", {}).get("usd", 1),  # Default to 1 for stablecoins
-            "RAY": data.get("raydium", {}).get("usd", 0)
-        }
+    def get_service_metadata(self) -> Dict[str, Any]:
+        """Get detailed metadata about the API service."""
+        logger.info("Fetching API service metadata")
+        try:
+            response = self.session.get(f"{self.api_url}/metadata", headers=self.headers)
+            response.raise_for_status()
+            logger.info("Successfully retrieved API metadata")
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error fetching API metadata: {e}")
+            raise
+    
+    def get_pools(self, limit: int = None) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get categorized liquidity pools with APR data.
         
-        # Validate prices
-        for symbol, price in prices.items():
-            if price is None or price <= 0:
-                if symbol in ["USDT", "USDC"]:
-                    prices[symbol] = 1.0  # Default stablecoins to 1.0
-                else:
-                    prices[symbol] = 0.0
+        Args:
+            limit: Optional limit to the number of pools returned
+            
+        Returns:
+            Dictionary with categorized pools (topAPR, mandatory, etc.)
+        """
+        logger.info("Fetching liquidity pools data")
+        try:
+            params = {}
+            if limit is not None:
+                params["limit"] = limit
+                
+            response = self.session.get(
+                f"{self.api_url}/pools", 
+                headers=self.headers,
+                params=params
+            )
+            response.raise_for_status()
+            pools_data = response.json()
+            logger.info(f"Successfully retrieved pools data: {len(pools_data.get('topAPR', []))} top APR pools")
+            return pools_data
+        except Exception as e:
+            logger.error(f"Error fetching pools data: {e}")
+            raise
+    
+    def filter_pools(
+        self,
+        token_symbol: Optional[str] = None, 
+        token_address: Optional[str] = None,
+        min_apr: Optional[float] = None,
+        max_apr: Optional[float] = None,
+        limit: int = 10
+    ) -> Dict[str, Any]:
+        """
+        Filter liquidity pools based on criteria.
+        
+        Args:
+            token_symbol: Filter pools containing this token symbol (e.g., "SOL")
+            token_address: Filter pools containing this token address
+            min_apr: Minimum APR threshold
+            max_apr: Maximum APR threshold
+            limit: Maximum number of results to return
+            
+        Returns:
+            Dictionary with count and filtered pools
+        """
+        logger.info(f"Filtering pools: token_symbol={token_symbol}, min_apr={min_apr}, max_apr={max_apr}, limit={limit}")
+        try:
+            params = {}
+            if token_symbol:
+                params["tokenSymbol"] = token_symbol
+            if token_address:
+                params["tokenAddress"] = token_address
+            if min_apr is not None:
+                params["minApr"] = min_apr
+            if max_apr is not None:
+                params["maxApr"] = max_apr
+            if limit:
+                params["limit"] = limit
+                
+            response = self.session.get(
+                f"{self.api_url}/pools/filter", 
+                headers=self.headers,
+                params=params
+            )
+            response.raise_for_status()
+            filtered_pools = response.json()
+            logger.info(f"Successfully filtered pools: {filtered_pools.get('count', 0)} results")
+            return filtered_pools
+        except Exception as e:
+            logger.error(f"Error filtering pools: {e}")
+            raise
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics from the API service."""
+        logger.info("Fetching cache statistics")
+        try:
+            response = self.session.get(f"{self.api_url}/cache/stats", headers=self.headers)
+            response.raise_for_status()
+            logger.info("Successfully retrieved cache statistics")
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error fetching cache statistics: {e}")
+            raise
+    
+    def clear_cache(self) -> Dict[str, Any]:
+        """Clear the API service cache."""
+        logger.info("Clearing API cache")
+        try:
+            response = self.session.post(f"{self.api_url}/cache/clear", headers=self.headers)
+            response.raise_for_status()
+            logger.info("Successfully cleared API cache")
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error clearing API cache: {e}")
+            raise
+            
+    def get_token_prices(self, symbols: List[str] = None) -> Dict[str, float]:
+        """
+        Get current prices for specified tokens.
+        
+        Args:
+            symbols: List of token symbols to get prices for (e.g., ["SOL", "USDC"])
+                    If None, fetches prices for all available tokens
                     
-        logger.info(f"Fetched token prices: {prices}")
-        return prices
-    except Exception as e:
-        logger.error(f"Error fetching token prices: {e}")
-        return _get_fallback_prices()
-
-def _get_fallback_prices() -> Dict[str, float]:
-    """Get fallback token prices if API fails."""
-    return {
-        "SOL": 0.0,
-        "USDT": 1.0,
-        "USDC": 1.0,
-        "RAY": 0.0
-    }
-
-async def fetch_pools(limit: int = 5) -> List[Dict[str, Any]]:
-    """
-    Fetch pool data from Raydium API.
-    
-    Args:
-        limit: Maximum number of pools to return
-        
-    Returns:
-        List of pool data dictionaries
-    """
-    logger.info(f"Fetching pool data for {len(POOL_IDS)} pool IDs")
-    
-    # Mock data structure to simulate fetching from Raydium SDK
-    # This would be replaced with actual API calls in production
-    pools = []
-    token_prices = await fetch_token_prices()
-    
-    try:
-        # Make API request to Raydium
-        raydium_url = f"https://api.raydium.io/v2/ammPools"
-        raydium_data = await _fetch_json(raydium_url)
-        
-        if not raydium_data or not isinstance(raydium_data, dict) or "data" not in raydium_data:
-            logger.warning("Invalid response from Raydium API")
-            return generate_mock_pools(token_prices, limit)
-            
-        all_pools = raydium_data.get("data", [])
-        if not all_pools:
-            logger.warning("No pools found in Raydium API response")
-            return generate_mock_pools(token_prices, limit)
-            
-        # Filter pools by IDs from config
-        for pool_info in all_pools:
-            pool_id = pool_info.get("id")
-            if pool_id in POOL_IDS:
-                # Extract token pair
-                token_a_symbol = pool_info.get("baseMint", {}).get("symbol", "Unknown")
-                token_b_symbol = pool_info.get("quoteMint", {}).get("symbol", "Unknown")
+        Returns:
+            Dictionary mapping token symbols to their current prices in USD
+        """
+        logger.info(f"Fetching token prices for {symbols if symbols else 'all tokens'}")
+        try:
+            params = {}
+            if symbols:
+                params["symbols"] = ",".join(symbols)
                 
-                # Extract APR data
-                apr_24h = _extract_apr(pool_info, "day") 
-                apr_7d = _extract_apr(pool_info, "week")
-                apr_30d = _extract_apr(pool_info, "month")
-                
-                # Extract TVL and volume
-                tvl = _extract_numeric(pool_info, "liquidity", "usd")
-                volume_24h = _extract_numeric(pool_info, "volume", "day", "usd")
-                
-                # Determine token prices
-                token_a_price = token_prices.get(token_a_symbol, 0)
-                token_b_price = token_prices.get(token_b_symbol, 0)
-                
-                # Create standardized pool object
-                pool = {
-                    "id": pool_id,
-                    "token_a": {
-                        "symbol": token_a_symbol,
-                        "price": token_a_price
-                    },
-                    "token_b": {
-                        "symbol": token_b_symbol,
-                        "price": token_b_price
-                    },
-                    "apr_24h": apr_24h,
-                    "apr_7d": apr_7d,
-                    "apr_30d": apr_30d,
-                    "tvl": tvl,
-                    "fee": pool_info.get("fee", 0) / 10000,  # Convert basis points to percentage
-                    "volume_24h": volume_24h,
-                    "tx_count_24h": pool_info.get("txCount", {}).get("day", 0)
-                }
-                
-                pools.append(pool)
-        
-        # Sort by APR and limit
-        pools.sort(key=lambda p: p.get("apr_24h", 0), reverse=True)
-        pools = pools[:limit]
-        
-        if not pools:
-            logger.warning(f"No pools found with configured IDs: {POOL_IDS}")
-            return generate_mock_pools(token_prices, limit)
-            
-        logger.info(f"Successfully fetched {len(pools)} pools")
-        return pools
-    except Exception as e:
-        logger.error(f"Error fetching pools: {e}")
-        return generate_mock_pools(token_prices, limit)
+            response = self.session.get(
+                f"{self.api_url}/tokens/prices", 
+                headers=self.headers,
+                params=params
+            )
+            response.raise_for_status()
+            price_data = response.json()
+            logger.info(f"Successfully retrieved prices for {len(price_data)} tokens")
+            return price_data
+        except Exception as e:
+            logger.error(f"Error fetching token prices: {e}")
+            raise
 
-def _extract_apr(pool_info: Dict[str, Any], time_period: str) -> float:
-    """Extract APR value from pool info."""
-    try:
-        apr = pool_info.get(time_period, {}).get("apr", 0)
-        return _format_apr(apr)
-    except (TypeError, KeyError):
-        return 0.0
+# Singleton instance for use throughout the application
+_instance = None
 
-def _extract_numeric(pool_info: Dict[str, Any], field: str, *keys: str) -> float:
-    """Extract numeric value from nested dict."""
-    try:
-        value = pool_info
-        for k in [field] + list(keys):
-            value = value.get(k, {})
-        if isinstance(value, (int, float)):
-            return float(value)
-        return 0.0
-    except (TypeError, KeyError):
-        return 0.0
-
-def _format_apr(apr: float) -> float:
-    """Format APR value."""
-    if apr is None or not isinstance(apr, (int, float)) or apr < 0:
-        return 0.0
-    return round(apr, 2)
-
-def generate_mock_pools(token_prices: Dict[str, float], limit: int = 5) -> List[Dict[str, Any]]:
-    """
-    Generate mock pool data for testing when API fails.
-    
-    Args:
-        token_prices: Dictionary of token symbols to USD prices
-        limit: Maximum number of mock pools to generate
-        
-    Returns:
-        List of mock pool data dictionaries
-    """
-    # Some predefined pairs
-    pairs = [
-        ("SOL", "USDC"),
-        ("SOL", "USDT"),
-        ("RAY", "SOL"),
-        ("RAY", "USDC"),
-        ("USDC", "USDT")
-    ]
-    
-    pools = []
-    for i, (token_a, token_b) in enumerate(pairs[:limit]):
-        apr_base = max(5.0 + i * 3.5, 0)  # Generate different APRs
-        pool = {
-            "id": f"mock_pool_{i}",
-            "token_a": {
-                "symbol": token_a,
-                "price": token_prices.get(token_a, 0)
-            },
-            "token_b": {
-                "symbol": token_b,
-                "price": token_prices.get(token_b, 0)
-            },
-            "apr_24h": apr_base + 2.0,
-            "apr_7d": apr_base,
-            "apr_30d": max(apr_base - 1.0, 0),
-            "tvl": 1000000.0 / (i + 1),  # Decreasing TVL
-            "fee": 0.0025,  # 0.25%
-            "volume_24h": 500000.0 / (i + 1),  # Decreasing volume
-            "tx_count_24h": 1000 - (i * 100)  # Decreasing tx count
-        }
-        pools.append(pool)
-    
-    return pools
-
-# Directly usable functions for the bot
-async def get_pools(limit: int = 5) -> List[Dict[str, Any]]:
-    """
-    Get pool data for use in the bot.
-    This is the main function to be called from the bot.
-    
-    Args:
-        limit: Maximum number of pools to return
-        
-    Returns:
-        List of pool data dictionaries
-    """
-    return await fetch_pools(limit)
-
-async def get_token_prices() -> Dict[str, float]:
-    """
-    Get token prices for use in the bot.
-    
-    Returns:
-        Dictionary of token symbols to USD prices
-    """
-    return await fetch_token_prices()
-
-# For testing
-if __name__ == "__main__":
-    async def test():
-        print("Testing token prices...")
-        prices = await fetch_token_prices()
-        print(f"Token prices: {prices}")
-        
-        print("\nTesting pool data...")
-        pools = await fetch_pools(limit=3)
-        for pool in pools:
-            print(f"\nPool: {pool['token_a']['symbol']}/{pool['token_b']['symbol']}")
-            print(f"APR 24h: {pool['apr_24h']}%")
-            print(f"TVL: ${pool['tvl']:.2f}")
-            print(f"Volume 24h: ${pool['volume_24h']:.2f}")
-    
-    asyncio.run(test())
+def get_client():
+    """Get the singleton RaydiumClient instance."""
+    global _instance
+    if _instance is None:
+        try:
+            _instance = RaydiumClient()
+        except Exception as e:
+            logger.error(f"Failed to initialize RaydiumClient: {e}")
+            raise
+    return _instance
