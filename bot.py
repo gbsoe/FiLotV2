@@ -76,57 +76,104 @@ async def update_query_response(query_id: int, response_text: str, processing_ti
 async def get_pool_data() -> List[Any]:
     """Get pool data for display in commands."""
     try:
-        # Try to get pools from database first
-        pools = Pool.query.order_by(Pool.apr_24h.desc()).limit(5).all()
+        # Import app and db here to avoid circular imports
+        from app import app, db
+        from models import Pool
         
-        # If no pools in database, use the predefined data
-        if not pools or len(pools) == 0:
+        with app.app_context():
             try:
-                # Import here to avoid circular imports
-                from response_data import get_pool_data as get_predefined_pool_data
+                # Try to get pools from database first
+                pools = Pool.query.order_by(Pool.apr_24h.desc()).limit(5).all()
                 
-                # Get predefined pool data
-                predefined_data = get_predefined_pool_data()
-                
-                # Process top APR pools from the predefined data
-                api_pools = predefined_data.get('topAPR', [])
-                
-                # Convert pools to Pool objects for formatting
-                pools = []
-                for pool_data in api_pools:
-                    pool = Pool()
-                    pool.id = pool_data.get("id", "unknown")
-                    
-                    # Extract token symbols from pair name
-                    pair_name = pool_data.get("pairName", "UNKNOWN/UNKNOWN")
-                    token_symbols = pair_name.split("/")
-                    
-                    pool.token_a_symbol = token_symbols[0] if len(token_symbols) > 0 else "Unknown"
-                    pool.token_b_symbol = token_symbols[1] if len(token_symbols) > 1 else "Unknown"
-                    
-                    # Get token prices if available
-                    token_prices = pool_data.get("tokenPrices", {})
-                    pool.token_a_price = token_prices.get(pool.token_a_symbol, 0)
-                    pool.token_b_price = token_prices.get(pool.token_b_symbol, 0)
-                    
-                    # Extract other pool data
-                    pool.apr_24h = pool_data.get("apr", 0)
-                    pool.apr_7d = pool_data.get("aprWeekly", 0)
-                    pool.apr_30d = pool_data.get("aprMonthly", 0)
-                    pool.tvl = pool_data.get("liquidity", 0)
-                    pool.fee = pool_data.get("fee", 0) * 100  # Convert from decimal to percentage
-                    pool.volume_24h = pool_data.get("volume24h", 0)
-                    pool.tx_count_24h = pool_data.get("txCount", 0)
-                    pools.append(pool)
-                
-                # Save pools to database for future use
-                db.session.add_all(pools)
-                db.session.commit()
-                logger.info(f"Saved {len(pools)} pools to database from predefined data")
+                # If no pools in database, use the predefined data
+                if not pools or len(pools) == 0:
+                    try:
+                        # Import here to avoid circular imports
+                        from response_data import get_pool_data as get_predefined_pool_data
+                        
+                        # Get predefined pool data
+                        predefined_data = get_predefined_pool_data()
+                        
+                        # Process top APR pools from the predefined data
+                        api_pools = predefined_data.get('topAPR', [])
+                        
+                        # Convert pools to Pool objects for formatting
+                        pools = []
+                        for pool_data in api_pools:
+                            pool = Pool()
+                            pool.id = pool_data.get("id", "unknown")
+                            
+                            # Extract token symbols from pair name
+                            pair_name = pool_data.get("pairName", "UNKNOWN/UNKNOWN")
+                            token_symbols = pair_name.split("/")
+                            
+                            pool.token_a_symbol = token_symbols[0] if len(token_symbols) > 0 else "Unknown"
+                            pool.token_b_symbol = token_symbols[1] if len(token_symbols) > 1 else "Unknown"
+                            
+                            # Get token prices if available
+                            token_prices = pool_data.get("tokenPrices", {})
+                            pool.token_a_price = token_prices.get(pool.token_a_symbol, 0)
+                            pool.token_b_price = token_prices.get(pool.token_b_symbol, 0)
+                            
+                            # Extract other pool data
+                            pool.apr_24h = pool_data.get("apr", 0)
+                            pool.apr_7d = pool_data.get("aprWeekly", 0)
+                            pool.apr_30d = pool_data.get("aprMonthly", 0)
+                            pool.tvl = pool_data.get("liquidity", 0)
+                            pool.fee = pool_data.get("fee", 0) * 100  # Convert from decimal to percentage
+                            pool.volume_24h = pool_data.get("volume24h", 0)
+                            pool.tx_count_24h = pool_data.get("txCount", 0)
+                            pools.append(pool)
+                        
+                        # Save pools to database for future use
+                        db.session.add_all(pools)
+                        db.session.commit()
+                        logger.info(f"Saved {len(pools)} pools to database from predefined data")
+                    except Exception as e:
+                        logger.error(f"Error using predefined pool data: {e}")
+                        pools = []
             except Exception as e:
-                logger.error(f"Error using predefined pool data: {e}")
-                pools = []
-        
+                logger.error(f"Database error: {e}")
+                # Fallback to using predefined data directly if database access fails
+                try:
+                    from response_data import get_pool_data as get_predefined_pool_data
+                    from models import Pool
+                    
+                    predefined_data = get_predefined_pool_data()
+                    api_pools = predefined_data.get('topAPR', [])
+                    
+                    pools = []
+                    for pool_data in api_pools:
+                        pool = Pool()
+                        pool.id = pool_data.get("id", "unknown")
+                        
+                        # Extract token symbols from pair name
+                        pair_name = pool_data.get("pairName", "UNKNOWN/UNKNOWN")
+                        token_symbols = pair_name.split("/")
+                        
+                        pool.token_a_symbol = token_symbols[0] if len(token_symbols) > 0 else "Unknown"
+                        pool.token_b_symbol = token_symbols[1] if len(token_symbols) > 1 else "Unknown"
+                        
+                        # Get token prices if available
+                        token_prices = pool_data.get("tokenPrices", {})
+                        pool.token_a_price = token_prices.get(pool.token_a_symbol, 0)
+                        pool.token_b_price = token_prices.get(pool.token_b_symbol, 0)
+                        
+                        # Extract other pool data
+                        pool.apr_24h = pool_data.get("apr", 0)
+                        pool.apr_7d = pool_data.get("aprWeekly", 0)
+                        pool.apr_30d = pool_data.get("aprMonthly", 0)
+                        pool.tvl = pool_data.get("liquidity", 0)
+                        pool.fee = pool_data.get("fee", 0) * 100  # Convert from decimal to percentage
+                        pool.volume_24h = pool_data.get("volume24h", 0)
+                        pool.tx_count_24h = pool_data.get("txCount", 0)
+                        pools.append(pool)
+                    
+                    logger.info(f"Using {len(pools)} pools from predefined data without database")
+                except Exception as e:
+                    logger.error(f"Error creating fallback pool objects: {e}")
+                    pools = []
+                    
         return pools
     except Exception as e:
         logger.error(f"Error getting pool data: {e}")

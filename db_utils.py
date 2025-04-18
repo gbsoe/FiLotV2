@@ -453,17 +453,26 @@ def log_user_activity(user_id: int, activity_type: str, details: str = None,
     Returns:
         UserActivityLog object
     """
-    activity = UserActivityLog(
-        user_id=user_id,
-        activity_type=activity_type,
-        details=details,
-        ip_address=ip_address,
-        user_agent=user_agent
-    )
-    db.session.add(activity)
-    db.session.commit()
-    
-    return activity
+    try:
+        # Check if user_id fits in the database column (BigInteger)
+        if user_id > 9223372036854775807:  # Max value for a signed 64-bit integer
+            logger.warning(f"User ID {user_id} is too large for the database, cannot log activity")
+            return None
+            
+        activity = UserActivityLog(
+            user_id=user_id,
+            activity_type=activity_type,
+            details=details,
+            # Skip ip_address and user_agent since they might not exist in the database schema
+        )
+        db.session.add(activity)
+        db.session.commit()
+        
+        return activity
+    except Exception as e:
+        logger.error(f"Error logging user activity: {e}")
+        db.session.rollback()
+        return None
 
 @handle_db_error
 def log_error(error_type: str, error_message: str, traceback: str = None,
@@ -481,23 +490,35 @@ def log_error(error_type: str, error_message: str, traceback: str = None,
     Returns:
         ErrorLog object
     """
-    error = ErrorLog(
-        error_type=error_type,
-        error_message=error_message,
-        traceback=traceback,
-        module=module,
-        user_id=user_id
-    )
-    db.session.add(error)
-    db.session.commit()
-    
-    # Update bot statistics
-    stats = BotStatistics.query.order_by(BotStatistics.id.desc()).first()
-    if stats:
-        stats.error_count += 1
+    try:
+        # Check if user_id fits in the database column (BigInteger)
+        if user_id and user_id > 9223372036854775807:  # Max value for a signed 64-bit integer
+            logger.warning(f"User ID {user_id} is too large for the database, logging error without user_id")
+            user_id = None
+            
+        error = ErrorLog(
+            error_type=error_type,
+            error_message=error_message,
+            traceback=traceback,
+            module=module,
+            user_id=user_id
+        )
+        db.session.add(error)
         db.session.commit()
-    
-    return error
+        
+        # Update bot statistics
+        stats = BotStatistics.query.order_by(BotStatistics.id.desc()).first()
+        if stats:
+            stats.error_count += 1
+            db.session.commit()
+        
+        return error
+    except Exception as e:
+        logger.error(f"Error logging error to database: {e}")
+        db.session.rollback()
+        # At least log to file since we can't log to the database
+        logger.error(f"Original error: {error_type} - {error_message}")
+        return None
 
 # Pool Data Functions
 

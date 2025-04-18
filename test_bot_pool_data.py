@@ -8,6 +8,7 @@ Test script for bot's pool data retrieval
 import asyncio
 from response_data import get_pool_data
 import bot
+from app import app, db
 
 async def test_bot_pool_data():
     print("Testing Bot's pool data retrieval...")
@@ -31,4 +32,6 @@ async def test_bot_pool_data():
         print(f"❌ Error getting fallback data: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(test_bot_pool_data())
+    # Use Flask application context to ensure database queries work
+    with app.app_context():
+        asyncio.run(test_bot_pool_data())
