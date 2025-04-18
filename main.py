@@ -9,6 +9,7 @@ import os
 import sys
 import logging
 import asyncio
+import traceback
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
@@ -55,47 +56,31 @@ def main() -> None:
     """
     Main function to start the Telegram bot.
     """
-    # Check for Telegram bot token
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    if not token:
-        logger.error("Telegram bot token not found. Please set the TELEGRAM_BOT_TOKEN environment variable.")
-        sys.exit(1)
+    # Import the create_application function from bot.py
+    from bot import create_application
     
-    # Create the Application
-    application = Application.builder().token(token).build()
-    
-    # Register command handlers
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("info", info_command))
-    application.add_handler(CommandHandler("simulate", simulate_command))
-    application.add_handler(CommandHandler("subscribe", subscribe_command))
-    application.add_handler(CommandHandler("unsubscribe", unsubscribe_command))
-    application.add_handler(CommandHandler("status", status_command))
-    application.add_handler(CommandHandler("verify", verify_command))
-    application.add_handler(CommandHandler("wallet", wallet_command))
-    application.add_handler(CommandHandler("walletconnect", walletconnect_command))
-    application.add_handler(CommandHandler("profile", profile_command))
-    
-    # Register callback query handler
-    application.add_handler(CallbackQueryHandler(handle_callback_query))
-    
-    # Register message handler for non-command messages
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # Register error handler
-    application.add_error_handler(error_handler)
-    
-    # Start the bot inside Flask application context
-    logger.info("Starting bot with token: %s...", token[:5] if token else "None")
-    
-    # Log environment and settings
-    for handler in application.handlers:
-        logger.info("Bot has registered handler: %s", handler)
+    # Create the Application using the function from bot.py
+    try:
+        application = create_application()
         
-    with app.app_context():
-        logger.info("Running bot polling within Flask app context")
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # Start the bot inside Flask application context
+        logger.info("Starting bot using application from bot.py create_application()")
+        
+        # Log environment and settings
+        for group, handlers in application.handlers.items():
+            logger.info("Bot handlers group %s has %d handler(s)", group, len(handlers))
+            for handler in handlers:
+                logger.info("    - %s", handler)
+        
+        # Start the bot with Flask context
+        with app.app_context():
+            logger.info("Running bot polling within Flask app context")
+            application.run_polling(allowed_updates=Update.ALL_TYPES)
+            
+    except Exception as e:
+        logger.error("Error creating or starting Telegram bot: %s", e)
+        logger.error("Traceback: %s", traceback.format_exc())
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
