@@ -130,6 +130,94 @@ def get_predefined_responses() -> Dict[str, str]:
             "• *Scalable Infrastructure:* Powered by the Solana blockchain, ensuring fast, secure, and cost-effective transactions as the platform scales.\n"
             "• *Integrated Ecosystem:* Seamlessly combines investment tools, governance mechanisms, and staking rewards into one unified platform."
         ),
+        
+        "how does filot work": (
+            "*FiLot* works by combining advanced AI analytics with blockchain technology to help you make better cryptocurrency investment decisions.\n\n"
+            "The process is straightforward:\n"
+            "1. *Data Collection:* FiLot constantly monitors blockchain data, market conditions, and liquidity pool performance across Solana.\n"
+            "2. *Analysis:* Our AI analyzes this data to identify investment opportunities with the best risk-adjusted returns.\n"
+            "3. *Personalization:* Based on your risk profile and investment goals, FiLot filters and ranks opportunities specifically for you.\n"
+            "4. *Recommendations:* You receive clear, actionable investment suggestions with detailed rationales.\n"
+            "5. *Monitoring:* After investing, FiLot continuously tracks performance and alerts you when to adjust your strategy.\n\n"
+            "FiLot eliminates the complexity of DeFi investing by handling the technical analysis while keeping you in full control of your funds."
+        ),
+        
+        "security measures": (
+            "FiLot implements comprehensive security measures to protect your investments and data:\n\n"
+            "• *Non-Custodial Architecture:* FiLot never holds your funds; all transactions are executed directly from your wallet.\n"
+            "• *Secure Wallet Integration:* WalletConnect protocol ensures encrypted connections between your wallet and FiLot.\n"
+            "• *Read-Only Access:* By default, wallet connections are read-only until you explicitly approve a transaction.\n"
+            "• *Smart Contract Audits:* All integrated protocols are carefully vetted and monitored for security vulnerabilities.\n"
+            "• *Real-Time Monitoring:* Our systems continuously check for suspicious activities or potential exploits.\n"
+            "• *End-to-End Encryption:* All communications between your device and FiLot are fully encrypted.\n\n"
+            "Your security is our top priority, and we employ industry-leading practices to safeguard your assets."
+        ),
+        
+        "investment strategies": (
+            "FiLot offers several investment strategies tailored to different goals and risk tolerances:\n\n"
+            "• *Income Generation:* Focus on stable pools with consistent yields, ideal for regular passive income.\n"
+            "• *Capital Appreciation:* Target emerging tokens with growth potential alongside established assets.\n"
+            "• *Balanced Approach:* Diversify across multiple pool types to optimize risk-adjusted returns.\n"
+            "• *Conservative Allocation:* Prioritize stablecoin pairs and major assets to minimize volatility.\n"
+            "• *Dynamic Rebalancing:* Actively adjust positions in response to changing market conditions.\n\n"
+            "Each strategy is implemented with specific pool recommendations and clear rationales, allowing you to align investments with your financial goals."
+        ),
+        
+        "difference between defi and cefi": (
+            "*DeFi* (Decentralized Finance) and *CeFi* (Centralized Finance) represent two distinct approaches to financial services:\n\n"
+            "*DeFi:*\n"
+            "• Operates on public blockchains without intermediaries\n"
+            "• Non-custodial (you maintain control of your assets)\n"
+            "• Transparent and permissionless\n"
+            "• Smart contract-based automation\n"
+            "• Examples: Liquidity pools, DEXs like Raydium, lending protocols\n\n"
+            "*CeFi:*\n"
+            "• Operated by centralized companies\n"
+            "• Custodial (company holds your assets)\n"
+            "• Requires KYC/AML verification\n"
+            "• Human-managed operations\n"
+            "• Examples: Centralized exchanges, banks, traditional finance\n\n"
+            "FiLot focuses primarily on DeFi opportunities, empowering you with greater financial sovereignty and potentially higher returns."
+        ),
+        
+        "yield farming": (
+            "*Yield farming* is a DeFi strategy where you provide liquidity to protocols in exchange for rewards, often in multiple tokens.\n\n"
+            "The process typically involves:\n"
+            "1. *Depositing tokens* into a liquidity pool (like SOL/USDC on Raydium)\n"
+            "2. *Receiving LP tokens* representing your share of the pool\n"
+            "3. *Earning trading fees* from swaps that occur in that pool\n"
+            "4. *Collecting additional rewards* often paid in the protocol's native token\n"
+            "5. *Compounding returns* by reinvesting rewards for exponential growth\n\n"
+            "Yield farming can generate APRs far exceeding traditional finance, but comes with risks including impermanent loss, smart contract vulnerabilities, and token price volatility."
+        ),
+        
+        "best time to invest": (
+            "The optimal timing for crypto investments depends on multiple factors, and FiLot considers several principles:\n\n"
+            "• *Dollar-Cost Averaging (DCA):* Regular investments over time often outperform attempts to time the market perfectly.\n"
+            "• *Market Volatility:* Periods of extreme market fear can present buying opportunities for long-term investors.\n"
+            "• *Liquidity Pool Dynamics:* Pool returns often increase during periods of higher trading volume and volatility.\n"
+            "• *Protocol Launches:* Early participation in new pools or farming opportunities can yield higher initial returns.\n\n"
+            "Rather than trying to predict perfect entry points, FiLot helps you identify value-based opportunities and suggests position sizing appropriate for your risk profile."
+        ),
+        
+        "tax implications": (
+            "Cryptocurrency investments typically have tax implications that vary by jurisdiction:\n\n"
+            "• *Trading Crypto:* Often treated as capital gains/losses\n"
+            "• *Providing Liquidity:* May create taxable events when adding/removing liquidity\n"
+            "• *Earning Rewards:* Typically taxed as income when received\n"
+            "• *Impermanent Loss:* Tax treatment varies by country, often complex\n\n"
+            "FiLot recommends maintaining detailed records of all transactions and consulting with a cryptocurrency-savvy tax professional in your jurisdiction for personalized advice."
+        ),
+        
+        "how to start with $100": (
+            "Starting with $100 in crypto investing is entirely possible with these approaches:\n\n"
+            "1. *Focus on a Single Asset:* Begin with a major cryptocurrency like SOL or ETH to minimize transaction costs.\n"
+            "2. *Look for Low Fee Opportunities:* Prioritize platforms with low minimum deposits and transaction fees.\n"
+            "3. *Start with Staking:* Consider staking SOL for a straightforward, lower-risk entry point.\n"
+            "4. *Select Beginner-Friendly Pools:* Major token pairs like SOL/USDC have lower minimum requirements.\n"
+            "5. *Use Test Networks First:* Practice on testnet versions of protocols before using real funds.\n\n"
+            "FiLot can help identify suitable entry-level opportunities that match your initial investment amount and help you grow your portfolio over time."
+        ),
 
         # --- Additional Fundamental Market Concepts ---
         "what is liquidity pool": (
