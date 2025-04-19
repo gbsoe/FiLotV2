@@ -353,7 +353,7 @@ def docs():
 
 # API Endpoints
 
-@app.route("/api/health")
+@app.route("/health")
 def api_health():
     """Health check API endpoint."""
     try:
@@ -378,7 +378,7 @@ def api_health():
             "timestamp": datetime.datetime.utcnow().isoformat()
         }), 500
 
-@app.route("/api/stats")
+@app.route("/stats")
 def api_stats():
     """Statistics API endpoint."""
     try:
@@ -403,7 +403,7 @@ def api_stats():
         logger.error(f"Error in API stats route: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/pools")
+@app.route("/pools")
 def api_pools():
     """Pools API endpoint."""
     try:

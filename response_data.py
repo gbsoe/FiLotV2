@@ -57,7 +57,7 @@ def get_pool_data():
         import requests
         
         # Set API endpoint URL
-        api_url = "https://raydium-trader-filot.replit.app/api/pools"
+        api_url = "https://raydium-trader-filot.replit.app/pools"
         
         # Try to fetch data from the API
         logger.info(f"Fetching pool data from Raydium API service at {api_url}")
