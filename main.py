@@ -105,59 +105,34 @@ def anti_idle_thread():
 
 def run_telegram_bot():
     """
-    Run the Telegram bot
+    Run the Telegram bot with proper event loop handling
     """
-    global application
-
-    # Start anti-idle thread first
-    idle_thread = threading.Thread(target=anti_idle_thread, daemon=True)
-    idle_thread.start()
-    logger.info("Bot anti-idle thread started")
-
-    # Import the create_application function from bot.py
-    from bot import create_application
-
-    # Create the Application using the function from bot.py
     try:
-        # Set the global flag that bot is running
-        health_check.set_bot_status(True)
+        import asyncio
+        # Create new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        # Import the create_application function from bot.py
+        from bot import create_application
 
         # Create the application
         application = create_application()
 
-        # Add health check route to Flask app
-        health_check.add_health_check_route()
-
-        # Start the bot inside Flask application context
-        logger.info("Starting bot using application from bot.py create_application()")
-
-        # Log environment and settings
-        for group, handlers in application.handlers.items():
-            logger.info("Bot handlers group %s has %d handler(s)", group, len(handlers))
-            for handler in handlers:
-                logger.info("    - %s", handler)
-
-        # Start a keep-alive thread that will ping the health endpoint
-        health_check.start_keep_alive_thread()
-
-        # Start the bot with Flask context
-        with app.app_context():
-            logger.info("Running bot polling within Flask app context")
-            application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # Run the bot
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
 
     except Exception as e:
-        logger.error("Error creating or starting Telegram bot: %s", e)
-        logger.error("Traceback: %s", traceback.format_exc())
-        health_check.set_bot_status(False)
-        sys.exit(1)
+        logger.error(f"Error in telegram bot: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
 
-def main() -> None:
+def main():
     """
-    Main function to start both the Flask app and Telegram bot.
+    Main function to start both the Flask app and Telegram bot
     """
     try:
         if os.environ.get('PRODUCTION') == 'true':
-            # In production, run only the bot since Flask runs via gunicorn
+            # In production, run only the bot
             run_telegram_bot()
         else:
             # In development, run both Flask and bot
@@ -165,10 +140,10 @@ def main() -> None:
             bot_thread = Thread(target=run_telegram_bot)
             bot_thread.daemon = True
             bot_thread.start()
-            
+
             # Run Flask app
             app.run(host='0.0.0.0', port=5000)
-            
+
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:
