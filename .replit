@@ -5,8 +5,9 @@ channel = "stable-24_05"
 packages = ["freetype", "lcms2", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "openjpeg", "tcl", "tk", "zlib"]
 
 [deployment]
-deploymentTarget = "reservedvm"
+deploymentTarget = "gce"
 run = ["sh", "-c", "python main.py"]
+ignorePorts = true
 
 [workflows]
 runButton = "Production Server"
