@@ -346,9 +346,10 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             
         formatted_simulation = format_simulation_results(pool_list, amount)
         
-        # Add wallet connection option
+        # Add wallet connection options - both direct and WalletConnect
         keyboard = [
-            [InlineKeyboardButton("Connect Wallet", callback_data=f"wallet_connect_{amount}")]
+            [InlineKeyboardButton("Connect Wallet (Address)", callback_data="enter_address")],
+            [InlineKeyboardButton("Connect Wallet (QR Code)", callback_data="walletconnect")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
