@@ -259,6 +259,13 @@ def get_predefined_responses():
     Return a dictionary of detailed predefined responses with canonical keys.
     The text has been updated to fix encoding issues.
     """
+    # Import our fixed responses
+    from fixed_responses import get_fixed_responses
+    return get_fixed_responses()
+
+# Legacy dictionary - no longer used
+def get_legacy_responses():
+    """Legacy responses - kept for reference but not used anymore"""
     return {
         # --- Detailed Product Information ---
         "what is filot": (
