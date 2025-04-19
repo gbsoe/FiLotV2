@@ -92,7 +92,11 @@ def get_pool_data():
                             token_b: token_prices.get(token_b, 0)
                         }
             
-            return pools_data
+            if pools_data.get('topAPR', []):
+                return pools_data
+            else:
+                logger.warning("API returned empty pool data, using fallback")
+                raise ValueError("Empty pool data from API")
         else:
             logger.error(f"Failed to fetch pool data from API: HTTP {response.status_code}")
             raise ValueError(f"API returned status code {response.status_code}")
