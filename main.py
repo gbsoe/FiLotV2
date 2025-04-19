@@ -265,12 +265,17 @@ def run_telegram_bot():
                                             f"&symKey={key}&controller=true&publicKey={key[:32]}"
                                         )
                                         
-                                        # Create QR code image
+                                        # Create a simpler QR code image with standard library
+                                        import qrcode
+                                        from PIL import Image, ImageDraw
+                                        
+                                        # Create QR code image directly
+                                        import qrcode.constants
                                         qr = qrcode.QRCode(
-                                            version=5,
+                                            version=1,
                                             error_correction=qrcode.constants.ERROR_CORRECT_L,
                                             box_size=10,
-                                            border=1,
+                                            border=4,
                                         )
                                         qr.add_data(wc_data)
                                         qr.make(fit=True)
@@ -294,7 +299,7 @@ def run_telegram_bot():
                                         draw = ImageDraw.Draw(background)
                                         
                                         # Header section (purple bar)
-                                        draw.rectangle([(0, 0), (width, 50)], fill=(128, 82, 190))  # Purple bar
+                                        draw.rectangle((0, 0, width, 50), fill=(128, 82, 190))  # Purple bar
                                         
                                         # Try to add text
                                         try:
@@ -432,6 +437,7 @@ def run_telegram_bot():
                                             
                                             if not user:
                                                 # Create the user if they don't exist
+                                                import datetime
                                                 user = User(
                                                     id=user_id,
                                                     username=update_obj.message.from_user.username,
