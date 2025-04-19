@@ -115,6 +115,9 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
     Returns:
         Dictionary with session details including URI
     """
+    # Import app at function level to avoid circular imports
+    from app import app
+    
     # Note: We don't require a project ID anymore - we can generate a basic URI without it
     if not WALLETCONNECT_PROJECT_ID:
         logger.warning("WalletConnect Project ID not configured, using basic URI format")
@@ -163,7 +166,7 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
             logger.info(f"Generated WalletConnect URI successfully")
             
         except Exception as wc_error:
-            logger.error(f"Error creating WalletConnect URI: {wc_error}")
+            logger.error(f"Error creating WalletConnect URI: {wc_error}", exc_info=True)
             # Fallback to a simpler URI format if there was an error
             topic = uuid.uuid4().hex[:10]  # Shorter for simplicity
             wc_uri = f"wc:{topic}@2"
@@ -177,31 +180,33 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
         # Try to save to database if available, but continue even if it fails
         try:
             if PSYCOPG2_AVAILABLE and DATABASE_URL:
-                conn = get_db_connection()
-                if conn:
-                    cursor = conn.cursor()
-                    
-                    session_data = {
-                        "uri": data["uri"],
-                        "raw_wc_uri": data.get("raw_wc_uri", ""),
-                        "created": int(time.time()),
-                        "session_id": data.get("id", ""),
-                        "security_level": "read_only",
-                        "expires_at": int(time.time()) + 3600,
-                    }
-                    
-                    cursor.execute(
-                        """
-                        INSERT INTO wallet_sessions 
-                        (session_id, session_data, telegram_user_id, status) 
-                        VALUES (%s, %s, %s, %s)
-                        """, 
-                        (session_id, Json(session_data), telegram_user_id, "pending")
-                    )
-                    
-                    cursor.close()
-                    conn.close()
-                    logger.info(f"Saved WalletConnect session to database")
+                # Use app context for database operations
+                with app.app_context():
+                    conn = get_db_connection()
+                    if conn:
+                        cursor = conn.cursor()
+                        
+                        session_data = {
+                            "uri": data["uri"],
+                            "raw_wc_uri": data.get("raw_wc_uri", ""),
+                            "created": int(time.time()),
+                            "session_id": data.get("id", ""),
+                            "security_level": "read_only",
+                            "expires_at": int(time.time()) + 3600,
+                        }
+                        
+                        cursor.execute(
+                            """
+                            INSERT INTO wallet_sessions 
+                            (session_id, session_data, telegram_user_id, status) 
+                            VALUES (%s, %s, %s, %s)
+                            """, 
+                            (session_id, Json(session_data), telegram_user_id, "pending")
+                        )
+                        
+                        cursor.close()
+                        conn.close()
+                        logger.info(f"Saved WalletConnect session to database")
         except Exception as db_error:
             # Just log the error but continue - we don't need the database for the core functionality
             logger.warning(f"Could not save WalletConnect session to database: {db_error}")
@@ -234,6 +239,9 @@ async def check_walletconnect_session(session_id: str) -> Dict[str, Any]:
     Returns:
         Dictionary with session status and security information
     """
+    # Import app at function level to avoid circular imports
+    from app import app
+    
     # If the database is not available, provide some basic info
     if not PSYCOPG2_AVAILABLE or not DATABASE_URL:
         logger.warning("Database not available for session check, providing default response")
@@ -246,90 +254,92 @@ async def check_walletconnect_session(session_id: str) -> Dict[str, Any]:
         }
     
     try:
-        conn = get_db_connection()
-        if not conn:
-            logger.warning("Could not connect to database for session check")
-            return {
-                "success": True,
-                "session_id": session_id,
-                "status": "unknown",
-                "message": "Database connection failed, session status unknown",
-                "security_level": "unknown"
-            }
-            
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute(
-                "SELECT session_data, status, telegram_user_id, created_at FROM wallet_sessions WHERE session_id = %s",
-                (session_id,)
-            )
-            
-            result = cursor.fetchone()
-            
-            if not result:
-                cursor.close()
-                conn.close()
-                return {"success": False, "error": "Session not found"}
+        # Use app context for database operations
+        with app.app_context():
+            conn = get_db_connection()
+            if not conn:
+                logger.warning("Could not connect to database for session check")
+                return {
+                    "success": True,
+                    "session_id": session_id,
+                    "status": "unknown",
+                    "message": "Database connection failed, session status unknown",
+                    "security_level": "unknown"
+                }
                 
-            session_data, status, telegram_user_id, created_at = result
+            cursor = conn.cursor()
             
-            # Check if session has expired (default: 1 hour timeout)
-            current_time = int(time.time())
-            expires_at = session_data.get("expires_at", 0)
-            
-            if expires_at > 0 and current_time > expires_at:
-                # Session has expired, mark it as expired and return error
-                logger.info(f"Session {session_id} has expired")
+            try:
+                cursor.execute(
+                    "SELECT session_data, status, telegram_user_id, created_at FROM wallet_sessions WHERE session_id = %s",
+                    (session_id,)
+                )
                 
-                try:
-                    # Update session status in database
-                    cursor.execute(
-                        "UPDATE wallet_sessions SET status = 'expired' WHERE session_id = %s",
-                        (session_id,)
-                    )
-                except Exception as update_error:
-                    logger.warning(f"Could not update session status: {update_error}")
+                result = cursor.fetchone()
+                
+                if not result:
+                    cursor.close()
+                    conn.close()
+                    return {"success": False, "error": "Session not found"}
+                    
+                session_data, status, telegram_user_id, created_at = result
+                
+                # Check if session has expired (default: 1 hour timeout)
+                current_time = int(time.time())
+                expires_at = session_data.get("expires_at", 0)
+                
+                if expires_at > 0 and current_time > expires_at:
+                    # Session has expired, mark it as expired and return error
+                    logger.info(f"Session {session_id} has expired")
+                    
+                    try:
+                        # Update session status in database
+                        cursor.execute(
+                            "UPDATE wallet_sessions SET status = 'expired' WHERE session_id = %s",
+                            (session_id,)
+                        )
+                    except Exception as update_error:
+                        logger.warning(f"Could not update session status: {update_error}")
+                    
+                    cursor.close()
+                    conn.close()
+                    
+                    return {
+                        "success": False,
+                        "error": "Session has expired. Please create a new wallet connection.",
+                        "session_id": session_id,
+                        "expired": True
+                    }
+                
+                # Add security level information to the response
+                security_level = session_data.get("security_level", "unknown")
+                permissions = session_data.get("permissions_requested", [])
                 
                 cursor.close()
                 conn.close()
                 
                 return {
-                    "success": False,
-                    "error": "Session has expired. Please create a new wallet connection.",
+                    "success": True,
                     "session_id": session_id,
-                    "expired": True
+                    "status": status,
+                    "telegram_user_id": telegram_user_id,
+                    "session_data": session_data,
+                    "security_level": security_level,
+                    "permissions": permissions,
+                    "created_at": created_at.isoformat() if created_at else None,
+                    "expires_at": expires_at if expires_at > 0 else None,
+                    "expires_in_seconds": max(0, expires_at - current_time) if expires_at > 0 else None
                 }
-            
-            # Add security level information to the response
-            security_level = session_data.get("security_level", "unknown")
-            permissions = session_data.get("permissions_requested", [])
-            
-            cursor.close()
-            conn.close()
-            
-            return {
-                "success": True,
-                "session_id": session_id,
-                "status": status,
-                "telegram_user_id": telegram_user_id,
-                "session_data": session_data,
-                "security_level": security_level,
-                "permissions": permissions,
-                "created_at": created_at.isoformat() if created_at else None,
-                "expires_at": expires_at if expires_at > 0 else None,
-                "expires_in_seconds": max(0, expires_at - current_time) if expires_at > 0 else None
-            }
-            
-        except Exception as db_error:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
-            raise db_error
+                
+            except Exception as db_error:
+                if cursor:
+                    cursor.close()
+                if conn and conn.closed == 0:
+                    conn.close()
+                raise db_error
             
     except Exception as e:
-        logger.error(f"Error checking WalletConnect session: {e}")
+        logger.error(f"Error checking WalletConnect session: {e}", exc_info=True)
         return {
             "success": False, 
             "error": f"Error checking WalletConnect session: {e}"
