@@ -937,149 +937,162 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Log the user's message
         logger.info(f"Received message from user {user.id}: {message_text}")
         
-        # Log the query in the database
-        query = db_utils.log_user_query(
-            user_id=user.id,
-            command=None,  # Not a command
-            query_text=message_text
-        )
+        # We'll wrap all database operations in an app context
+        from app import app
+        with app.app_context():
+            # Log the query in the database
+            query = db_utils.log_user_query(
+                user_id=user.id,
+                command="message",  # Changed from None to avoid type error
+                query_text=message_text
+            )
+            
+            # First, check if this is a question
+            question_detected = is_question(message_text)
+            logger.info(f"Is question detection: {question_detected}")
+            
+            # Check for predefined responses
+            predefined_response = get_predefined_response(message_text)
+            
+            if predefined_response:
+                logger.info(f"Found predefined response for: {message_text[:30]}...")
+                
+                # Send predefined response
+                await update.message.reply_markdown(predefined_response)
+                
+                # Update the query with the response
+                if query:
+                    query.response_text = predefined_response
+                    query.processing_time = (datetime.datetime.now() - query.timestamp).total_seconds() * 1000
+                    # Save to db in a non-blocking way
+                    asyncio.create_task(update_query_response(query.id, predefined_response, query.processing_time))
+                
+                # Log that we've responded with a predefined answer
+                db_utils.log_user_activity(user.id, "predefined_response", details=f"Question: {message_text[:50]}")
+                return
         
-        # First, check if this is a question
-        question_detected = is_question(message_text)
-        logger.info(f"Is question detection: {question_detected}")
+        # No predefined response available, use Anthropic AI for specialized financial advice
+        logger.info(f"No predefined response for: {message_text}, using AI advisor")
         
-        # Check for predefined responses
-        predefined_response = get_predefined_response(message_text)
+        # Send typing indicator while processing
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
         
-        if predefined_response:
-            logger.info(f"Found predefined response for: {message_text[:30]}...")
-            
-            # Send predefined response
-            await update.message.reply_markdown(predefined_response)
-            
-            # Update the query with the response
-            if query:
-                query.response_text = predefined_response
-                query.processing_time = (datetime.datetime.now() - query.timestamp).total_seconds() * 1000
-                # Save to db in a non-blocking way
-                asyncio.create_task(update_query_response(query.id, predefined_response, query.processing_time))
-            
-            # Log that we've responded with a predefined answer
-            db_utils.log_user_activity(user.id, "predefined_response", details=f"Question: {message_text[:50]}")
-            
-        else:
-            # No predefined response available, use Anthropic AI for specialized financial advice
-            logger.info(f"No predefined response for: {message_text}, using AI advisor")
-            
-            # Send typing indicator while processing
-            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-            
-            # Try to identify if this is a financial question
-            classification = await ai_advisor.classify_financial_question(message_text)
-            logger.info(f"AI classification: {classification}")
-            
+        # Try to identify if this is a financial question
+        classification = await ai_advisor.classify_financial_question(message_text)
+        logger.info(f"AI classification: {classification}")
+        
+        # We need another app context for database operations
+        from app import app
+        
+        # Get user profile details
+        user_db = None
+        risk_profile = "moderate"
+        investment_horizon = "medium"
+        
+        with app.app_context():
             # Get user profile if available
             user_db = db_utils.get_or_create_user(user.id)
             risk_profile = getattr(user_db, 'risk_profile', 'moderate')
             investment_horizon = getattr(user_db, 'investment_horizon', 'medium')
+        
+        # Get pool data for context
+        pools = await get_pool_data()
+        
+        ai_response = "I'm sorry, I couldn't process your request at this time."
+        
+        # Process based on classification
+        if classification == "pool_advice":
+            # Question about specific liquidity pools
+            logger.info("Generating pool advice")
+            ai_response = await ai_advisor.get_financial_advice(
+                message_text, 
+                pool_data=pools,
+                risk_profile=risk_profile,
+                investment_horizon=investment_horizon
+            )
             
-            # Get pool data for context
-            pools = await get_pool_data()
+        elif classification == "strategy_help":
+            # Question about investment strategies
+            logger.info("Generating investment strategy")
+            amount = 1000  # Default amount for strategy examples
+            # Check if user mentioned an amount
+            amount_match = re.search(r'(\$?[0-9,]+)', message_text)
+            if amount_match:
+                try:
+                    amount = float(amount_match.group(1).replace('$', '').replace(',', ''))
+                except ValueError:
+                    pass
             
-            if classification == "pool_advice":
-                # Question about specific liquidity pools
-                logger.info("Generating pool advice")
-                ai_response = await ai_advisor.get_financial_advice(
-                    message_text, 
-                    pool_data=pools,
-                    risk_profile=risk_profile,
-                    investment_horizon=investment_horizon
-                )
-                await update.message.reply_markdown(ai_response)
-                
-            elif classification == "strategy_help":
-                # Question about investment strategies
-                logger.info("Generating investment strategy")
-                amount = 1000  # Default amount for strategy examples
-                # Check if user mentioned an amount
-                amount_match = re.search(r'(\$?[0-9,]+)', message_text)
-                if amount_match:
-                    try:
-                        amount = float(amount_match.group(1).replace('$', '').replace(',', ''))
-                    except ValueError:
-                        pass
-                
-                ai_response = await ai_advisor.generate_investment_strategy(
-                    investment_amount=amount,
-                    risk_profile=risk_profile,
-                    investment_horizon=investment_horizon,
-                    pool_data=pools
-                )
-                await update.message.reply_markdown(ai_response)
-                
-            elif classification == "risk_assessment":
-                # Question about risk assessment
-                logger.info("Generating risk assessment")
-                # Find the pool with highest APR for risk assessment example
-                highest_apr_pool = {}
-                if pools and len(pools) > 0:
-                    highest_apr_pool = {
-                        'token_a_symbol': pools[0].token_a_symbol,
-                        'token_b_symbol': pools[0].token_b_symbol,
-                        'apr_24h': pools[0].apr_24h,
-                        'apr_7d': pools[0].apr_7d,
-                        'apr_30d': pools[0].apr_30d,
-                        'tvl': pools[0].tvl,
-                        'fee': pools[0].fee,
-                        'volume_24h': pools[0].volume_24h
-                    }
-                
-                ai_response = await ai_advisor.assess_investment_risk(highest_apr_pool)
-                
-                # Format risk assessment response
-                risk_level = ai_response.get('risk_level', 'medium')
-                explanation = ai_response.get('explanation', 'No detailed explanation available.')
-                
-                if risk_level.lower() == 'high' or risk_level.lower() == 'very high':
-                    risk_emoji = "🔴"
-                elif risk_level.lower() == 'medium':
-                    risk_emoji = "🟠"
-                else:
-                    risk_emoji = "🟢"
-                    
-                formatted_response = (
-                    f"*Risk Assessment: {risk_level.upper()}* {risk_emoji}\n\n"
-                    f"{explanation}\n\n"
-                    f"*Key Considerations:*\n• {ai_response.get('key_factors', 'N/A')}\n\n"
-                    f"*Impermanent Loss Risk:*\n• {ai_response.get('impermanent_loss', 'N/A')}\n\n"
-                    f"*Volatility:*\n• {ai_response.get('volatility', 'N/A')}\n\n"
-                    f"*Liquidity:*\n• {ai_response.get('liquidity', 'N/A')}\n\n"
-                    "Remember that all cryptocurrency investments carry inherent risks."
-                )
-                
-                await update.message.reply_markdown(formatted_response)
-                ai_response = formatted_response  # Use the formatted response for the query update
-                
-            elif classification == "defi_explanation":
-                # Question about DeFi concepts - extract the concept
-                logger.info("Generating DeFi concept explanation")
-                concept_match = re.search(r'(what is|explain|how does|tell me about) ([\w\s]+)', message_text.lower())
-                concept = concept_match.group(2).strip() if concept_match else message_text
-                
-                ai_response = await ai_advisor.explain_financial_concept(concept)
-                await update.message.reply_markdown(ai_response)
-                
+            ai_response = await ai_advisor.generate_investment_strategy(
+                investment_amount=amount,
+                risk_profile=risk_profile,
+                investment_horizon=investment_horizon,
+                pool_data=pools
+            )
+            
+        elif classification == "risk_assessment":
+            # Question about risk assessment
+            logger.info("Generating risk assessment")
+            # Find the pool with highest APR for risk assessment example
+            highest_apr_pool = {}
+            if pools and len(pools) > 0:
+                highest_apr_pool = {
+                    'token_a_symbol': pools[0].token_a_symbol,
+                    'token_b_symbol': pools[0].token_b_symbol,
+                    'apr_24h': pools[0].apr_24h,
+                    'apr_7d': pools[0].apr_7d,
+                    'apr_30d': pools[0].apr_30d,
+                    'tvl': pools[0].tvl,
+                    'fee': pools[0].fee,
+                    'volume_24h': pools[0].volume_24h
+                }
+            
+            risk_result = await ai_advisor.assess_investment_risk(highest_apr_pool)
+            
+            # Format risk assessment response
+            risk_level = risk_result.get('risk_level', 'medium')
+            explanation = risk_result.get('explanation', 'No detailed explanation available.')
+            
+            if risk_level.lower() == 'high' or risk_level.lower() == 'very high':
+                risk_emoji = "🔴"
+            elif risk_level.lower() == 'medium':
+                risk_emoji = "🟠"
             else:
-                # General financial advice
-                logger.info("Generating general financial advice")
-                ai_response = await ai_advisor.get_financial_advice(
-                    message_text, 
-                    pool_data=pools,
-                    risk_profile=risk_profile,
-                    investment_horizon=investment_horizon
-                )
-                await update.message.reply_markdown(ai_response)
+                risk_emoji = "🟢"
                 
+            ai_response = (
+                f"*Risk Assessment: {risk_level.upper()}* {risk_emoji}\n\n"
+                f"{explanation}\n\n"
+                f"*Key Considerations:*\n• {risk_result.get('key_factors', 'N/A')}\n\n"
+                f"*Impermanent Loss Risk:*\n• {risk_result.get('impermanent_loss', 'N/A')}\n\n"
+                f"*Volatility:*\n• {risk_result.get('volatility', 'N/A')}\n\n"
+                f"*Liquidity:*\n• {risk_result.get('liquidity', 'N/A')}\n\n"
+                "Remember that all cryptocurrency investments carry inherent risks."
+            )
+            
+        elif classification == "defi_explanation":
+            # Question about DeFi concepts - extract the concept
+            logger.info("Generating DeFi concept explanation")
+            concept_match = re.search(r'(what is|explain|how does|tell me about) ([\w\s]+)', message_text.lower())
+            concept = concept_match.group(2).strip() if concept_match else message_text
+            
+            ai_response = await ai_advisor.explain_financial_concept(concept)
+            
+        else:
+            # General financial advice
+            logger.info("Generating general financial advice")
+            ai_response = await ai_advisor.get_financial_advice(
+                message_text, 
+                pool_data=pools,
+                risk_profile=risk_profile,
+                investment_horizon=investment_horizon
+            )
+        
+        # Send the AI response
+        await update.message.reply_markdown(ai_response)
+        
+        # Update the database with our query and response
+        with app.app_context():
             # Update the query with the response
             if query:
                 query.response_text = ai_response if isinstance(ai_response, str) else str(ai_response)
