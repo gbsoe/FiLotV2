@@ -5,6 +5,7 @@ Fixed predefined responses with proper character encoding
 def get_fixed_responses():
     """
     Return a dictionary of detailed predefined responses with canonical keys and fixed encoding.
+    Ensures all special characters like bullet points (•) are properly encoded.
     """
     return {
         # --- Detailed Product Information ---
