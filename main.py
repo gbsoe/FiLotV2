@@ -252,10 +252,14 @@ def run_telegram_bot():
                         # Use a deterministic but secure method to generate these values
                         wc_topic = f"{uuid.uuid4().hex[:16]}"
                         sym_key = f"{uuid.uuid4().hex}{uuid.uuid4().hex[:8]}"
-                        project_id = "6c54ea730fca981ad9ef795356b1a52a"  # Sample ID, should come from env vars
+                        project_id = os.environ.get("WALLETCONNECT_PROJECT_ID", "")
                         
                         # Format the WalletConnect URI
-                        wc_uri = f"wc:{wc_topic}@2?relay-protocol=irn&relay-url=wss://relay.walletconnect.org&symKey={sym_key}&projectId={project_id}"
+                        wc_uri = f"wc:{wc_topic}@2?relay-protocol=irn&relay-url=wss://relay.walletconnect.org&symKey={sym_key}"
+                        
+                        # Add project ID to the URI if available
+                        if project_id:
+                            wc_uri = f"{wc_uri}&projectId={project_id}"
                         
                         # Create QR code with the WalletConnect URI
                         qr = qrcode.QRCode(
