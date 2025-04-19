@@ -653,6 +653,9 @@ def is_question(text: str) -> bool:
     Returns:
         True if the text is likely a question, False otherwise
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # Clean the text
     text = text.strip().lower()
     
@@ -660,38 +663,91 @@ def is_question(text: str) -> bool:
     if not text:
         return False
     
+    # Single word inputs are often questions about specific topics in a chat context
+    if len(text.split()) == 1 or len(text.split()) == 2:
+        # Check against common crypto and bot-related terms
+        crypto_terms = [
+            'filot', 'la', 'token', 'pool', 'apr', 'yield', 'liquidity', 'impermanent', 
+            'risk', 'wallet', 'roadmap', 'security', 'defi', 'governance', 'investment'
+        ]
+        for term in crypto_terms:
+            if term in text:
+                logger.info(f"Treating single/short term '{text}' as question about '{term}'")
+                return True
+    
     # Check if ends with a question mark
     if text.endswith('?'):
+        logger.info(f"Detected question mark in: '{text}'")
         return True
     
-    # Check for question words at the beginning
-    question_starters = ['what', 'how', 'why', 'when', 'where', 'which', 'who', 'is', 'are', 'can', 
-                          'could', 'will', 'would', 'should', 'do', 'does', 'did', 'tell me about']
+    # Check for question words at the beginning - expanded list
+    question_starters = [
+        'what', 'how', 'why', 'when', 'where', 'which', 'who', 'is', 'are', 'can', 
+        'could', 'will', 'would', 'should', 'do', 'does', 'did', 'tell me about',
+        'explain', 'describe', 'show me', 'give me', 'i need', 'i want', 'help me with'
+    ]
     
     for starter in question_starters:
-        if text.startswith(starter + ' '):
+        if text.startswith(starter):  # Removed ' ' requirement to match more flexible starts
+            logger.info(f"Detected question starter '{starter}' in: '{text}'")
             return True
+    
+    # Check for question words anywhere in the text - for short messages
+    if len(text.split()) <= 5:  # Only for short messages to avoid false positives
+        anywhere_question_words = [
+            'what', 'how', 'why', 'when', 'where', 'which', 'who'
+        ]
+        for word in anywhere_question_words:
+            if word in text.split():
+                logger.info(f"Detected question word '{word}' in short text: '{text}'")
+                return True
             
-    # Check for inverted question structure
+    # Check for inverted question structure - expanded patterns
     inverted_patterns = [
         r'(is|are|was|were|do|does|did|have|has|had|can|could|should|would|will) ([\w\s]+)\?*$',
-        r'(is|are|was|were|do|does|did|have|has|had|can|could|should|would|will) (it|there|they|he|she|we|you|i) ([\w\s]+)\?*$'
+        r'(is|are|was|were|do|does|did|have|has|had|can|could|should|would|will) (it|there|they|he|she|we|you|i) ([\w\s]+)\?*$',
+        r'(tell|show|explain|describe) (me|us) ([\w\s]+)\?*$',
+        r'(need|want) (to know|info|information|details) ([\w\s]+)\?*$'
     ]
     
     for pattern in inverted_patterns:
         if re.match(pattern, text):
+            logger.info(f"Detected inverted question pattern in: '{text}'")
             return True
     
-    # Check for additional question patterns
+    # Check for additional question patterns/expressions - expanded list
     question_expressions = [
         "explain", "tell me about", "what about", "i want to know", "can you", "i need info", 
-        "information on", "details about", "describe", "elaborate on", "need help with"
+        "information on", "details about", "describe", "elaborate on", "need help with",
+        "tell me", "show me", "how do i", "how to", "what is", "what are", "what does",
+        "help me", "question about", "looking for", "searching for", "trying to find",
+        "want to learn", "need to understand", "wondering about", "curious about"
     ]
     
     for expression in question_expressions:
         if expression in text:
+            logger.info(f"Detected question expression '{expression}' in: '{text}'")
             return True
     
+    # Topic-specific triggers that indicate questions about crypto topics
+    crypto_question_indicators = {
+        'filot': ["filot", "bot", "assistant"],
+        'la token': ["la", "la token", "token", "la!"],
+        'liquidity': ["pool", "liquidity", "lp", "yield farm"],
+        'wallet': ["wallet", "connect", "address", "balance"],
+        'investment': ["invest", "strategy", "return", "apr", "apy", "yield"],
+        'risk': ["risk", "impermanent loss", "il", "safe"]
+    }
+    
+    for topic, indicators in crypto_question_indicators.items():
+        if any(indicator in text for indicator in indicators):
+            # For short texts or texts with these terms at the beginning, treat as questions
+            if len(text.split()) <= 3 or any(text.startswith(indicator) for indicator in indicators):
+                logger.info(f"Detected crypto topic '{topic}' in potential question: '{text}'")
+                return True
+    
+    # Log if we determined this isn't a question
+    logger.info(f"Text not detected as question: '{text}'")
     return False
 
 
