@@ -105,26 +105,36 @@ def anti_idle_thread():
 
 def run_telegram_bot():
     """
-    Run the Telegram bot without relying on Application.run_polling
+    Run the Telegram bot using a direct approach to handle messages.
     
-    This approach creates a separate non-signal based updater for the bot.
+    This function avoids using the PTB built-in polling mechanisms which require 
+    signal handlers and instead implements a direct command handling approach.
     """
     try:
-        # Import the create_application function from bot.py
-        from bot import create_application
-        
-        # Create the application
-        application = create_application()
-        
-        # We'll implement a simple HTTP-based polling mechanism manually
-        # to avoid all the signal and async issues
+        # Import necessary modules here for thread safety
         import threading
         import requests
         import json
+        from telegram import Bot, Update
         
-        # Get the token from the application
-        bot_token = application.bot.token
-        logger.info("Starting manual polling for Telegram bot")
+        # Get the token from environment variables
+        bot_token = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
+        if not bot_token:
+            logger.error("No Telegram bot token found")
+            return
+            
+        # Create a bot instance directly
+        bot = Bot(token=bot_token)
+        logger.info("Created Telegram bot instance")
+        
+        # Import command handlers
+        from bot import (
+            start_command, help_command, info_command, simulate_command,
+            subscribe_command, unsubscribe_command, status_command,
+            verify_command, wallet_command, walletconnect_command,
+            profile_command, faq_command, social_command,
+            handle_message, handle_callback_query
+        )
         
         # Set up base URL for Telegram Bot API
         base_url = f"https://api.telegram.org/bot{bot_token}"
@@ -132,36 +142,85 @@ def run_telegram_bot():
         # Track the last update ID we've processed
         last_update_id = 0
         
-        # Function to pass updates to the dispatcher
-        def process_update(update_dict):
+        # Dictionary mapping command names to handler functions
+        command_handlers = {
+            "start": start_command,
+            "help": help_command,
+            "info": info_command,
+            "simulate": simulate_command,
+            "subscribe": subscribe_command,
+            "unsubscribe": unsubscribe_command,
+            "status": status_command,
+            "verify": verify_command,
+            "wallet": wallet_command,
+            "walletconnect": walletconnect_command,
+            "profile": profile_command,
+            "faq": faq_command,
+            "social": social_command
+        }
+        
+        # Function to handle a specific update by determining its type and routing to appropriate handler
+        def handle_update(update_dict):
             import asyncio
             
             try:
                 # Convert the dictionary to a Telegram Update object
-                from telegram import Update
-                update_obj = Update.de_json(update_dict, application.bot)
+                update_obj = Update.de_json(update_dict, bot)
+                logger.info(f"Processing update type: {update_dict.keys()}")
                 
-                # Set up a new event loop for this thread
+                # Create an event loop for async operation
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 
-                # Create and run the coroutine to process the update
-                async def process_async():
-                    try:
-                        await application.process_update(update_obj)
-                        logger.info(f"Processed update ID: {update_dict.get('update_id')}")
-                    except Exception as e:
-                        logger.error(f"Error in async process: {e}")
+                # Create a simple context type that mimics ContextTypes.DEFAULT_TYPE
+                class SimpleContext:
+                    def __init__(self):
+                        self.bot = bot
+                        self.args = []
+                        self.match = None
+                        self.user_data = {}
+                        self.chat_data = {}
+                        self.bot_data = {}
+                        
+                context = SimpleContext()
                 
-                # Run the async function
-                loop.run_until_complete(process_async())
+                # Extract command arguments if this is a command
+                if update_obj.message and update_obj.message.text and update_obj.message.text.startswith('/'):
+                    # Split the message into command and arguments
+                    text_parts = update_obj.message.text.split()
+                    command = text_parts[0][1:].split('@')[0]  # Remove the '/' and any bot username
+                    context.args = text_parts[1:]
+                    
+                    # Route to appropriate command handler
+                    if command in command_handlers:
+                        logger.info(f"Calling handler for command: {command}")
+                        handler = command_handlers[command]
+                        loop.run_until_complete(handler(update_obj, context))
+                    else:
+                        logger.info(f"Unknown command: {command}")
+                
+                # Handle callback queries
+                elif update_obj.callback_query:
+                    logger.info("Calling callback query handler")
+                    loop.run_until_complete(handle_callback_query(update_obj, context))
+                
+                # Handle regular messages
+                elif update_obj.message and update_obj.message.text:
+                    logger.info("Calling regular message handler")
+                    loop.run_until_complete(handle_message(update_obj, context))
+                
                 loop.close()
+                logger.info(f"Successfully processed update ID: {update_dict.get('update_id')}")
+                
             except Exception as e:
                 logger.error(f"Error processing update: {e}")
+                logger.error(traceback.format_exc())
         
-        # Function to get updates from Telegram
-        def get_updates():
+        # Function to continuously poll for updates
+        def poll_for_updates():
             nonlocal last_update_id
+            
+            logger.info("Starting update polling thread")
             
             while True:
                 try:
@@ -176,11 +235,18 @@ def run_telegram_bot():
                         params["offset"] = last_update_id + 1
                     
                     # Make the API call
+                    logger.info(f"Requesting updates from Telegram API...")
                     response = requests.get(f"{base_url}/getUpdates", params=params, timeout=60)
                     
                     # Process the response if successful
                     if response.status_code == 200:
-                        updates = response.json().get("result", [])
+                        result = response.json()
+                        updates = result.get("result", [])
+                        
+                        # Debug log
+                        logger.info(f"Received response: {len(updates)} updates")
+                        if len(updates) > 0:
+                            logger.info(f"Update keys: {', '.join(updates[0].keys())}")
                         
                         # Process each update
                         for update in updates:
@@ -189,8 +255,9 @@ def run_telegram_bot():
                             if update_id > last_update_id:
                                 last_update_id = update_id
                             
-                            # Process the update in a separate thread to avoid blocking
-                            threading.Thread(target=process_update, args=(update,)).start()
+                            # Process the update in a separate thread
+                            logger.info(f"Starting thread to process update {update_id}")
+                            threading.Thread(target=handle_update, args=(update,)).start()
                     else:
                         logger.error(f"Error getting updates: {response.status_code} - {response.text}")
                         
@@ -200,20 +267,19 @@ def run_telegram_bot():
                         
                 except Exception as e:
                     logger.error(f"Error in update polling: {e}")
+                    logger.error(traceback.format_exc())
                 
                 # Sleep briefly to avoid hammering the API
                 time.sleep(1)
         
-        # Start the update polling in a separate thread
-        update_thread = threading.Thread(target=get_updates, daemon=True)
-        update_thread.start()
-        logger.info("Update polling thread started")
+        # Start the polling thread
+        polling_thread = threading.Thread(target=poll_for_updates, daemon=True)
+        polling_thread.start()
         
         # Keep the main thread alive
         while True:
             try:
-                # Log status every 5 minutes
-                time.sleep(300)
+                time.sleep(300)  # Sleep for 5 minutes
                 logger.info("Telegram bot still running...")
             except Exception as e:
                 logger.error(f"Error in main bot thread: {e}")
