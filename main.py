@@ -66,21 +66,21 @@ def anti_idle_thread():
     from being terminated due to inactivity.
     """
     logger.info("Starting anti-idle thread for telegram bot process")
-    
+
     # Sleep interval in seconds (60 seconds is well below the ~2m21s timeout)
     interval = 60
-    
+
     while True:
         try:
             # Access the database with app context
             with app.app_context():
                 from sqlalchemy import text
                 from models import db, BotStatistics, ErrorLog
-                
+
                 # Simple query to keep connection alive
                 result = db.session.execute(text("SELECT 1")).fetchone()
                 logger.info(f"Bot process anti-idle: Database ping successful, result={result}")
-                
+
                 # Create a log entry to show activity
                 log = ErrorLog(
                     error_type="keep_alive_main",
@@ -89,7 +89,7 @@ def anti_idle_thread():
                     resolved=True
                 )
                 db.session.add(log)
-                
+
                 # Update statistics
                 stats = BotStatistics.query.order_by(BotStatistics.id.desc()).first()
                 if stats:
@@ -99,7 +99,7 @@ def anti_idle_thread():
                     logger.info("Bot process anti-idle: Updated statistics")
         except Exception as e:
             logger.error(f"Bot process anti-idle error: {e}")
-        
+
         # Sleep for the interval
         time.sleep(interval)
 
@@ -108,43 +108,43 @@ def run_telegram_bot():
     Run the Telegram bot
     """
     global application
-    
+
     # Start anti-idle thread first
     idle_thread = threading.Thread(target=anti_idle_thread, daemon=True)
     idle_thread.start()
     logger.info("Bot anti-idle thread started")
-    
+
     # Import the create_application function from bot.py
     from bot import create_application
-    
+
     # Create the Application using the function from bot.py
     try:
         # Set the global flag that bot is running
         health_check.set_bot_status(True)
-        
+
         # Create the application
         application = create_application()
-        
+
         # Add health check route to Flask app
         health_check.add_health_check_route()
-        
+
         # Start the bot inside Flask application context
         logger.info("Starting bot using application from bot.py create_application()")
-        
+
         # Log environment and settings
         for group, handlers in application.handlers.items():
             logger.info("Bot handlers group %s has %d handler(s)", group, len(handlers))
             for handler in handlers:
                 logger.info("    - %s", handler)
-        
+
         # Start a keep-alive thread that will ping the health endpoint
         health_check.start_keep_alive_thread()
-        
+
         # Start the bot with Flask context
         with app.app_context():
             logger.info("Running bot polling within Flask app context")
             application.run_polling(allowed_updates=Update.ALL_TYPES)
-            
+
     except Exception as e:
         logger.error("Error creating or starting Telegram bot: %s", e)
         logger.error("Traceback: %s", traceback.format_exc())
