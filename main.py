@@ -844,6 +844,12 @@ def run_telegram_bot():
                     logger.info(f"Requesting updates from Telegram API...")
                     # Add unique parameter to avoid conflicts with other instances
                     params["allowed_updates"] = json.dumps(["message", "callback_query", "edited_message"])
+                    # Add unique client identifier to prevent conflict with other instances
+                    import uuid
+                    params["client_id"] = str(uuid.uuid4())  # Add unique identifier for this client
+                    # Terminate other polling sessions before starting our own
+                    requests.get(f"{base_url}/getUpdates", params={"offset": -1, "timeout": 0})
+                    # Now start our polling
                     response = requests.get(f"{base_url}/getUpdates", params=params, timeout=60)
 
                     # Process the response if successful
@@ -902,12 +908,33 @@ def main():
     Main function to start both the Flask app and Telegram bot
     """
     try:
+        # First, kill any existing bot process that might be running
+        try:
+            # Try to terminate any other instance gracefully
+            import requests
+            import os
+            bot_token = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
+            if bot_token:
+                base_url = f"https://api.telegram.org/bot{bot_token}"
+                requests.get(f"{base_url}/getUpdates", params={"offset": -1, "timeout": 0})
+                requests.get(f"{base_url}/deleteWebhook", params={"drop_pending_updates": "true"})
+                logger.info("Terminated any existing bot polling")
+        except Exception as e:
+            logger.warning(f"Failed to terminate existing bot: {e}")
+        
+        # Start in the appropriate mode
         if os.environ.get('PRODUCTION') == 'true':
             # In production, run only the bot
             run_telegram_bot()
         else:
             # In development, run both Flask and bot
             from threading import Thread
+            
+            # Add a short delay to ensure clean startup
+            import time
+            time.sleep(2)
+            
+            # Start bot in a thread
             bot_thread = Thread(target=run_telegram_bot)
             bot_thread.daemon = True
             bot_thread.start()

@@ -543,8 +543,16 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Manage wallet when the command /wallet is issued."""
     try:
+        # Import app at function level to avoid circular imports
+        from app import app
+        
+        # Get user info before entering app context
         user = update.effective_user
-        db_utils.log_user_activity(user.id, "wallet_command")
+        
+        # Use app context for database operations
+        with app.app_context():
+            # Log the activity inside app context
+            db_utils.log_user_activity(user.id, "wallet_command")
         
         # Check if a wallet address is provided
         if context.args and context.args[0]:
@@ -614,7 +622,7 @@ async def wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 reply_markup=reply_markup
             )
     except Exception as e:
-        logger.error(f"Error in wallet command: {e}")
+        logger.error(f"Error in wallet command: {e}", exc_info=True)
         await update.message.reply_text(
             "Sorry, an error occurred while processing your request. Please try again later."
         )
@@ -833,8 +841,16 @@ Follow us for the latest news and launch announcements!
 async def walletconnect_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Create a WalletConnect session when the command /walletconnect is issued."""
     try:
+        # Import app at function level to avoid circular imports
+        from app import app
+        
+        # Get user info before entering app context
         user = update.effective_user
-        db_utils.log_user_activity(user.id, "walletconnect_command")
+        
+        # Use app context for database operations
+        with app.app_context():
+            # Log the activity inside app context
+            db_utils.log_user_activity(user.id, "walletconnect_command")
         
         # Determine if this is a callback or direct command
         is_callback = update.callback_query is not None
