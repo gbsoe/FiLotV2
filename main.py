@@ -711,8 +711,39 @@ def run_telegram_bot():
                 elif update_obj.message and update_obj.message.text:
                     logger.info("Handling regular message")
                     chat_id = update_obj.message.chat_id
+                    message_text = update_obj.message.text
                     
-                    # Import for chat handling
+                    # For question detection and predefined answers
+                    with app.app_context():
+                        try:
+                            from question_detector import is_question
+                            from response_data import get_predefined_response
+                            
+                            # Check if this is a question
+                            question_detected = is_question(message_text)
+                            logger.info(f"Is question detection: {question_detected}")
+                            
+                            # Check for predefined responses
+                            predefined_response = get_predefined_response(message_text)
+                            
+                            if predefined_response:
+                                logger.info(f"Found predefined response for: {message_text[:30]}...")
+                                
+                                # Send predefined response using our direct API
+                                send_response(
+                                    chat_id,
+                                    predefined_response,
+                                    parse_mode="Markdown"
+                                )
+                                
+                                # Log the success
+                                logger.info(f"Sent predefined answer for: {message_text}")
+                                return
+                        
+                        except Exception as predef_error:
+                            logger.error(f"Error checking predefined answers: {predef_error}")
+                    
+                    # If no predefined answer or error occurred, fall back to async handler
                     import asyncio
                     
                     # Create and manage our own event loop for this thread
