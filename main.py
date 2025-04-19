@@ -655,6 +655,27 @@ def run_telegram_bot():
                                 wc_thread.start()
                                 logger.info(f"Started WalletConnect sequence from callback for user {user_id}")
                             
+                            # Handle view_pools callback
+                            elif callback_data == "view_pools":
+                                # Get predefined pool data
+                                from response_data import get_pool_data as get_predefined_pool_data
+                                
+                                # Process top APR pools from the predefined data
+                                predefined_data = get_predefined_pool_data()
+                                pool_list = predefined_data.get('topAPR', [])
+                                
+                                if not pool_list:
+                                    send_response(
+                                        chat_id,
+                                        "Sorry, I couldn't retrieve pool data at the moment. Please try again later."
+                                    )
+                                else:
+                                    # Import at function level to avoid circular imports
+                                    from utils import format_pool_info
+                                    formatted_info = format_pool_info(pool_list)
+                                    send_response(chat_id, formatted_info)
+                                    logger.info("Sent pool opportunities response from button callback")
+                            
                             # Handle enter_address callback
                             elif callback_data == "enter_address":
                                 send_response(
