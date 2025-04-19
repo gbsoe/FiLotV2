@@ -71,7 +71,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python wsgi.py"
+args = "gunicorn --bind 0.0.0.0:5000 --workers 1 --timeout 120 wsgi:application"
 
 [[ports]]
 localPort = 5000
