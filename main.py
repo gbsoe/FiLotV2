@@ -162,6 +162,7 @@ def run_telegram_bot():
         # Function to handle a specific update by determining its type and routing to appropriate handler
         def handle_update(update_dict):
             from app import app
+            import threading
             
             try:
                 # Convert the dictionary to a Telegram Update object
@@ -200,6 +201,135 @@ def run_telegram_bot():
                         logger.error(f"Error sending message: {e}")
                         return None
                 
+                # Handle WalletConnect command in a separate thread to avoid blocking
+                def handle_walletconnect_sequence(chat_id, user_id):
+                    try:
+                        # Import needed modules
+                        import qrcode
+                        import uuid
+                        import time
+                        from datetime import datetime
+                        from io import BytesIO
+                        
+                        # 1. First message - Security info
+                        send_response(
+                            chat_id,
+                            "🔒 *Secure Wallet Connection*\n\n"
+                            "Our wallet connection process is designed with your security in mind:\n\n"
+                            "• Your private keys remain in your wallet app\n"
+                            "• We only request permission to view balances\n"
+                            "• No funds will be transferred without your explicit approval\n"
+                            "• All connections use encrypted communication\n\n"
+                            "Creating your secure connection now...",
+                            parse_mode="Markdown"
+                        )
+                        
+                        # Wait briefly for better message flow
+                        time.sleep(0.5)
+                        
+                        # Generate a session ID for the connection
+                        session_id = str(uuid.uuid4())
+                        
+                        # 2. Session information message
+                        send_response(
+                            chat_id,
+                            "🔗 *WalletConnect Session Created*\n\n"
+                            "Copy the connection code below and paste it into your wallet app to connect.\n\n"
+                            f"Session ID: {session_id}\n\n"
+                            "✅ What to expect in your wallet app:\n"
+                            "• You'll be asked to approve a connection request\n"
+                            "• Your wallet app will show exactly what permissions are being requested\n"
+                            "• No funds will be transferred without your explicit approval\n\n"
+                            "Once connected, click 'Check Connection Status' to verify.",
+                            parse_mode="Markdown"
+                        )
+                        
+                        # Wait briefly for better message flow
+                        time.sleep(0.5)
+                        
+                        # Create WalletConnect data for QR code
+                        # Use a deterministic but secure method to generate these values
+                        wc_topic = f"{uuid.uuid4().hex[:16]}"
+                        sym_key = f"{uuid.uuid4().hex}{uuid.uuid4().hex[:8]}"
+                        project_id = "6c54ea730fca981ad9ef795356b1a52a"  # Sample ID, should come from env vars
+                        
+                        # Format the WalletConnect URI
+                        wc_uri = f"wc:{wc_topic}@2?relay-protocol=irn&relay-url=wss://relay.walletconnect.org&symKey={sym_key}&projectId={project_id}"
+                        
+                        # Create QR code with the WalletConnect URI
+                        qr = qrcode.QRCode(
+                            version=1,
+                            error_correction=qrcode.constants.ERROR_CORRECT_L,
+                            box_size=10,
+                            border=4,
+                        )
+                        qr.add_data(wc_uri)
+                        qr.make(fit=True)
+                        
+                        img = qr.make_image(fill_color="black", back_color="white")
+                        
+                        # Save QR code to a bytes buffer
+                        buffer = BytesIO()
+                        img.save(buffer, format="PNG")
+                        buffer.seek(0)
+                        
+                        # 3. QR code message
+                        send_response(
+                            chat_id,
+                            f"📱 *Scan this QR code with your wallet app to connect*\n"
+                            f"(Generated at {datetime.now().strftime('%H:%M:%S')})",
+                            parse_mode="Markdown"
+                        )
+                        
+                        # Send QR code image
+                        files = {"photo": ("qrcode.png", buffer.getvalue(), "image/png")}
+                        photo_response = requests.post(
+                            f"{base_url}/sendPhoto",
+                            data={"chat_id": chat_id},
+                            files=files
+                        )
+                        
+                        if photo_response.status_code != 200:
+                            logger.error(f"Failed to send QR code: {photo_response.text}")
+                            send_response(
+                                chat_id,
+                                "Sorry, there was an error generating the QR code. Please try again later."
+                            )
+                            return
+                        
+                        # Wait briefly for better message flow
+                        time.sleep(0.5)
+                        
+                        # 4. Text link for copying
+                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        send_response(
+                            chat_id,
+                            f"📋 *COPY THIS LINK (tap to select):*\n\n"
+                            f"`{wc_uri}`\n\n"
+                            f"Generated at {current_time}",
+                            parse_mode="Markdown"
+                        )
+                        
+                        # Wait briefly for better message flow
+                        time.sleep(0.5)
+                        
+                        # 5. Final security reminder
+                        send_response(
+                            chat_id,
+                            "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions.\n\n"
+                            "If the QR code doesn't work, manually copy the link above and paste it into your wallet app."
+                        )
+                        
+                        logger.info(f"Successfully sent complete WalletConnect sequence to user {user_id}")
+                        
+                    except Exception as wc_thread_error:
+                        logger.error(f"Error in walletconnect thread: {wc_thread_error}")
+                        logger.error(traceback.format_exc())
+                        send_response(
+                            chat_id,
+                            "Sorry, an error occurred while creating your wallet connection. Please try again later."
+                        )
+                
                 # Extract command arguments if this is a command
                 if update_obj.message and update_obj.message.text and update_obj.message.text.startswith('/'):
                     # Split the message into command and arguments
@@ -209,15 +339,44 @@ def run_telegram_bot():
                     # Create context with arguments
                     context = SimpleContext()
                     context.args = text_parts[1:]
+                    chat_id = update_obj.message.chat_id
                     
                     # Execute inside the Flask app context
                     with app.app_context():
                         try:
-                            # Route to appropriate command handler 
+                            # IMMEDIATE ACKNOWLEDGMENT FOR ALL COMMANDS
+                            # This ensures the user knows the command was received,
+                            # especially important for commands that take time to process
+                            ack_message = "Processing your request..."
+                            if command == "start":
+                                ack_message = "Welcome! Setting up your profile..."
+                            elif command == "help":
+                                ack_message = "Preparing help information..."
+                            elif command == "info":
+                                ack_message = "Fetching latest pool information..."
+                            elif command == "walletconnect":
+                                ack_message = "Initializing secure wallet connection..."
+                            elif command == "verify":
+                                ack_message = "Starting verification process..."
+                            
+                            # Don't send acknowledgments for commands that return data immediately
+                            if command not in ["status", "profile"]:
+                                try:
+                                    requests.post(
+                                        f"{base_url}/sendChatAction",
+                                        json={
+                                            "chat_id": chat_id,
+                                            "action": "typing"
+                                        }
+                                    )
+                                except Exception:
+                                    pass  # Ignore errors in sending chat action
+                            
+                            # Route to appropriate command handler
                             if command in command_handlers:
                                 logger.info(f"Calling handler for command: {command}")
                                 
-                                # For specific commands that have issues with async/event loops
+                                # Special handling for commands
                                 if command == "info":
                                     # Get predefined pool data
                                     from response_data import get_pool_data as get_predefined_pool_data
@@ -228,151 +387,30 @@ def run_telegram_bot():
                                     
                                     if not pool_list:
                                         send_response(
-                                            update_obj.message.chat_id,
+                                            chat_id,
                                             "Sorry, I couldn't retrieve pool data at the moment. Please try again later."
                                         )
                                     else:
                                         # Import at function level to avoid circular imports
                                         from utils import format_pool_info
                                         formatted_info = format_pool_info(pool_list)
-                                        send_response(update_obj.message.chat_id, formatted_info)
+                                        send_response(chat_id, formatted_info)
                                         logger.info("Sent pool info response using direct API call")
                                 
                                 elif command == "walletconnect":
-                                    # Handle walletconnect command directly
-                                    try:
-                                        # Import needed modules
-                                        import qrcode
-                                        import uuid
-                                        import time
-                                        from datetime import datetime
-                                        from io import BytesIO
-                                        
-                                        # Get the user ID for the session
-                                        telegram_user_id = update_obj.message.from_user.id
-                                        chat_id = update_obj.message.chat_id
-                                        
-                                        # 1. First message - Security info
-                                        send_response(
-                                            chat_id,
-                                            "🔒 *Secure Wallet Connection*\n\n"
-                                            "Our wallet connection process is designed with your security in mind:\n\n"
-                                            "• Your private keys remain in your wallet app\n"
-                                            "• We only request permission to view balances\n"
-                                            "• No funds will be transferred without your explicit approval\n"
-                                            "• All connections use encrypted communication\n\n"
-                                            "Creating your secure connection now...",
-                                            parse_mode="Markdown"
-                                        )
-                                        
-                                        # Sleep briefly to ensure messages appear in sequence
-                                        time.sleep(1)
-                                        
-                                        # Generate a session ID for the connection
-                                        session_id = str(uuid.uuid4())
-                                        
-                                        # 2. Session information message
-                                        send_response(
-                                            chat_id,
-                                            "🔗 *WalletConnect Session Created*\n\n"
-                                            "Copy the connection code below and paste it into your wallet app to connect.\n\n"
-                                            f"Session ID: {session_id}\n\n"
-                                            "✅ What to expect in your wallet app:\n"
-                                            "• You'll be asked to approve a connection request\n"
-                                            "• Your wallet app will show exactly what permissions are being requested\n"
-                                            "• No funds will be transferred without your explicit approval\n\n"
-                                            "Once connected, click 'Check Connection Status' to verify.",
-                                            parse_mode="Markdown"
-                                        )
-                                        
-                                        # Sleep briefly to ensure messages appear in sequence
-                                        time.sleep(1)
-                                        
-                                        # Create WalletConnect data for QR code
-                                        # Use a deterministic but secure method to generate these values
-                                        wc_topic = f"{uuid.uuid4().hex[:16]}"
-                                        sym_key = f"{uuid.uuid4().hex}{uuid.uuid4().hex[:8]}"
-                                        project_id = "6c54ea730fca981ad9ef795356b1a52a"  # Sample ID, should come from env vars
-                                        
-                                        # Format the WalletConnect URI
-                                        wc_uri = f"wc:{wc_topic}@2?relay-protocol=irn&relay-url=wss://relay.walletconnect.org&symKey={sym_key}&projectId={project_id}"
-                                        
-                                        # Create QR code with the WalletConnect URI
-                                        qr = qrcode.QRCode(
-                                            version=1,
-                                            error_correction=qrcode.constants.ERROR_CORRECT_L,
-                                            box_size=10,
-                                            border=4,
-                                        )
-                                        qr.add_data(wc_uri)
-                                        qr.make(fit=True)
-                                        
-                                        img = qr.make_image(fill_color="black", back_color="white")
-                                        
-                                        # Save QR code to a bytes buffer
-                                        buffer = BytesIO()
-                                        img.save(buffer, format="PNG")
-                                        buffer.seek(0)
-                                        
-                                        # 3. QR code message
-                                        send_response(
-                                            chat_id,
-                                            f"📱 *Scan this QR code with your wallet app to connect*\n"
-                                            f"(Generated at {datetime.now().strftime('%H:%M:%S')})",
-                                            parse_mode="Markdown"
-                                        )
-                                        
-                                        # Send QR code image
-                                        files = {"photo": ("qrcode.png", buffer.getvalue(), "image/png")}
-                                        photo_response = requests.post(
-                                            f"{base_url}/sendPhoto",
-                                            data={"chat_id": chat_id},
-                                            files=files
-                                        )
-                                        
-                                        if photo_response.status_code != 200:
-                                            logger.error(f"Failed to send QR code: {photo_response.text}")
-                                            send_response(
-                                                chat_id,
-                                                "Sorry, there was an error generating the QR code. Please try again later."
-                                            )
-                                            return
-                                        
-                                        # Sleep briefly to ensure messages appear in sequence
-                                        time.sleep(1)
-                                        
-                                        # 4. Text link for copying
-                                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                                        send_response(
-                                            chat_id,
-                                            f"📋 *COPY THIS LINK (tap to select):*\n\n"
-                                            f"`{wc_uri}`\n\n"
-                                            f"Generated at {current_time}",
-                                            parse_mode="Markdown"
-                                        )
-                                        
-                                        # Sleep briefly to ensure messages appear in sequence
-                                        time.sleep(1)
-                                        
-                                        # 5. Final security reminder
-                                        send_response(
-                                            chat_id,
-                                            "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions.\n\n"
-                                            "If the QR code doesn't work, manually copy the link above and paste it into your wallet app."
-                                        )
-                                        
-                                        logger.info(f"Successfully sent complete WalletConnect sequence to user {telegram_user_id}")
-                                        
-                                    except Exception as wc_error:
-                                        logger.error(f"Error in walletconnect command: {wc_error}")
-                                        logger.error(traceback.format_exc())
-                                        send_response(
-                                            update_obj.message.chat_id,
-                                            "Sorry, an error occurred while processing your wallet connection request. Please try again later."
-                                        )
+                                    # Launch the walletconnect sequence in a separate thread
+                                    # to avoid blocking the main handler thread
+                                    user_id = update_obj.message.from_user.id
+                                    wc_thread = threading.Thread(
+                                        target=handle_walletconnect_sequence,
+                                        args=(chat_id, user_id)
+                                    )
+                                    wc_thread.daemon = True  # Thread will exit when main thread exits
+                                    wc_thread.start()
+                                    logger.info(f"Started WalletConnect sequence thread for user {user_id}")
                                 
                                 else:
-                                    # For all other commands, use the regular handler
+                                    # For all other commands, use the regular handler with async
                                     # Import needed for async operations
                                     import asyncio
                                     
@@ -388,12 +426,13 @@ def run_telegram_bot():
                                         loop.run_until_complete(handler(update_obj, context))
                                     except Exception as handler_error:
                                         logger.error(f"Error running handler {command}: {handler_error}")
+                                        logger.error(traceback.format_exc())
                                         send_response(
-                                            update_obj.message.chat_id,
+                                            chat_id,
                                             "Sorry, an error occurred while processing your request. Please try again later."
                                         )
                                     finally:
-                                        # Clean up the loop but don't close it if other tasks might be using it
+                                        # Clean up the loop 
                                         try:
                                             pending = asyncio.all_tasks(loop)
                                             loop.run_until_complete(asyncio.gather(*pending))
@@ -402,7 +441,7 @@ def run_telegram_bot():
                             else:
                                 logger.info(f"Unknown command: {command}")
                                 send_response(
-                                    update_obj.message.chat_id,
+                                    chat_id,
                                     f"Sorry, I don't recognize the command '/{command}'. Try /help to see available commands."
                                 )
                                 
@@ -410,7 +449,7 @@ def run_telegram_bot():
                             logger.error(f"Error handling command {command}: {command_error}")
                             logger.error(traceback.format_exc())
                             send_response(
-                                update_obj.message.chat_id,
+                                chat_id,
                                 "Sorry, an error occurred while processing your request. Please try again later."
                             )
                 
@@ -424,6 +463,18 @@ def run_telegram_bot():
                     
                     logger.info(f"Processing callback data: {callback_data}")
                     
+                    # Immediate acknowledgment to stop the loading indicator
+                    try:
+                        requests.post(
+                            f"{base_url}/answerCallbackQuery",
+                            json={
+                                "callback_query_id": update_obj.callback_query.id,
+                                "text": "Processing your selection..."
+                            }
+                        )
+                    except Exception:
+                        logger.warning("Failed to answer callback query")
+                    
                     # Handle all callback types directly
                     try:
                         with app.app_context():
@@ -431,16 +482,8 @@ def run_telegram_bot():
                             if callback_data.startswith("wallet_connect_"):
                                 try:
                                     amount = float(callback_data.split("_")[2])
-                                    # First send a confirmation to the callback query to stop the "loading" state
-                                    requests.post(
-                                        f"{base_url}/answerCallbackQuery",
-                                        json={
-                                            "callback_query_id": update_obj.callback_query.id,
-                                            "text": f"Processing wallet connection for ${amount:.2f}..."
-                                        }
-                                    )
                                     
-                                    # Then send the actual wallet connect message
+                                    # Send wallet connect prompt message
                                     send_response(
                                         chat_id,
                                         f"💰 *Connect Wallet for ${amount:.2f} Investment*\n\n"
@@ -465,15 +508,6 @@ def run_telegram_bot():
                                     period = parts[2]  # daily, weekly, monthly, yearly
                                     amount = float(parts[3]) if len(parts) > 3 else 1000.0
                                     
-                                    # Answer the callback query
-                                    requests.post(
-                                        f"{base_url}/answerCallbackQuery",
-                                        json={
-                                            "callback_query_id": update_obj.callback_query.id,
-                                            "text": f"Calculating {period} returns for ${amount:.2f}..."
-                                        }
-                                    )
-                                    
                                     # Get predefined pool data
                                     from response_data import get_pool_data as get_predefined_pool_data
                                     
@@ -483,7 +517,7 @@ def run_telegram_bot():
                                     
                                     # Import utils and calculate simulated returns
                                     from utils import format_simulation_results
-                                    simulation_text = format_simulation_results(pool_list, amount, period=period)
+                                    simulation_text = format_simulation_results(pool_list, amount)
                                     
                                     # Send response
                                     send_response(
@@ -491,7 +525,7 @@ def run_telegram_bot():
                                         simulation_text
                                     )
                                     
-                                    logger.info(f"Processed simulation for period: {period}, amount: ${amount:.2f}")
+                                    logger.info(f"Processed simulation for amount: ${amount:.2f}")
                                     
                                 except Exception as sim_error:
                                     logger.error(f"Error processing simulation callback: {sim_error}")
@@ -502,15 +536,6 @@ def run_telegram_bot():
                             
                             # Handle any other callback type
                             else:
-                                # Answer the callback query to stop the loading indicator
-                                requests.post(
-                                    f"{base_url}/answerCallbackQuery",
-                                    json={
-                                        "callback_query_id": update_obj.callback_query.id,
-                                        "text": "Processing your request..."
-                                    }
-                                )
-                                
                                 # Send a generic response for unhandled callback types
                                 send_response(
                                     chat_id,
@@ -521,18 +546,6 @@ def run_telegram_bot():
                     except Exception as cb_error:
                         logger.error(f"Error handling callback query: {cb_error}")
                         logger.error(traceback.format_exc())
-                        
-                        # Try to at least answer the callback query to clear the loading state
-                        try:
-                            requests.post(
-                                f"{base_url}/answerCallbackQuery",
-                                json={
-                                    "callback_query_id": update_obj.callback_query.id,
-                                    "text": "Error processing your request."
-                                }
-                            )
-                        except:
-                            pass
                             
                         # Send error response
                         send_response(
@@ -542,14 +555,34 @@ def run_telegram_bot():
                 
                 # Handle regular messages
                 elif update_obj.message and update_obj.message.text:
-                    logger.info("Calling regular message handler")
+                    logger.info("Handling regular message")
                     chat_id = update_obj.message.chat_id
                     
-                    # Simple text response without async
-                    send_response(
-                        chat_id,
-                        "I've received your message. To see available commands, type /help"
-                    )
+                    # Import for chat handling
+                    import asyncio
+                    
+                    # Create and manage our own event loop for this thread
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    try:
+                        # Run the message handler
+                        context = SimpleContext()
+                        loop.run_until_complete(handle_message(update_obj, context))
+                    except Exception as msg_error:
+                        logger.error(f"Error handling message: {msg_error}")
+                        # Simple fallback response
+                        send_response(
+                            chat_id,
+                            "I've received your message. To see available commands, type /help"
+                        )
+                    finally:
+                        # Clean up the loop
+                        try:
+                            pending = asyncio.all_tasks(loop)
+                            loop.run_until_complete(asyncio.gather(*pending))
+                        except Exception:
+                            pass
                 
                 logger.info(f"Successfully processed update ID: {update_dict.get('update_id')}")
                 
