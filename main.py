@@ -191,7 +191,8 @@ def run_telegram_bot():
                             params["parse_mode"] = parse_mode
                             
                         if reply_markup:
-                            params["reply_markup"] = json.dumps(reply_markup.to_dict())
+                            # Direct use of the dictionary
+                            params["reply_markup"] = json.dumps(reply_markup)
                             
                         response = requests.post(f"{base_url}/sendMessage", json=params)
                         if response.status_code != 200:
@@ -457,11 +458,13 @@ def run_telegram_bot():
                                                     [{"text": "Connect with WalletConnect", "callback_data": "walletconnect"}]
                                                 ]
                                                 
+                                                # Format reply markup as a proper dictionary
+                                                reply_markup_dict = {"inline_keyboard": keyboard}
                                                 send_response(
                                                     chat_id,
                                                     balance_text + "\n\n💡 Use /simulate to see potential earnings with these tokens in liquidity pools.",
                                                     parse_mode="Markdown",
-                                                    reply_markup={"inline_keyboard": keyboard}
+                                                    reply_markup=reply_markup_dict
                                                 )
                                                 
                                                 logger.info(f"Successfully processed wallet balance for {wallet_address}")
@@ -481,6 +484,8 @@ def run_telegram_bot():
                                                 [{"text": "Enter Wallet Address", "callback_data": "enter_address"}]
                                             ]
                                             
+                                            # Format reply markup as a proper dictionary
+                                            reply_markup_dict = {"inline_keyboard": keyboard}
                                             send_response(
                                                 chat_id,
                                                 "💼 *Wallet Management*\n\n"
@@ -488,7 +493,7 @@ def run_telegram_bot():
                                                 "Choose an option below, or provide your wallet address directly using:\n"
                                                 "/wallet [your_address]",
                                                 parse_mode="Markdown",
-                                                reply_markup={"inline_keyboard": keyboard}
+                                                reply_markup=reply_markup_dict
                                             )
                                             
                                             logger.info("Sent wallet management menu")
@@ -637,6 +642,30 @@ def run_telegram_bot():
                                         chat_id,
                                         "Sorry, there was an error calculating your returns. Please try again using /simulate [amount]."
                                     )
+                            
+                            # Handle walletconnect callback
+                            elif callback_data == "walletconnect":
+                                # Launch the walletconnect sequence in a separate thread
+                                user_id = update_obj.callback_query.from_user.id
+                                wc_thread = threading.Thread(
+                                    target=handle_walletconnect_sequence,
+                                    args=(chat_id, user_id)
+                                )
+                                wc_thread.daemon = True
+                                wc_thread.start()
+                                logger.info(f"Started WalletConnect sequence from callback for user {user_id}")
+                            
+                            # Handle enter_address callback
+                            elif callback_data == "enter_address":
+                                send_response(
+                                    chat_id,
+                                    "💼 *Enter Wallet Address*\n\n"
+                                    "Please provide your Solana wallet address using the command:\n"
+                                    "`/wallet your_address`\n\n"
+                                    "Example: `/wallet 5YourWalletAddressHere12345`",
+                                    parse_mode="Markdown"
+                                )
+                                logger.info("Sent wallet address entry instructions from callback")
                             
                             # Handle any other callback type
                             else:
