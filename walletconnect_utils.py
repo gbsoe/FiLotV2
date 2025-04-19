@@ -69,36 +69,41 @@ def get_db_connection():
 
 def init_db():
     """Initialize the database tables needed for WalletConnect sessions."""
+    # Import app at function level to avoid circular imports
+    from app import app
+    
     # Skip if database connection not available
     if not PSYCOPG2_AVAILABLE or not DATABASE_URL:
         logger.warning("Skipping database initialization - database not available")
         return False
-        
+    
     try:
-        conn = get_db_connection()
-        if not conn:
-            logger.warning("Could not connect to database - skipping initialization")
-            return False
+        # Use app context for database operations
+        with app.app_context():
+            conn = get_db_connection()
+            if not conn:
+                logger.warning("Could not connect to database - skipping initialization")
+                return False
+                
+            cursor = conn.cursor()
             
-        cursor = conn.cursor()
-        
-        # Create wallet_sessions table if it doesn't exist
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS wallet_sessions (
-                session_id VARCHAR(255) PRIMARY KEY,
-                session_data JSONB,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                telegram_user_id BIGINT,
-                status VARCHAR(50) DEFAULT 'pending'
-            )
-        """)
-        
-        cursor.close()
-        conn.close()
-        logger.info("Database initialized successfully")
-        return True
+            # Create wallet_sessions table if it doesn't exist
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS wallet_sessions (
+                    session_id VARCHAR(255) PRIMARY KEY,
+                    session_data JSONB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    telegram_user_id BIGINT,
+                    status VARCHAR(50) DEFAULT 'pending'
+                )
+            """)
+            
+            cursor.close()
+            conn.close()
+            logger.info("Database initialized successfully")
+            return True
     except Exception as e:
-        logger.error(f"Error initializing database: {e}")
+        logger.error(f"Error initializing database: {e}", exc_info=True)
         return False
 
 #########################
