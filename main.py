@@ -106,7 +106,7 @@ def anti_idle_thread():
 def run_telegram_bot():
     """
     Run the Telegram bot using a direct approach to handle messages.
-    
+
     This function avoids using the PTB built-in polling mechanisms which require 
     signal handlers and instead implements a direct command handling approach.
     """
@@ -116,17 +116,17 @@ def run_telegram_bot():
         import requests
         import json
         from telegram import Bot, Update
-        
+
         # Get the token from environment variables
         bot_token = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
         if not bot_token:
             logger.error("No Telegram bot token found")
             return
-            
+
         # Create a bot instance directly
         bot = Bot(token=bot_token)
         logger.info("Created Telegram bot instance")
-        
+
         # Import command handlers
         from bot import (
             start_command, help_command, info_command, simulate_command,
@@ -135,13 +135,13 @@ def run_telegram_bot():
             profile_command, faq_command, social_command,
             handle_message, handle_callback_query
         )
-        
+
         # Set up base URL for Telegram Bot API
         base_url = f"https://api.telegram.org/bot{bot_token}"
-        
+
         # Track the last update ID we've processed
         last_update_id = 0
-        
+
         # Dictionary mapping command names to handler functions
         command_handlers = {
             "start": start_command,
@@ -158,17 +158,17 @@ def run_telegram_bot():
             "faq": faq_command,
             "social": social_command
         }
-        
+
         # Function to handle a specific update by determining its type and routing to appropriate handler
         def handle_update(update_dict):
             from app import app
             import threading
-            
+
             try:
                 # Convert the dictionary to a Telegram Update object
                 update_obj = Update.de_json(update_dict, bot)
                 logger.info(f"Processing update type: {update_dict.keys()}")
-                
+
                 # Create a simple context type that mimics ContextTypes.DEFAULT_TYPE
                 class SimpleContext:
                     def __init__(self):
@@ -178,7 +178,7 @@ def run_telegram_bot():
                         self.user_data = {}
                         self.chat_data = {}
                         self.bot_data = {}
-                
+
                 # Function to directly send a response without using async
                 def send_response(chat_id, text, parse_mode=None, reply_markup=None):
                     try:
@@ -186,14 +186,14 @@ def run_telegram_bot():
                             "chat_id": chat_id,
                             "text": text,
                         }
-                        
+
                         if parse_mode:
                             params["parse_mode"] = parse_mode
-                            
+
                         if reply_markup:
                             # Direct use of the dictionary
                             params["reply_markup"] = json.dumps(reply_markup)
-                            
+
                         response = requests.post(f"{base_url}/sendMessage", json=params)
                         if response.status_code != 200:
                             logger.error(f"Failed to send message: {response.text}")
@@ -201,7 +201,7 @@ def run_telegram_bot():
                     except Exception as e:
                         logger.error(f"Error sending message: {e}")
                         return None
-                
+
                 # Handle WalletConnect command in a separate thread to avoid blocking
                 def handle_walletconnect_sequence(chat_id, user_id):
                     try:
@@ -211,7 +211,7 @@ def run_telegram_bot():
                         import time
                         from datetime import datetime
                         from io import BytesIO
-                        
+
                         # 1. First message - Security info
                         send_response(
                             chat_id,
@@ -224,13 +224,13 @@ def run_telegram_bot():
                             "Creating your secure connection now...",
                             parse_mode="Markdown"
                         )
-                        
+
                         # Wait briefly for better message flow
                         time.sleep(0.5)
-                        
+
                         # Generate a session ID for the connection
                         session_id = str(uuid.uuid4())
-                        
+
                         # 2. Session information message
                         send_response(
                             chat_id,
@@ -244,23 +244,23 @@ def run_telegram_bot():
                             "Once connected, click 'Check Connection Status' to verify.",
                             parse_mode="Markdown"
                         )
-                        
+
                         # Wait briefly for better message flow
                         time.sleep(0.5)
-                        
+
                         # Create WalletConnect data for QR code
                         # Use a deterministic but secure method to generate these values
                         wc_topic = f"{uuid.uuid4().hex[:16]}"
                         sym_key = f"{uuid.uuid4().hex}{uuid.uuid4().hex[:8]}"
                         project_id = os.environ.get("WALLETCONNECT_PROJECT_ID", "")
-                        
+
                         # Format the WalletConnect URI
                         wc_uri = f"wc:{wc_topic}@2?relay-protocol=irn&relay-url=wss://relay.walletconnect.org&symKey={sym_key}"
-                        
+
                         # Add project ID to the URI if available
                         if project_id:
                             wc_uri = f"{wc_uri}&projectId={project_id}"
-                        
+
                         # Create QR code with the WalletConnect URI
                         qr = qrcode.QRCode(
                             version=1,
@@ -270,14 +270,14 @@ def run_telegram_bot():
                         )
                         qr.add_data(wc_uri)
                         qr.make(fit=True)
-                        
+
                         img = qr.make_image(fill_color="black", back_color="white")
-                        
+
                         # Save QR code to a bytes buffer
                         buffer = BytesIO()
                         img.save(buffer, format="PNG")
                         buffer.seek(0)
-                        
+
                         # 3. QR code message
                         send_response(
                             chat_id,
@@ -285,7 +285,7 @@ def run_telegram_bot():
                             f"(Generated at {datetime.now().strftime('%H:%M:%S')})",
                             parse_mode="Markdown"
                         )
-                        
+
                         # Send QR code image
                         files = {"photo": ("qrcode.png", buffer.getvalue(), "image/png")}
                         photo_response = requests.post(
@@ -293,7 +293,7 @@ def run_telegram_bot():
                             data={"chat_id": chat_id},
                             files=files
                         )
-                        
+
                         if photo_response.status_code != 200:
                             logger.error(f"Failed to send QR code: {photo_response.text}")
                             send_response(
@@ -301,10 +301,10 @@ def run_telegram_bot():
                                 "Sorry, there was an error generating the QR code. Please try again later."
                             )
                             return
-                        
+
                         # Wait briefly for better message flow
                         time.sleep(0.5)
-                        
+
                         # 4. Text link for copying
                         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         send_response(
@@ -314,19 +314,19 @@ def run_telegram_bot():
                             f"Generated at {current_time}",
                             parse_mode="Markdown"
                         )
-                        
+
                         # Wait briefly for better message flow
                         time.sleep(0.5)
-                        
+
                         # 5. Final security reminder
                         send_response(
                             chat_id,
                             "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions.\n\n"
                             "If the QR code doesn't work, manually copy the link above and paste it into your wallet app."
                         )
-                        
+
                         logger.info(f"Successfully sent complete WalletConnect sequence to user {user_id}")
-                        
+
                     except Exception as wc_thread_error:
                         logger.error(f"Error in walletconnect thread: {wc_thread_error}")
                         logger.error(traceback.format_exc())
@@ -334,18 +334,18 @@ def run_telegram_bot():
                             chat_id,
                             "Sorry, an error occurred while creating your wallet connection. Please try again later."
                         )
-                
+
                 # Extract command arguments if this is a command
                 if update_obj.message and update_obj.message.text and update_obj.message.text.startswith('/'):
                     # Split the message into command and arguments
                     text_parts = update_obj.message.text.split()
                     command = text_parts[0][1:].split('@')[0]  # Remove the '/' and any bot username
-                    
+
                     # Create context with arguments
                     context = SimpleContext()
                     context.args = text_parts[1:]
                     chat_id = update_obj.message.chat_id
-                    
+
                     # Execute inside the Flask app context
                     with app.app_context():
                         try:
@@ -363,7 +363,7 @@ def run_telegram_bot():
                                 ack_message = "Initializing secure wallet connection..."
                             elif command == "verify":
                                 ack_message = "Starting verification process..."
-                            
+
                             # Don't send acknowledgments for commands that return data immediately
                             if command not in ["status", "profile"]:
                                 try:
@@ -376,20 +376,20 @@ def run_telegram_bot():
                                     )
                                 except Exception:
                                     pass  # Ignore errors in sending chat action
-                            
+
                             # Route to appropriate command handler
                             if command in command_handlers:
                                 logger.info(f"Calling handler for command: {command}")
-                                
+
                                 # Special handling for commands
                                 if command == "info":
                                     # Get predefined pool data
                                     from response_data import get_pool_data as get_predefined_pool_data
-                                    
+
                                     # Process top APR pools from the predefined data
                                     predefined_data = get_predefined_pool_data()
                                     pool_list = predefined_data.get('topAPR', [])
-                                    
+
                                     if not pool_list:
                                         send_response(
                                             chat_id,
@@ -401,23 +401,23 @@ def run_telegram_bot():
                                         formatted_info = format_pool_info(pool_list)
                                         send_response(chat_id, formatted_info)
                                         logger.info("Sent pool info response using direct API call")
-                                
+
                                 elif command == "wallet":
                                     # Handle wallet command directly
                                     try:
                                         # Import needed wallet utilities
                                         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
                                         from wallet_utils import connect_wallet, check_wallet_balance, format_wallet_info
-                                        
+
                                         # Check if a wallet address is provided
                                         if context.args and context.args[0]:
                                             wallet_address = context.args[0]
-                                            
+
                                             try:
                                                 # Validate wallet address
                                                 from wallet_utils import connect_wallet
                                                 wallet_address = connect_wallet(wallet_address)
-                                                
+
                                                 # First send confirmation message
                                                 send_response(
                                                     chat_id,
@@ -425,17 +425,17 @@ def run_telegram_bot():
                                                     "Fetching wallet balance...",
                                                     parse_mode="Markdown"
                                                 )
-                                                
+
                                                 # Import needed for async operations
                                                 import asyncio
-                                                
+
                                                 # Create a new event loop for this thread
                                                 loop = asyncio.new_event_loop()
                                                 asyncio.set_event_loop(loop)
-                                                
+
                                                 # Get wallet balance
                                                 balance = loop.run_until_complete(check_wallet_balance(wallet_address))
-                                                
+
                                                 if "error" in balance:
                                                     send_response(
                                                         chat_id,
@@ -444,10 +444,10 @@ def run_telegram_bot():
                                                         parse_mode="Markdown"
                                                     )
                                                     return
-                                                
+
                                                 # Format balance information
                                                 balance_text = "💼 *Wallet Balance* 💼\n\n"
-                                                
+
                                                 for token, amount in balance.items():
                                                     if token == "SOL":
                                                         balance_text += f"• SOL: *{amount:.4f}* (≈${amount * 133:.2f})\n"
@@ -455,13 +455,13 @@ def run_telegram_bot():
                                                         balance_text += f"• {token}: *{amount:.2f}*\n"
                                                     else:
                                                         balance_text += f"• {token}: *{amount:.4f}*\n"
-                                                
+
                                                 # Add investment options buttons
                                                 keyboard = [
                                                     [{"text": "View Pool Opportunities", "callback_data": "view_pools"}],
                                                     [{"text": "Connect with WalletConnect", "callback_data": "walletconnect"}]
                                                 ]
-                                                
+
                                                 # Format reply markup as a proper dictionary
                                                 reply_markup_dict = {"inline_keyboard": keyboard}
                                                 send_response(
@@ -470,9 +470,9 @@ def run_telegram_bot():
                                                     parse_mode="Markdown",
                                                     reply_markup=reply_markup_dict
                                                 )
-                                                
+
                                                 logger.info(f"Successfully processed wallet balance for {wallet_address}")
-                                                
+
                                             except ValueError as e:
                                                 send_response(
                                                     chat_id,
@@ -480,14 +480,14 @@ def run_telegram_bot():
                                                     "Please provide a valid Solana wallet address.",
                                                     parse_mode="Markdown"
                                                 )
-                                            
+
                                         else:
                                             # No address provided, show wallet menu
                                             keyboard = [
                                                 [{"text": "Connect with WalletConnect", "callback_data": "walletconnect"}],
                                                 [{"text": "Enter Wallet Address", "callback_data": "enter_address"}]
                                             ]
-                                            
+
                                             # Format reply markup as a proper dictionary
                                             reply_markup_dict = {"inline_keyboard": keyboard}
                                             send_response(
@@ -499,9 +499,9 @@ def run_telegram_bot():
                                                 parse_mode="Markdown",
                                                 reply_markup=reply_markup_dict
                                             )
-                                            
+
                                             logger.info("Sent wallet management menu")
-                                            
+
                                     except Exception as wallet_error:
                                         logger.error(f"Error in wallet command: {wallet_error}")
                                         logger.error(traceback.format_exc())
@@ -509,7 +509,7 @@ def run_telegram_bot():
                                             chat_id,
                                             "Sorry, an error occurred while processing your wallet request. Please try again later."
                                         )
-                                
+
                                 elif command == "walletconnect":
                                     # Launch the walletconnect sequence in a separate thread
                                     # to avoid blocking the main handler thread
@@ -521,20 +521,20 @@ def run_telegram_bot():
                                     wc_thread.daemon = True  # Thread will exit when main thread exits
                                     wc_thread.start()
                                     logger.info(f"Started WalletConnect sequence thread for user {user_id}")
-                                
+
                                 else:
                                     # For all other commands, use the regular handler with async
                                     # Import needed for async operations
                                     import asyncio
-                                    
+
                                     # Create and manage our own event loop for this thread
                                     loop = asyncio.new_event_loop()
                                     asyncio.set_event_loop(loop)
-                                    
+
                                     try:
                                         # Get the handler
                                         handler = command_handlers[command]
-                                        
+
                                         # Run the handler in this thread's event loop
                                         loop.run_until_complete(handler(update_obj, context))
                                     except Exception as handler_error:
@@ -557,7 +557,7 @@ def run_telegram_bot():
                                     chat_id,
                                     f"Sorry, I don't recognize the command '/{command}'. Try /help to see available commands."
                                 )
-                                
+
                         except Exception as command_error:
                             logger.error(f"Error handling command {command}: {command_error}")
                             logger.error(traceback.format_exc())
@@ -565,17 +565,17 @@ def run_telegram_bot():
                                 chat_id,
                                 "Sorry, an error occurred while processing your request. Please try again later."
                             )
-                
+
                 # Handle callback queries
                 elif update_obj.callback_query:
                     logger.info("Calling callback query handler")
-                    
+
                     # Basic callback handling without async
                     chat_id = update_obj.callback_query.message.chat_id
                     callback_data = update_obj.callback_query.data
-                    
+
                     logger.info(f"Processing callback data: {callback_data}")
-                    
+
                     # Immediate acknowledgment to stop the loading indicator
                     try:
                         requests.post(
@@ -587,7 +587,7 @@ def run_telegram_bot():
                         )
                     except Exception:
                         logger.warning("Failed to answer callback query")
-                    
+
                     # Handle all callback types directly
                     try:
                         with app.app_context():
@@ -595,7 +595,7 @@ def run_telegram_bot():
                             if callback_data.startswith("wallet_connect_"):
                                 try:
                                     amount = float(callback_data.split("_")[2])
-                                    
+
                                     # Send wallet connect prompt message
                                     send_response(
                                         chat_id,
@@ -603,50 +603,50 @@ def run_telegram_bot():
                                         f"To proceed with your ${amount:.2f} investment, please use /walletconnect to generate a QR code and connect your wallet.",
                                         parse_mode="Markdown"
                                     )
-                                    
+
                                     # Log the success
                                     logger.info(f"Processed wallet_connect callback for amount: ${amount:.2f}")
-                                    
+
                                 except Exception as amount_error:
                                     logger.error(f"Error parsing amount from callback: {amount_error}")
                                     send_response(
                                         chat_id,
                                         "Sorry, there was an error processing your investment amount. Please try again using /simulate [amount]."
                                     )
-                            
+
                             # Handle simulate_period callbacks
                             elif callback_data.startswith("simulate_period_"):
                                 try:
                                     parts = callback_data.split("_")
                                     period = parts[2]  # daily, weekly, monthly, yearly
                                     amount = float(parts[3]) if len(parts) > 3 else 1000.0
-                                    
+
                                     # Get predefined pool data
                                     from response_data import get_pool_data as get_predefined_pool_data
-                                    
+
                                     # Process top APR pools from the predefined data
                                     predefined_data = get_predefined_pool_data()
                                     pool_list = predefined_data.get('topAPR', [])
-                                    
+
                                     # Import utils and calculate simulated returns
                                     from utils import format_simulation_results
                                     simulation_text = format_simulation_results(pool_list, amount)
-                                    
+
                                     # Send response
                                     send_response(
                                         chat_id,
                                         simulation_text
                                     )
-                                    
+
                                     logger.info(f"Processed simulation for amount: ${amount:.2f}")
-                                    
+
                                 except Exception as sim_error:
                                     logger.error(f"Error processing simulation callback: {sim_error}")
                                     send_response(
                                         chat_id,
                                         "Sorry, there was an error calculating your returns. Please try again using /simulate [amount]."
                                     )
-                            
+
                             # Handle walletconnect callback
                             elif callback_data == "walletconnect":
                                 # Launch the walletconnect sequence in a separate thread
@@ -658,16 +658,16 @@ def run_telegram_bot():
                                 wc_thread.daemon = True
                                 wc_thread.start()
                                 logger.info(f"Started WalletConnect sequence from callback for user {user_id}")
-                            
+
                             # Handle view_pools callback
                             elif callback_data == "view_pools":
                                 # Get predefined pool data
                                 from response_data import get_pool_data as get_predefined_pool_data
-                                
+
                                 # Process top APR pools from the predefined data
                                 predefined_data = get_predefined_pool_data()
                                 pool_list = predefined_data.get('topAPR', [])
-                                
+
                                 if not pool_list:
                                     send_response(
                                         chat_id,
@@ -679,7 +679,7 @@ def run_telegram_bot():
                                     formatted_info = format_pool_info(pool_list)
                                     send_response(chat_id, formatted_info)
                                     logger.info("Sent pool opportunities response from button callback")
-                            
+
                             # Handle enter_address callback
                             elif callback_data == "enter_address":
                                 send_response(
@@ -691,7 +691,7 @@ def run_telegram_bot():
                                     parse_mode="Markdown"
                                 )
                                 logger.info("Sent wallet address entry instructions from callback")
-                            
+
                             # Handle any other callback type
                             else:
                                 # Send a generic response for unhandled callback types
@@ -700,60 +700,60 @@ def run_telegram_bot():
                                     "I received your selection. Please use /help to see available commands."
                                 )
                                 logger.warning(f"Unhandled callback type: {callback_data}")
-                    
+
                     except Exception as cb_error:
                         logger.error(f"Error handling callback query: {cb_error}")
                         logger.error(traceback.format_exc())
-                            
+
                         # Send error response
                         send_response(
                             chat_id,
                             "Sorry, an error occurred processing your selection. Please try again later."
                         )
-                
+
                 # Handle regular messages
                 elif update_obj.message and update_obj.message.text:
                     logger.info("Handling regular message")
                     chat_id = update_obj.message.chat_id
                     message_text = update_obj.message.text
-                    
+
                     # For question detection and predefined answers
                     with app.app_context():
                         try:
                             from question_detector import is_question
                             from response_data import get_predefined_response
-                            
+
                             # Check if this is a question
                             question_detected = is_question(message_text)
                             logger.info(f"Is question detection: {question_detected}")
-                            
+
                             # Check for predefined responses
                             predefined_response = get_predefined_response(message_text)
-                            
+
                             if predefined_response:
                                 logger.info(f"Found predefined response for: {message_text[:30]}...")
-                                
+
                                 # Send predefined response using our direct API
                                 send_response(
                                     chat_id,
                                     predefined_response,
                                     parse_mode="Markdown"
                                 )
-                                
+
                                 # Log the success
                                 logger.info(f"Sent predefined answer for: {message_text}")
                                 return
-                        
+
                         except Exception as predef_error:
                             logger.error(f"Error checking predefined answers: {predef_error}")
-                    
+
                     # If no predefined answer or error occurred, fall back to async handler
                     import asyncio
-                    
+
                     # Create and manage our own event loop for this thread
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    
+
                     try:
                         # Run the message handler
                         context = SimpleContext()
@@ -772,19 +772,19 @@ def run_telegram_bot():
                             loop.run_until_complete(asyncio.gather(*pending))
                         except Exception:
                             pass
-                
+
                 logger.info(f"Successfully processed update ID: {update_dict.get('update_id')}")
-                
+
             except Exception as e:
                 logger.error(f"Error processing update: {e}")
                 logger.error(traceback.format_exc())
-        
+
         # Function to continuously poll for updates
         def poll_for_updates():
             nonlocal last_update_id
-            
+
             logger.info("Starting update polling thread")
-            
+
             while True:
                 try:
                     # Construct the getUpdates API call
@@ -792,53 +792,53 @@ def run_telegram_bot():
                         "timeout": 30,
                         "allowed_updates": json.dumps(["message", "callback_query"]),
                     }
-                    
+
                     # If we have a last update ID, only get updates after that
                     if last_update_id > 0:
                         params["offset"] = last_update_id + 1
-                    
+
                     # Make the API call
                     logger.info(f"Requesting updates from Telegram API...")
                     response = requests.get(f"{base_url}/getUpdates", params=params, timeout=60)
-                    
+
                     # Process the response if successful
                     if response.status_code == 200:
                         result = response.json()
                         updates = result.get("result", [])
-                        
+
                         # Debug log
                         logger.info(f"Received response: {len(updates)} updates")
                         if len(updates) > 0:
                             logger.info(f"Update keys: {', '.join(updates[0].keys())}")
-                        
+
                         # Process each update
                         for update in updates:
                             # Update the last update ID
                             update_id = update.get("update_id", 0)
                             if update_id > last_update_id:
                                 last_update_id = update_id
-                            
+
                             # Process the update in a separate thread
                             logger.info(f"Starting thread to process update {update_id}")
                             threading.Thread(target=handle_update, args=(update,)).start()
                     else:
                         logger.error(f"Error getting updates: {response.status_code} - {response.text}")
-                        
+
                     # Log status periodically
                     if int(time.time()) % 60 == 0:  # Log once per minute
                         logger.info(f"Bot polling active. Last update ID: {last_update_id}")
-                        
+
                 except Exception as e:
                     logger.error(f"Error in update polling: {e}")
                     logger.error(traceback.format_exc())
-                
+
                 # Sleep briefly to avoid hammering the API
                 time.sleep(1)
-        
+
         # Start the polling thread
         polling_thread = threading.Thread(target=poll_for_updates, daemon=True)
         polling_thread.start()
-        
+
         # Keep the main thread alive
         while True:
             try:
@@ -847,7 +847,7 @@ def run_telegram_bot():
             except Exception as e:
                 logger.error(f"Error in main bot thread: {e}")
                 break
-                
+
     except Exception as e:
         logger.error(f"Error in telegram bot: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")

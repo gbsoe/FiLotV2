@@ -46,13 +46,13 @@ def keep_alive():
     This helps prevent the application from being terminated due to inactivity.
     """
     logger.info("Starting keep-alive thread")
-    
+
     # Get the host from environment, default to localhost
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", 5000))
-    
+
     ping_url = f"http://{host}:{port}/health"
-    
+
     while True:
         try:
             # Make a request to the health endpoint
@@ -60,14 +60,14 @@ def keep_alive():
             logger.info(f"Keep-alive ping: {response.status_code}")
         except Exception as e:
             logger.warning(f"Keep-alive ping failed: {e}")
-        
+
         # Sleep for 30 seconds
         time.sleep(30)
 
 def set_bot_status(status: bool):
     """
     Set the bot running status
-    
+
     Args:
         status: True if bot is running, False otherwise
     """

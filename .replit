@@ -10,7 +10,7 @@ run = ["sh", "-c", "python wsgi.py"]
 ignorePorts = true
 
 [workflows]
-runButton = "Run Bot"
+runButton = "Production Server"
 
 [[workflows.workflow]]
 name = "Project"
@@ -71,7 +71,11 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "gunicorn --bind 0.0.0.0:5000 --workers 1 --timeout 120 wsgi:application"
+args = "gunicorn --bind 0.0.0.0:5000 --workers 1 --timeout 120 --preload wsgi:application"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
 
 [[workflows.workflow]]
 name = "Run Bot"
