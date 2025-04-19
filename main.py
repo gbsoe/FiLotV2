@@ -345,34 +345,123 @@ def run_telegram_bot():
                     chat_id = update_obj.callback_query.message.chat_id
                     callback_data = update_obj.callback_query.data
                     
-                    # Handle different callback types
-                    if callback_data.startswith("wallet_connect_"):
-                        try:
-                            amount = float(callback_data.split("_")[2])
-                            send_response(
-                                chat_id,
-                                f"To invest ${amount:.2f}, please use /walletconnect to connect your wallet first."
-                            )
-                        except Exception as cb_error:
-                            logger.error(f"Error processing callback: {cb_error}")
-                            send_response(
-                                chat_id,
-                                "Sorry, an error occurred processing your selection. Please try again later."
-                            )
-                    else:
-                        # For other callbacks, use the regular handler with async
-                        import asyncio
+                    logger.info(f"Processing callback data: {callback_data}")
+                    
+                    # Handle all callback types directly
+                    try:
                         with app.app_context():
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            try:
-                                loop.run_until_complete(handle_callback_query(update_obj, SimpleContext()))
-                            except Exception as cb_error:
-                                logger.error(f"Error in callback query: {cb_error}")
+                            # Handle wallet connect callbacks
+                            if callback_data.startswith("wallet_connect_"):
+                                try:
+                                    amount = float(callback_data.split("_")[2])
+                                    # First send a confirmation to the callback query to stop the "loading" state
+                                    requests.post(
+                                        f"{base_url}/answerCallbackQuery",
+                                        json={
+                                            "callback_query_id": update_obj.callback_query.id,
+                                            "text": f"Processing wallet connection for ${amount:.2f}..."
+                                        }
+                                    )
+                                    
+                                    # Then send the actual wallet connect message
+                                    send_response(
+                                        chat_id,
+                                        f"💰 *Connect Wallet for ${amount:.2f} Investment*\n\n"
+                                        f"To proceed with your ${amount:.2f} investment, please use /walletconnect to generate a QR code and connect your wallet.",
+                                        parse_mode="Markdown"
+                                    )
+                                    
+                                    # Log the success
+                                    logger.info(f"Processed wallet_connect callback for amount: ${amount:.2f}")
+                                    
+                                except Exception as amount_error:
+                                    logger.error(f"Error parsing amount from callback: {amount_error}")
+                                    send_response(
+                                        chat_id,
+                                        "Sorry, there was an error processing your investment amount. Please try again using /simulate [amount]."
+                                    )
+                            
+                            # Handle simulate_period callbacks
+                            elif callback_data.startswith("simulate_period_"):
+                                try:
+                                    parts = callback_data.split("_")
+                                    period = parts[2]  # daily, weekly, monthly, yearly
+                                    amount = float(parts[3]) if len(parts) > 3 else 1000.0
+                                    
+                                    # Answer the callback query
+                                    requests.post(
+                                        f"{base_url}/answerCallbackQuery",
+                                        json={
+                                            "callback_query_id": update_obj.callback_query.id,
+                                            "text": f"Calculating {period} returns for ${amount:.2f}..."
+                                        }
+                                    )
+                                    
+                                    # Get predefined pool data
+                                    from response_data import get_pool_data as get_predefined_pool_data
+                                    
+                                    # Process top APR pools from the predefined data
+                                    predefined_data = get_predefined_pool_data()
+                                    pool_list = predefined_data.get('topAPR', [])
+                                    
+                                    # Import utils and calculate simulated returns
+                                    from utils import format_simulation_results
+                                    simulation_text = format_simulation_results(pool_list, amount, period=period)
+                                    
+                                    # Send response
+                                    send_response(
+                                        chat_id,
+                                        simulation_text
+                                    )
+                                    
+                                    logger.info(f"Processed simulation for period: {period}, amount: ${amount:.2f}")
+                                    
+                                except Exception as sim_error:
+                                    logger.error(f"Error processing simulation callback: {sim_error}")
+                                    send_response(
+                                        chat_id,
+                                        "Sorry, there was an error calculating your returns. Please try again using /simulate [amount]."
+                                    )
+                            
+                            # Handle any other callback type
+                            else:
+                                # Answer the callback query to stop the loading indicator
+                                requests.post(
+                                    f"{base_url}/answerCallbackQuery",
+                                    json={
+                                        "callback_query_id": update_obj.callback_query.id,
+                                        "text": "Processing your request..."
+                                    }
+                                )
+                                
+                                # Send a generic response for unhandled callback types
                                 send_response(
                                     chat_id,
-                                    "Sorry, an error occurred processing your selection. Please try again later."
+                                    "I received your selection. Please use /help to see available commands."
                                 )
+                                logger.warning(f"Unhandled callback type: {callback_data}")
+                    
+                    except Exception as cb_error:
+                        logger.error(f"Error handling callback query: {cb_error}")
+                        logger.error(traceback.format_exc())
+                        
+                        # Try to at least answer the callback query to clear the loading state
+                        try:
+                            requests.post(
+                                f"{base_url}/answerCallbackQuery",
+                                json={
+                                    "callback_query_id": update_obj.callback_query.id,
+                                    "text": "Error processing your request."
+                                }
+                            )
+                        except:
+                            pass
+                            
+                        # Send error response
+                        send_response(
+                            chat_id,
+                            "Sorry, an error occurred processing your selection. Please try again later."
+                        )
                 
                 # Handle regular messages
                 elif update_obj.message and update_obj.message.text:
