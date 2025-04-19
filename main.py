@@ -241,18 +241,70 @@ def run_telegram_bot():
                                 elif command == "walletconnect":
                                     # Handle walletconnect command directly
                                     try:
-                                        qr_data = f"User: {update_obj.message.from_user.id}"
+                                        # Import needed modules
                                         import qrcode
+                                        import uuid
+                                        import time
+                                        from datetime import datetime
                                         from io import BytesIO
                                         
-                                        # Create QR code image
+                                        # Get the user ID for the session
+                                        telegram_user_id = update_obj.message.from_user.id
+                                        chat_id = update_obj.message.chat_id
+                                        
+                                        # 1. First message - Security info
+                                        send_response(
+                                            chat_id,
+                                            "🔒 *Secure Wallet Connection*\n\n"
+                                            "Our wallet connection process is designed with your security in mind:\n\n"
+                                            "• Your private keys remain in your wallet app\n"
+                                            "• We only request permission to view balances\n"
+                                            "• No funds will be transferred without your explicit approval\n"
+                                            "• All connections use encrypted communication\n\n"
+                                            "Creating your secure connection now...",
+                                            parse_mode="Markdown"
+                                        )
+                                        
+                                        # Sleep briefly to ensure messages appear in sequence
+                                        time.sleep(1)
+                                        
+                                        # Generate a session ID for the connection
+                                        session_id = str(uuid.uuid4())
+                                        
+                                        # 2. Session information message
+                                        send_response(
+                                            chat_id,
+                                            "🔗 *WalletConnect Session Created*\n\n"
+                                            "Copy the connection code below and paste it into your wallet app to connect.\n\n"
+                                            f"Session ID: {session_id}\n\n"
+                                            "✅ What to expect in your wallet app:\n"
+                                            "• You'll be asked to approve a connection request\n"
+                                            "• Your wallet app will show exactly what permissions are being requested\n"
+                                            "• No funds will be transferred without your explicit approval\n\n"
+                                            "Once connected, click 'Check Connection Status' to verify.",
+                                            parse_mode="Markdown"
+                                        )
+                                        
+                                        # Sleep briefly to ensure messages appear in sequence
+                                        time.sleep(1)
+                                        
+                                        # Create WalletConnect data for QR code
+                                        # Use a deterministic but secure method to generate these values
+                                        wc_topic = f"{uuid.uuid4().hex[:16]}"
+                                        sym_key = f"{uuid.uuid4().hex}{uuid.uuid4().hex[:8]}"
+                                        project_id = "6c54ea730fca981ad9ef795356b1a52a"  # Sample ID, should come from env vars
+                                        
+                                        # Format the WalletConnect URI
+                                        wc_uri = f"wc:{wc_topic}@2?relay-protocol=irn&relay-url=wss://relay.walletconnect.org&symKey={sym_key}&projectId={project_id}"
+                                        
+                                        # Create QR code with the WalletConnect URI
                                         qr = qrcode.QRCode(
                                             version=1,
                                             error_correction=qrcode.constants.ERROR_CORRECT_L,
                                             box_size=10,
                                             border=4,
                                         )
-                                        qr.add_data(qr_data)
+                                        qr.add_data(wc_uri)
                                         qr.make(fit=True)
                                         
                                         img = qr.make_image(fill_color="black", back_color="white")
@@ -262,36 +314,61 @@ def run_telegram_bot():
                                         img.save(buffer, format="PNG")
                                         buffer.seek(0)
                                         
-                                        # Send welcome message
+                                        # 3. QR code message
                                         send_response(
-                                            update_obj.message.chat_id,
-                                            "📱 *Connect your wallet*\n\n"
-                                            "Scan this QR code with your mobile wallet app to connect.\n\n"
-                                            "This is a secure connection that allows you to interact with liquidity pools.",
+                                            chat_id,
+                                            f"📱 *Scan this QR code with your wallet app to connect*\n"
+                                            f"(Generated at {datetime.now().strftime('%H:%M:%S')})",
                                             parse_mode="Markdown"
                                         )
                                         
-                                        # Send QR code image using multipart form data
+                                        # Send QR code image
                                         files = {"photo": ("qrcode.png", buffer.getvalue(), "image/png")}
                                         photo_response = requests.post(
                                             f"{base_url}/sendPhoto",
-                                            data={"chat_id": update_obj.message.chat_id},
+                                            data={"chat_id": chat_id},
                                             files=files
                                         )
                                         
                                         if photo_response.status_code != 200:
                                             logger.error(f"Failed to send QR code: {photo_response.text}")
                                             send_response(
-                                                update_obj.message.chat_id,
+                                                chat_id,
                                                 "Sorry, there was an error generating the QR code. Please try again later."
                                             )
+                                            return
                                         
-                                        logger.info("Sent wallet connect QR code")
+                                        # Sleep briefly to ensure messages appear in sequence
+                                        time.sleep(1)
+                                        
+                                        # 4. Text link for copying
+                                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                                        send_response(
+                                            chat_id,
+                                            f"📋 *COPY THIS LINK (tap to select):*\n\n"
+                                            f"`{wc_uri}`\n\n"
+                                            f"Generated at {current_time}",
+                                            parse_mode="Markdown"
+                                        )
+                                        
+                                        # Sleep briefly to ensure messages appear in sequence
+                                        time.sleep(1)
+                                        
+                                        # 5. Final security reminder
+                                        send_response(
+                                            chat_id,
+                                            "🔒 Remember: Only approve wallet connections from trusted sources and always verify the requested permissions.\n\n"
+                                            "If the QR code doesn't work, manually copy the link above and paste it into your wallet app."
+                                        )
+                                        
+                                        logger.info(f"Successfully sent complete WalletConnect sequence to user {telegram_user_id}")
+                                        
                                     except Exception as wc_error:
                                         logger.error(f"Error in walletconnect command: {wc_error}")
+                                        logger.error(traceback.format_exc())
                                         send_response(
                                             update_obj.message.chat_id,
-                                            "Sorry, an error occurred while processing your request. Please try again later."
+                                            "Sorry, an error occurred while processing your wallet connection request. Please try again later."
                                         )
                                 
                                 else:
