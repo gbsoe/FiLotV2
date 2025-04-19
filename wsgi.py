@@ -69,7 +69,7 @@ def start_telegram_bot():
             logger.info("Starting bot polling with Flask app context")
             with app.app_context():
                 loop.run_until_complete(application.initialize())
-                loop.run_until_complete(application.start_polling(allowed_updates=["message", "callback_query"]))
+                loop.run_until_complete(application.updater.start_polling(allowed_updates=["message", "callback_query"]))
                 loop.run_forever()
 
         except Exception as e:
