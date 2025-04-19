@@ -152,8 +152,8 @@ def run_telegram_bot():
             "unsubscribe": unsubscribe_command,
             "status": status_command,
             "verify": verify_command,
-            "wallet": wallet_command,
-            "walletconnect": walletconnect_command,
+            "wallet": wallet_command,  # We've implemented special direct handling for this command
+            "walletconnect": walletconnect_command,  # We've implemented special direct handling for this command
             "profile": profile_command,
             "faq": faq_command,
             "social": social_command
@@ -396,6 +396,110 @@ def run_telegram_bot():
                                         formatted_info = format_pool_info(pool_list)
                                         send_response(chat_id, formatted_info)
                                         logger.info("Sent pool info response using direct API call")
+                                
+                                elif command == "wallet":
+                                    # Handle wallet command directly
+                                    try:
+                                        # Import needed wallet utilities
+                                        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                                        from wallet_utils import connect_wallet, check_wallet_balance, format_wallet_info
+                                        
+                                        # Check if a wallet address is provided
+                                        if context.args and context.args[0]:
+                                            wallet_address = context.args[0]
+                                            
+                                            try:
+                                                # Validate wallet address
+                                                from wallet_utils import connect_wallet
+                                                wallet_address = connect_wallet(wallet_address)
+                                                
+                                                # First send confirmation message
+                                                send_response(
+                                                    chat_id,
+                                                    f"✅ Wallet successfully connected: `{wallet_address}`\n\n"
+                                                    "Fetching wallet balance...",
+                                                    parse_mode="Markdown"
+                                                )
+                                                
+                                                # Import needed for async operations
+                                                import asyncio
+                                                
+                                                # Create a new event loop for this thread
+                                                loop = asyncio.new_event_loop()
+                                                asyncio.set_event_loop(loop)
+                                                
+                                                # Get wallet balance
+                                                balance = loop.run_until_complete(check_wallet_balance(wallet_address))
+                                                
+                                                if "error" in balance:
+                                                    send_response(
+                                                        chat_id,
+                                                        f"❌ Error: {balance['error']}\n\n"
+                                                        "Please try again with a valid wallet address.",
+                                                        parse_mode="Markdown"
+                                                    )
+                                                    return
+                                                
+                                                # Format balance information
+                                                balance_text = "💼 *Wallet Balance* 💼\n\n"
+                                                
+                                                for token, amount in balance.items():
+                                                    if token == "SOL":
+                                                        balance_text += f"• SOL: *{amount:.4f}* (≈${amount * 133:.2f})\n"
+                                                    elif token == "USDC" or token == "USDT":
+                                                        balance_text += f"• {token}: *{amount:.2f}*\n"
+                                                    else:
+                                                        balance_text += f"• {token}: *{amount:.4f}*\n"
+                                                
+                                                # Add investment options buttons
+                                                keyboard = [
+                                                    [{"text": "View Pool Opportunities", "callback_data": "view_pools"}],
+                                                    [{"text": "Connect with WalletConnect", "callback_data": "walletconnect"}]
+                                                ]
+                                                
+                                                send_response(
+                                                    chat_id,
+                                                    balance_text + "\n\n💡 Use /simulate to see potential earnings with these tokens in liquidity pools.",
+                                                    parse_mode="Markdown",
+                                                    reply_markup={"inline_keyboard": keyboard}
+                                                )
+                                                
+                                                logger.info(f"Successfully processed wallet balance for {wallet_address}")
+                                                
+                                            except ValueError as e:
+                                                send_response(
+                                                    chat_id,
+                                                    f"❌ Error: {str(e)}\n\n"
+                                                    "Please provide a valid Solana wallet address.",
+                                                    parse_mode="Markdown"
+                                                )
+                                            
+                                        else:
+                                            # No address provided, show wallet menu
+                                            keyboard = [
+                                                [{"text": "Connect with WalletConnect", "callback_data": "walletconnect"}],
+                                                [{"text": "Enter Wallet Address", "callback_data": "enter_address"}]
+                                            ]
+                                            
+                                            send_response(
+                                                chat_id,
+                                                "💼 *Wallet Management*\n\n"
+                                                "Connect your wallet to view balances and interact with liquidity pools.\n\n"
+                                                "Choose an option below, or provide your wallet address directly using:\n"
+                                                "/wallet [your_address]",
+                                                parse_mode="Markdown",
+                                                reply_markup={"inline_keyboard": keyboard}
+                                            )
+                                            
+                                            logger.info("Sent wallet management menu")
+                                            
+                                    except Exception as wallet_error:
+                                        logger.error(f"Error in wallet command: {wallet_error}")
+                                        logger.error(traceback.format_exc())
+                                        send_response(
+                                            chat_id,
+                                            "Sorry, an error occurred while processing your wallet request. Please try again later."
+                                        )
                                 
                                 elif command == "walletconnect":
                                     # Launch the walletconnect sequence in a separate thread
