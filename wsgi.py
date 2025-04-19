@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
@@ -49,21 +50,21 @@ def start_telegram_bot():
             from bot import create_application
             
             # Create the application
-            app = create_application()
-            if not app:
+            application = create_application()
+            if not application:
                 logger.error("Failed to create Telegram bot application")
                 return
                 
             logger.info("Telegram bot application created successfully")
             
             # Log handler count
-            for group, handlers in app.handlers.items():
+            for group, handlers in application.handlers.items():
                 logger.info(f"Bot handlers group {group} has {len(handlers)} handler(s)")
             
-            # Start polling for updates
+            # Start polling for updates - use Flask app context for database operations
             logger.info("Starting bot polling with Flask app context")
-            with app.app_context():
-                app.run_polling(allowed_updates=["message", "callback_query"])
+            with app.app_context():  # This is the Flask app context, not Telegram's
+                application.run_polling(allowed_updates=["message", "callback_query"])
                 
         except Exception as e:
             logger.error(f"Error starting Telegram bot: {e}")
@@ -76,38 +77,15 @@ def start_telegram_bot():
     logger.info(f"Telegram bot thread started with ID {bot_thread.ident}")
     return bot_thread
 
-# Start the Telegram bot when the WSGI app starts
-if 'TELEGRAM_TOKEN' in os.environ or 'TELEGRAM_BOT_TOKEN' in os.environ:
-    # Only start the bot if a token is available
-    logger.info("Telegram token found, starting bot thread")
-    try:
-        bot_thread = start_telegram_bot()
-        if bot_thread:
-            logger.info("Telegram bot thread started successfully")
-        else:
-            logger.error("Failed to start Telegram bot thread")
-    except Exception as e:
-        logger.error(f"Exception starting Telegram bot: {e}")
-        logger.error(traceback.format_exc())
-else:
-    logger.error("CRITICAL: No TELEGRAM_TOKEN or TELEGRAM_BOT_TOKEN found in environment!")
-
 # Anti-idle thread to keep the application alive
 def start_anti_idle_thread():
-    """
-    Start a thread that keeps the application active by periodically
-    accessing the database. This prevents the application from being
-    terminated due to inactivity by the hosting platform.
-    """
+    """Start anti-idle thread"""
     logger.info("Starting anti-idle thread in WSGI app")
     
     def keep_alive():
-        """Keep the application alive by performing regular database activity."""
         logger.info("Anti-idle thread active")
-        
         while True:
             try:
-                # Execute a simple query to keep the database connection active
                 with app.app_context():
                     from sqlalchemy import text
                     from models import db, ErrorLog, BotStatistics
@@ -128,24 +106,34 @@ def start_anti_idle_thread():
                     # Update statistics
                     stats = BotStatistics.query.order_by(BotStatistics.id.desc()).first()
                     if stats:
-                        stats.uptime_percentage += 0.01  # Increment slightly
+                        stats.uptime_percentage += 0.01
                         db.session.commit()
                         logger.info("WSGI anti-idle: Statistics updated")
             except Exception as e:
                 logger.error(f"WSGI anti-idle error: {e}")
-            
-            # Sleep for 60 seconds (well below the ~2m21s timeout)
             time.sleep(60)
     
-    # Start the keep-alive thread as a daemon
     idle_thread = threading.Thread(target=keep_alive, daemon=True)
     idle_thread.start()
     logger.info("WSGI anti-idle thread started")
-    
     return idle_thread
 
 # Start the anti-idle thread
 anti_idle_thread = start_anti_idle_thread()
+
+# Start the Telegram bot when the WSGI app starts
+if 'TELEGRAM_TOKEN' in os.environ or 'TELEGRAM_BOT_TOKEN' in os.environ:
+    try:
+        bot_thread = start_telegram_bot()
+        if bot_thread:
+            logger.info("Telegram bot thread started successfully")
+        else:
+            logger.error("Failed to start Telegram bot thread")
+    except Exception as e:
+        logger.error(f"Exception starting Telegram bot: {e}")
+        logger.error(traceback.format_exc())
+else:
+    logger.error("CRITICAL: No TELEGRAM_TOKEN or TELEGRAM_BOT_TOKEN found in environment!")
 
 # This variable is used by gunicorn to serve the application
 application = app
