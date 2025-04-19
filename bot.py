@@ -191,17 +191,20 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         user = update.effective_user
         logger.info(f"User info retrieved: {user.id} - {user.username}")
         
-        # Log user activity
-        db_utils.get_or_create_user(
-            user_id=user.id,
-            username=user.username,
-            first_name=user.first_name,
-            last_name=user.last_name
-        )
-        logger.info(f"User {user.id} created or retrieved from database")
-        
-        db_utils.log_user_activity(user.id, "start_command")
-        logger.info(f"Activity logged for user {user.id}")
+        # Use app context for database operations
+        from app import app
+        with app.app_context():
+            # Log user activity
+            db_utils.get_or_create_user(
+                user_id=user.id,
+                username=user.username,
+                first_name=user.first_name,
+                last_name=user.last_name
+            )
+            logger.info(f"User {user.id} created or retrieved from database")
+            
+            db_utils.log_user_activity(user.id, "start_command")
+            logger.info(f"Activity logged for user {user.id}")
         
         logger.info(f"Sending welcome message to user {user.id}")
         await update.message.reply_markdown(
