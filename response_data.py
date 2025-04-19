@@ -368,59 +368,150 @@ def get_predefined_response(query: str) -> Optional[str]:
         
     query_lower = query.lower().strip()
     
+    # Log the query for debugging
+    import logging
+    logger = logging.getLogger("question_detector")
+    logger.info(f"Processing potential question: '{query_lower}'")
+    
     # Get all responses
     responses = get_predefined_responses()
     
-    # Define variations for each canonical query
+    # Define variations for each canonical query (extended with more variations)
     variations = {
-        "what is filot": ["what is filot", "tell me about filot", "who is filot", "filot info", "explain filot"],
-        "what is la token": ["la token", "tell me about la", "la info", "what's la", "la token info"],
-        "what is the roadmap": ["roadmap", "future plans", "development timeline", "upcoming features"],
-        "how to use filot": ["how to use", "how to start", "getting started", "begin with filot", "tutorial"],
-        "what can i ask": ["what can you do", "what questions", "capabilities", "features", "what can i do"],
-        "what is liquidity pool": ["liquidity pool", "what are pools", "explain pools", "lp", "what is lp"],
-        "what is apr": ["apr", "annual percentage rate", "interest rate", "returns", "yield"],
-        "impermanent loss": ["il", "explain impermanent loss", "what is impermanent loss"],
-        "risk assessment": ["risk analysis", "how do you assess risk", "risk evaluation", "risk metrics"],
-        "wallet integration": ["connect wallet", "wallet", "how to connect wallet", "walletconnect"],
-        "risk profiles": ["investment profiles", "risk levels", "risk types", "risk preferences"]
+        "what is filot": [
+            "what is filot", "tell me about filot", "who is filot", "filot info", "explain filot", 
+            "what's filot", "what filot is", "filot description", "describe filot"
+        ],
+        "what is la token": [
+            "la token", "tell me about la", "la info", "what's la", "la token info", 
+            "what is la", "what is the la token", "tell me about the la token", "la"
+        ],
+        "what is the roadmap": [
+            "roadmap", "future plans", "development timeline", "upcoming features",
+            "what is the roadmap", "project timeline", "milestones", "roadmap info"
+        ],
+        "how to use filot": [
+            "how to use", "how to start", "getting started", "begin with filot", "tutorial",
+            "how do i use filot", "user guide", "instructions", "how filot works"
+        ],
+        "what can i ask": [
+            "what can you do", "what questions", "capabilities", "features", "what can i do",
+            "what can filot do", "what filot can do", "what to ask", "functions", "skills", "abilities"
+        ],
+        "what is liquidity pool": [
+            "liquidity pool", "what are pools", "explain pools", "lp", "what is lp",
+            "defi pools", "liquidity", "pool explanation", "pools work"
+        ],
+        "what is apr": [
+            "apr", "annual percentage rate", "interest rate", "returns", "yield",
+            "what does apr mean", "explain apr", "how apr works", "apr calculation"
+        ],
+        "impermanent loss": [
+            "il", "explain impermanent loss", "what is impermanent loss", 
+            "tell me about impermanent loss", "il explanation", "impermanent"
+        ],
+        "risk assessment": [
+            "risk analysis", "how do you assess risk", "risk evaluation", "risk metrics",
+            "how risks are calculated", "risk factors", "risk measurement"
+        ],
+        "wallet integration": [
+            "connect wallet", "wallet", "how to connect wallet", "walletconnect",
+            "wallet connection", "linking wallet", "wallet setup", "wallet support"
+        ],
+        "risk profiles": [
+            "investment profiles", "risk levels", "risk types", "risk preferences",
+            "investor profiles", "risk tolerance", "risk settings"
+        ]
     }
     
-    # Check for single-word queries using key terms
+    # Check for single-word queries using key terms (extended)
     key_terms = {
         'la': 'what is la token',
         'filot': 'what is filot',
         'token': 'what is la token',
         'roadmap': 'what is the roadmap',
+        'apr': 'what is apr',
+        'pools': 'what is liquidity pool',
+        'pool': 'what is liquidity pool',
+        'wallet': 'wallet integration',
+        'impermanent': 'impermanent loss',
+        'risk': 'risk assessment',
+        'features': 'what can i ask',
     }
     if query_lower in key_terms:
+        logger.info(f"Matched single keyword: {query_lower} → {key_terms[query_lower]}")
         return responses.get(key_terms[query_lower])
 
     # Check for exact matches
     if query_lower in responses:
+        logger.info(f"Matched exact response key: {query_lower}")
         return responses[query_lower]
 
-    # Check in variations (exact match or substring match)
+    # Check in variations (exact match)
     for canonical, variant_list in variations.items():
         if query_lower in variant_list:
-            return responses.get(canonical)
-        if any(variant in query_lower for variant in variant_list):
+            logger.info(f"Matched exact variation: {query_lower} → {canonical}")
             return responses.get(canonical)
 
-    # Check for keyword combinations
+    # Check for substring matches in variations
+    for canonical, variant_list in variations.items():
+        for variant in variant_list:
+            if variant in query_lower:
+                logger.info(f"Matched variation as substring: {variant} in '{query_lower}' → {canonical}")
+                return responses.get(canonical)
+            elif query_lower in variant:
+                logger.info(f"Matched query as substring of variation: '{query_lower}' in {variant} → {canonical}")
+                return responses.get(canonical)
+
+    # Check for keyword combinations (extended)
     keyword_combinations = {
         ('how', 'start'): 'how to use filot',
+        ('how', 'use'): 'how to use filot',
         ('what', 'pool'): 'what is liquidity pool',
         ('what', 'apr'): 'what is apr',
+        ('what', 'yield'): 'what is apr',
+        ('what', 'return'): 'what is apr',
         ('impermanent', 'loss'): 'impermanent loss',
         ('who', 'you'): 'what is filot',
-        ('what', 'ask'): 'what can i ask'
+        ('what', 'ask'): 'what can i ask',
+        ('what', 'questions'): 'what can i ask',
+        ('what', 'do'): 'what can i ask',
+        ('connect', 'wallet'): 'wallet integration',
+        ('risk', 'profile'): 'risk profiles',
+        ('risk', 'assess'): 'risk assessment',
+        ('road', 'map'): 'what is the roadmap',
+        ('token', 'la'): 'what is la token',
     }
     for keywords, response_key in keyword_combinations.items():
         if all(keyword in query_lower for keyword in keywords):
+            logger.info(f"Matched keyword combination: {keywords} → {response_key}")
             return responses.get(response_key)
+    
+    # Word similarity check (for typos and slight variations)
+    import difflib
+    
+    # Create a flat list of all variations
+    all_variations = []
+    for canonical, variants in variations.items():
+        for variant in variants:
+            all_variations.append((variant, canonical))
+    
+    # Find closest matching variation using sequence matcher
+    best_match = None
+    best_ratio = 0.8  # Minimum threshold for a match
+    
+    for variant, canonical in all_variations:
+        ratio = difflib.SequenceMatcher(None, query_lower, variant).ratio()
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_match = canonical
+    
+    if best_match:
+        logger.info(f"Matched by similarity ({best_ratio:.2f}): '{query_lower}' → {best_match}")
+        return responses.get(best_match)
 
     # Fallback: return None if no match is found
+    logger.info(f"No match found for: '{query_lower}'")
     return None
 
 # Example usage (for testing purposes)
