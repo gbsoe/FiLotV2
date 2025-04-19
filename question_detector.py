@@ -781,6 +781,16 @@ def get_predefined_response(query: str) -> Optional[str]:
     # Log that we're processing a potential question
     logger.info(f"Processing potential question: '{query_lower}'")
     
+    # First, check for launch-related queries as a high priority match
+    if 'launch' in query_lower and ('la' in query_lower or 'token' in query_lower):
+        logger.info(f"Detected launch-related query: {query_lower}")
+        return responses.get("tell me about la token's launch")
+    
+    # Check for when-related queries about LA token launch
+    if 'when' in query_lower and ('la' in query_lower or 'token' in query_lower):
+        logger.info(f"Detected when-related LA token query: {query_lower}")
+        return responses.get("tell me about la token's launch")
+    
     # Check for single-word queries using key terms
     key_terms = {
         'la': 'what is la token',
