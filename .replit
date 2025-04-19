@@ -10,7 +10,7 @@ run = ["sh", "-c", "python wsgi.py"]
 ignorePorts = true
 
 [workflows]
-runButton = "Production"
+runButton = "Production Server"
 
 [[workflows.workflow]]
 name = "Project"
@@ -72,15 +72,6 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python wsgi.py"
-
-[[workflows.workflow]]
-name = "Production"
-author = 40935428
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "./run_production.sh"
 
 [[ports]]
 localPort = 5000
