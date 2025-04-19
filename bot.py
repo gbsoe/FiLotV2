@@ -370,13 +370,23 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Subscribe to daily updates when the command /subscribe is issued."""
     try:
+        # Import app at function level to avoid circular imports
+        from app import app
+        
+        # Get user info before entering app context
         user = update.effective_user
         
-        # Subscribe user in database
-        success = db_utils.subscribe_user(user.id)
+        # Use app context for all database operations
+        success = False
+        with app.app_context():
+            # Subscribe user in database
+            success = db_utils.subscribe_user(user.id)
+            
+            if success:
+                db_utils.log_user_activity(user.id, "subscribe")
         
+        # Send response outside app context (no db operations)
         if success:
-            db_utils.log_user_activity(user.id, "subscribe")
             await update.message.reply_markdown(
                 "✅ You've successfully subscribed to daily updates!\n\n"
                 "You'll receive daily insights about the best-performing liquidity pools "
@@ -389,7 +399,7 @@ async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 "Use /unsubscribe if you wish to stop receiving updates."
             )
     except Exception as e:
-        logger.error(f"Error in subscribe command: {e}")
+        logger.error(f"Error in subscribe command: {e}", exc_info=True)
         await update.message.reply_text(
             "Sorry, an error occurred while processing your request. Please try again later."
         )
@@ -397,13 +407,23 @@ async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Unsubscribe from daily updates when the command /unsubscribe is issued."""
     try:
+        # Import app at function level to avoid circular imports
+        from app import app
+        
+        # Get user info before entering app context
         user = update.effective_user
         
-        # Unsubscribe user in database
-        success = db_utils.unsubscribe_user(user.id)
+        # Use app context for all database operations
+        success = False
+        with app.app_context():
+            # Unsubscribe user in database
+            success = db_utils.unsubscribe_user(user.id)
+            
+            if success:
+                db_utils.log_user_activity(user.id, "unsubscribe")
         
+        # Send response outside app context (no db operations)
         if success:
-            db_utils.log_user_activity(user.id, "unsubscribe")
             await update.message.reply_markdown(
                 "✅ You've successfully unsubscribed from daily updates.\n\n"
                 "You'll no longer receive daily pool insights.\n\n"
@@ -415,7 +435,7 @@ async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE
                 "Use /subscribe if you'd like to receive daily insights."
             )
     except Exception as e:
-        logger.error(f"Error in unsubscribe command: {e}")
+        logger.error(f"Error in unsubscribe command: {e}", exc_info=True)
         await update.message.reply_text(
             "Sorry, an error occurred while processing your request. Please try again later."
         )
@@ -423,26 +443,36 @@ async def unsubscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Check bot status when the command /status is issued."""
     try:
+        # Import the app at function level to avoid circular imports
+        from app import app
+        
+        # Get user info before entering app context
         user = update.effective_user
-        db_utils.log_user_activity(user.id, "status_command")
         
-        # Get user status
-        db_user = db_utils.get_or_create_user(user.id)
+        # Use app context for all database operations
+        with app.app_context():
+            # Log the activity inside app context
+            db_utils.log_user_activity(user.id, "status_command")
+            
+            # Get user status inside app context
+            db_user = db_utils.get_or_create_user(user.id)
+            
+            # Format the status text with user data
+            status_text = (
+                "🤖 *FiLot Bot Status*\n\n"
+                "✅ Bot is operational and ready to assist you!\n\n"
+                "*Your Account Status:*\n"
+                f"• User ID: {db_user.telegram_id}\n"
+                f"• Subscription: {'Active ✅' if db_user.is_subscribed else 'Inactive ❌'}\n"
+                f"• Verification: {'Verified ✅' if db_user.is_verified else 'Unverified ❌'}\n"
+                f"• Account Created: {db_user.created_at.strftime('%Y-%m-%d')}\n\n"
+                "Use /help to see available commands."
+            )
         
-        status_text = (
-            "🤖 *FiLot Bot Status*\n\n"
-            "✅ Bot is operational and ready to assist you!\n\n"
-            "*Your Account Status:*\n"
-            f"• User ID: {db_user.telegram_id}\n"
-            f"• Subscription: {'Active ✅' if db_user.is_subscribed else 'Inactive ❌'}\n"
-            f"• Verification: {'Verified ✅' if db_user.is_verified else 'Unverified ❌'}\n"
-            f"• Account Created: {db_user.created_at.strftime('%Y-%m-%d')}\n\n"
-            "Use /help to see available commands."
-        )
-        
+        # Reply outside of app context (no db operations)
         await update.message.reply_markdown(status_text)
     except Exception as e:
-        logger.error(f"Error in status command: {e}")
+        logger.error(f"Error in status command: {e}", exc_info=True)
         await update.message.reply_text(
             "Sorry, an error occurred while processing your request. Please try again later."
         )
@@ -450,12 +480,18 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Verify the user when the command /verify is issued."""
     try:
+        # Import app at function level to avoid circular imports
+        from app import app
+        
+        # Get user info before entering app context
         user = update.effective_user
         
         # Check if code is provided
         if not context.args or not context.args[0]:
-            # Generate verification code
-            code = db_utils.generate_verification_code(user.id)
+            # Use app context for database operations
+            with app.app_context():
+                # Generate verification code inside app context
+                code = db_utils.generate_verification_code(user.id)
             
             if code:
                 await update.message.reply_markdown(
@@ -472,12 +508,21 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 )
             return
             
-        # Verify with provided code
+        # Verify with provided code (inside app context)
         code = context.args[0]
-        success = db_utils.verify_user(user.id, code)
         
+        # Use app context for all database operations
+        success = False
+        with app.app_context():
+            # Verify user with code
+            success = db_utils.verify_user(user.id, code)
+            
+            if success:
+                # Log the activity inside app context
+                db_utils.log_user_activity(user.id, "verified")
+        
+        # Send response outside app context (no db operations)
         if success:
-            db_utils.log_user_activity(user.id, "verified")
             await update.message.reply_markdown(
                 "✅ *Verification Successful!*\n\n"
                 "Your account has been verified. You now have access to all FiLot features.\n\n"
@@ -490,7 +535,7 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 "Please try again with a new code by typing /verify"
             )
     except Exception as e:
-        logger.error(f"Error in verify command: {e}")
+        logger.error(f"Error in verify command: {e}", exc_info=True)
         await update.message.reply_text(
             "Sorry, an error occurred while processing your request. Please try again later."
         )
@@ -577,26 +622,39 @@ async def wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Set user investment profile when the command /profile is issued."""
     try:
+        # Import app at function level to avoid circular imports
+        from app import app
+        
+        # Get user info before entering app context
         user = update.effective_user
-        db_utils.log_user_activity(user.id, "profile_command")
+        profile_text = None
+        db_user = None
         
-        # Get current user profile data
-        db_user = db_utils.get_or_create_user(user.id)
+        # Use app context for all database operations
+        with app.app_context():
+            # Log the activity inside app context
+            db_utils.log_user_activity(user.id, "profile_command")
+            
+            # Get current user profile data inside app context
+            db_user = db_utils.get_or_create_user(user.id)
+            
+            # If no parameters provided, prepare to show current profile
+            if not context.args:
+                # Format current profile info
+                profile_text = (
+                    "🔍 *Your Investment Profile*\n\n"
+                    f"• Risk Tolerance: *{db_user.risk_profile.capitalize()}*\n"
+                    f"• Investment Horizon: *{db_user.investment_horizon.capitalize()}*\n"
+                    f"• Investment Goals: {db_user.investment_goals or 'Not specified'}\n\n"
+                    "To update your profile, use one of these commands:\n"
+                    "• `/profile risk [conservative/moderate/aggressive]`\n"
+                    "• `/profile horizon [short/medium/long]`\n"
+                    "• `/profile goals [your investment goals]`\n\n"
+                    "Example: `/profile risk aggressive`"
+                )
         
-        # If no parameters provided, show current profile
-        if not context.args:
-            # Format current profile info
-            profile_text = (
-                "🔍 *Your Investment Profile*\n\n"
-                f"• Risk Tolerance: *{db_user.risk_profile.capitalize()}*\n"
-                f"• Investment Horizon: *{db_user.investment_horizon.capitalize()}*\n"
-                f"• Investment Goals: {db_user.investment_goals or 'Not specified'}\n\n"
-                "To update your profile, use one of these commands:\n"
-                "• `/profile risk [conservative/moderate/aggressive]`\n"
-                "• `/profile horizon [short/medium/long]`\n"
-                "• `/profile goals [your investment goals]`\n\n"
-                "Example: `/profile risk aggressive`"
-            )
+        # If we have profile text ready, send it and return
+        if profile_text:
             await update.message.reply_markdown(profile_text)
             return
             
@@ -605,61 +663,63 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             setting_type = context.args[0].lower()
             setting_value = " ".join(context.args[1:])
             
-            if setting_type == "risk":
-                if setting_value.lower() in ["conservative", "moderate", "aggressive"]:
-                    # Update risk profile using db_utils
-                    db_user.risk_profile = setting_value.lower()
-                    db_utils.update_user_profile(db_user.id, "risk_profile", setting_value.lower())
+            # Process different setting types within app context
+            with app.app_context():
+                if setting_type == "risk":
+                    if setting_value.lower() in ["conservative", "moderate", "aggressive"]:
+                        # Update risk profile using db_utils
+                        db_user.risk_profile = setting_value.lower()
+                        db_utils.update_user_profile(db_user.id, "risk_profile", setting_value.lower())
+                        
+                        # Send confirmation
+                        await update.message.reply_markdown(
+                            f"✅ Risk profile updated to *{setting_value.capitalize()}*.\n\n"
+                            f"Your AI financial advice will now be tailored to a {setting_value.lower()} risk tolerance."
+                        )
+                    else:
+                        await update.message.reply_text(
+                            "Invalid risk profile. Please choose from: conservative, moderate, or aggressive."
+                        )
+                        
+                elif setting_type == "horizon":
+                    if setting_value.lower() in ["short", "medium", "long"]:
+                        # Update investment horizon using db_utils
+                        db_user.investment_horizon = setting_value.lower()
+                        db_utils.update_user_profile(db_user.id, "investment_horizon", setting_value.lower())
+                        
+                        # Send confirmation
+                        await update.message.reply_markdown(
+                            f"✅ Investment horizon updated to *{setting_value.capitalize()}*.\n\n"
+                            f"Your AI financial advice will now be tailored to a {setting_value.lower()}-term investment horizon."
+                        )
+                    else:
+                        await update.message.reply_text(
+                            "Invalid investment horizon. Please choose from: short, medium, or long."
+                        )
+                        
+                elif setting_type == "goals":
+                    # Update investment goals using db_utils
+                    goals_value = setting_value[:255]  # Limit to 255 chars
+                    db_user.investment_goals = goals_value
+                    db_utils.update_user_profile(db_user.id, "investment_goals", goals_value)
                     
                     # Send confirmation
                     await update.message.reply_markdown(
-                        f"✅ Risk profile updated to *{setting_value.capitalize()}*.\n\n"
-                        f"Your AI financial advice will now be tailored to a {setting_value.lower()} risk tolerance."
+                        "✅ Investment goals updated successfully.\n\n"
+                        "Your AI financial advice will take your goals into consideration."
                     )
+                    
                 else:
                     await update.message.reply_text(
-                        "Invalid risk profile. Please choose from: conservative, moderate, or aggressive."
+                        "Invalid setting. Please use 'risk', 'horizon', or 'goals'."
                     )
-                    
-            elif setting_type == "horizon":
-                if setting_value.lower() in ["short", "medium", "long"]:
-                    # Update investment horizon using db_utils
-                    db_user.investment_horizon = setting_value.lower()
-                    db_utils.update_user_profile(db_user.id, "investment_horizon", setting_value.lower())
-                    
-                    # Send confirmation
-                    await update.message.reply_markdown(
-                        f"✅ Investment horizon updated to *{setting_value.capitalize()}*.\n\n"
-                        f"Your AI financial advice will now be tailored to a {setting_value.lower()}-term investment horizon."
-                    )
-                else:
-                    await update.message.reply_text(
-                        "Invalid investment horizon. Please choose from: short, medium, or long."
-                    )
-                    
-            elif setting_type == "goals":
-                # Update investment goals using db_utils
-                goals_value = setting_value[:255]  # Limit to 255 chars
-                db_user.investment_goals = goals_value
-                db_utils.update_user_profile(db_user.id, "investment_goals", goals_value)
-                
-                # Send confirmation
-                await update.message.reply_markdown(
-                    "✅ Investment goals updated successfully.\n\n"
-                    "Your AI financial advice will take your goals into consideration."
-                )
-                
-            else:
-                await update.message.reply_text(
-                    "Invalid setting. Please use 'risk', 'horizon', or 'goals'."
-                )
         else:
             await update.message.reply_text(
                 "Please provide both setting type and value. For example:\n"
                 "/profile risk moderate"
             )
     except Exception as e:
-        logger.error(f"Error in profile command: {e}")
+        logger.error(f"Error in profile command: {e}", exc_info=True)
         await update.message.reply_text(
             "Sorry, an error occurred while processing your request. Please try again later."
         )
@@ -720,8 +780,16 @@ Use /help to see all available commands!
 async def social_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display social media links when the command /social is issued."""
     try:
+        # Import app at function level to avoid circular imports
+        from app import app
+        
+        # Get user info before entering app context
         user = update.effective_user
-        db_utils.log_user_activity(user.id, "social_command")
+        
+        # Use app context for database operations
+        with app.app_context():
+            # Log the activity inside app context
+            db_utils.log_user_activity(user.id, "social_command")
         
         # Format the social media content with emojis and links
         social_text = """
@@ -747,7 +815,7 @@ Follow us for the latest news and launch announcements!
             ]
         ]
         
-        # Send the social media message with inline buttons
+        # Send the social media message with inline buttons (outside app context)
         await update.message.reply_markdown(
             social_text,
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -757,7 +825,7 @@ Follow us for the latest news and launch announcements!
         logger.info(f"Sent social media links to user {user.id}")
         
     except Exception as e:
-        logger.error(f"Error in social command: {e}")
+        logger.error(f"Error in social command: {e}", exc_info=True)
         await update.message.reply_text(
             "Sorry, an error occurred while sending the social media links. Please try again later."
         )
