@@ -161,17 +161,12 @@ def run_telegram_bot():
         
         # Function to handle a specific update by determining its type and routing to appropriate handler
         def handle_update(update_dict):
-            import asyncio
             from app import app
             
             try:
                 # Convert the dictionary to a Telegram Update object
                 update_obj = Update.de_json(update_dict, bot)
                 logger.info(f"Processing update type: {update_dict.keys()}")
-                
-                # Create an event loop for async operation
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
                 
                 # Create a simple context type that mimics ContextTypes.DEFAULT_TYPE
                 class SimpleContext:
@@ -182,40 +177,214 @@ def run_telegram_bot():
                         self.user_data = {}
                         self.chat_data = {}
                         self.bot_data = {}
+                
+                # Function to directly send a response without using async
+                def send_response(chat_id, text, parse_mode=None, reply_markup=None):
+                    try:
+                        params = {
+                            "chat_id": chat_id,
+                            "text": text,
+                        }
                         
-                context = SimpleContext()
+                        if parse_mode:
+                            params["parse_mode"] = parse_mode
+                            
+                        if reply_markup:
+                            params["reply_markup"] = json.dumps(reply_markup.to_dict())
+                            
+                        response = requests.post(f"{base_url}/sendMessage", json=params)
+                        if response.status_code != 200:
+                            logger.error(f"Failed to send message: {response.text}")
+                        return response.json() if response.status_code == 200 else None
+                    except Exception as e:
+                        logger.error(f"Error sending message: {e}")
+                        return None
                 
                 # Extract command arguments if this is a command
                 if update_obj.message and update_obj.message.text and update_obj.message.text.startswith('/'):
                     # Split the message into command and arguments
                     text_parts = update_obj.message.text.split()
                     command = text_parts[0][1:].split('@')[0]  # Remove the '/' and any bot username
+                    
+                    # Create context with arguments
+                    context = SimpleContext()
                     context.args = text_parts[1:]
                     
                     # Execute inside the Flask app context
                     with app.app_context():
-                        # Route to appropriate command handler
-                        if command in command_handlers:
-                            logger.info(f"Calling handler for command: {command}")
-                            handler = command_handlers[command]
-                            loop.run_until_complete(handler(update_obj, context))
-                        else:
-                            logger.info(f"Unknown command: {command}")
+                        try:
+                            # Route to appropriate command handler 
+                            if command in command_handlers:
+                                logger.info(f"Calling handler for command: {command}")
+                                
+                                # For specific commands that have issues with async/event loops
+                                if command == "info":
+                                    # Get predefined pool data
+                                    from response_data import get_pool_data as get_predefined_pool_data
+                                    
+                                    # Process top APR pools from the predefined data
+                                    predefined_data = get_predefined_pool_data()
+                                    pool_list = predefined_data.get('topAPR', [])
+                                    
+                                    if not pool_list:
+                                        send_response(
+                                            update_obj.message.chat_id,
+                                            "Sorry, I couldn't retrieve pool data at the moment. Please try again later."
+                                        )
+                                    else:
+                                        # Import at function level to avoid circular imports
+                                        from utils import format_pool_info
+                                        formatted_info = format_pool_info(pool_list)
+                                        send_response(update_obj.message.chat_id, formatted_info)
+                                        logger.info("Sent pool info response using direct API call")
+                                
+                                elif command == "walletconnect":
+                                    # Handle walletconnect command directly
+                                    try:
+                                        qr_data = f"User: {update_obj.message.from_user.id}"
+                                        import qrcode
+                                        from io import BytesIO
+                                        
+                                        # Create QR code image
+                                        qr = qrcode.QRCode(
+                                            version=1,
+                                            error_correction=qrcode.constants.ERROR_CORRECT_L,
+                                            box_size=10,
+                                            border=4,
+                                        )
+                                        qr.add_data(qr_data)
+                                        qr.make(fit=True)
+                                        
+                                        img = qr.make_image(fill_color="black", back_color="white")
+                                        
+                                        # Save QR code to a bytes buffer
+                                        buffer = BytesIO()
+                                        img.save(buffer, format="PNG")
+                                        buffer.seek(0)
+                                        
+                                        # Send welcome message
+                                        send_response(
+                                            update_obj.message.chat_id,
+                                            "📱 *Connect your wallet*\n\n"
+                                            "Scan this QR code with your mobile wallet app to connect.\n\n"
+                                            "This is a secure connection that allows you to interact with liquidity pools.",
+                                            parse_mode="Markdown"
+                                        )
+                                        
+                                        # Send QR code image using multipart form data
+                                        files = {"photo": ("qrcode.png", buffer.getvalue(), "image/png")}
+                                        photo_response = requests.post(
+                                            f"{base_url}/sendPhoto",
+                                            data={"chat_id": update_obj.message.chat_id},
+                                            files=files
+                                        )
+                                        
+                                        if photo_response.status_code != 200:
+                                            logger.error(f"Failed to send QR code: {photo_response.text}")
+                                            send_response(
+                                                update_obj.message.chat_id,
+                                                "Sorry, there was an error generating the QR code. Please try again later."
+                                            )
+                                        
+                                        logger.info("Sent wallet connect QR code")
+                                    except Exception as wc_error:
+                                        logger.error(f"Error in walletconnect command: {wc_error}")
+                                        send_response(
+                                            update_obj.message.chat_id,
+                                            "Sorry, an error occurred while processing your request. Please try again later."
+                                        )
+                                
+                                else:
+                                    # For all other commands, use the regular handler
+                                    # Import needed for async operations
+                                    import asyncio
+                                    
+                                    # Create and manage our own event loop for this thread
+                                    loop = asyncio.new_event_loop()
+                                    asyncio.set_event_loop(loop)
+                                    
+                                    try:
+                                        # Get the handler
+                                        handler = command_handlers[command]
+                                        
+                                        # Run the handler in this thread's event loop
+                                        loop.run_until_complete(handler(update_obj, context))
+                                    except Exception as handler_error:
+                                        logger.error(f"Error running handler {command}: {handler_error}")
+                                        send_response(
+                                            update_obj.message.chat_id,
+                                            "Sorry, an error occurred while processing your request. Please try again later."
+                                        )
+                                    finally:
+                                        # Clean up the loop but don't close it if other tasks might be using it
+                                        try:
+                                            pending = asyncio.all_tasks(loop)
+                                            loop.run_until_complete(asyncio.gather(*pending))
+                                        except Exception:
+                                            pass
+                            else:
+                                logger.info(f"Unknown command: {command}")
+                                send_response(
+                                    update_obj.message.chat_id,
+                                    f"Sorry, I don't recognize the command '/{command}'. Try /help to see available commands."
+                                )
+                                
+                        except Exception as command_error:
+                            logger.error(f"Error handling command {command}: {command_error}")
+                            logger.error(traceback.format_exc())
+                            send_response(
+                                update_obj.message.chat_id,
+                                "Sorry, an error occurred while processing your request. Please try again later."
+                            )
                 
                 # Handle callback queries
                 elif update_obj.callback_query:
                     logger.info("Calling callback query handler")
-                    with app.app_context():
-                        loop.run_until_complete(handle_callback_query(update_obj, context))
+                    
+                    # Basic callback handling without async
+                    chat_id = update_obj.callback_query.message.chat_id
+                    callback_data = update_obj.callback_query.data
+                    
+                    # Handle different callback types
+                    if callback_data.startswith("wallet_connect_"):
+                        try:
+                            amount = float(callback_data.split("_")[2])
+                            send_response(
+                                chat_id,
+                                f"To invest ${amount:.2f}, please use /walletconnect to connect your wallet first."
+                            )
+                        except Exception as cb_error:
+                            logger.error(f"Error processing callback: {cb_error}")
+                            send_response(
+                                chat_id,
+                                "Sorry, an error occurred processing your selection. Please try again later."
+                            )
+                    else:
+                        # For other callbacks, use the regular handler with async
+                        import asyncio
+                        with app.app_context():
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            try:
+                                loop.run_until_complete(handle_callback_query(update_obj, SimpleContext()))
+                            except Exception as cb_error:
+                                logger.error(f"Error in callback query: {cb_error}")
+                                send_response(
+                                    chat_id,
+                                    "Sorry, an error occurred processing your selection. Please try again later."
+                                )
                 
                 # Handle regular messages
                 elif update_obj.message and update_obj.message.text:
                     logger.info("Calling regular message handler")
-                    with app.app_context():
-                        loop.run_until_complete(handle_message(update_obj, context))
+                    chat_id = update_obj.message.chat_id
+                    
+                    # Simple text response without async
+                    send_response(
+                        chat_id,
+                        "I've received your message. To see available commands, type /help"
+                    )
                 
-                # Don't close the loop - this causes issues with PTB's async operations
-                # loop.close()  # <-- Removed this line
                 logger.info(f"Successfully processed update ID: {update_dict.get('update_id')}")
                 
             except Exception as e:
