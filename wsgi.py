@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
@@ -15,33 +16,54 @@ from bot import create_application
 # Configure logging
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    level=logging.INFO
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler("logs/production.log"),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
 # WSGI application reference
 application = app
 
-async def main():
-    """Run both the Flask app and Telegram bot"""
+def run_flask():
+    """Run the Flask application"""
     try:
-        # Create and initialize the bot
+        app.run(host='0.0.0.0', port=5000)
+    except Exception as e:
+        logger.error(f"Error running Flask app: {e}")
+        
+async def run_bot():
+    """Run the Telegram bot"""
+    try:
         bot_app = create_application()
-
-        # Start the Flask app in a separate thread
-        from threading import Thread
-        web_thread = Thread(target=lambda: app.run(host='0.0.0.0', port=5000))
-        web_thread.daemon = True
-        web_thread.start()
-
-        # Run the bot in the main thread
         await bot_app.initialize()
         await bot_app.run_polling()
+    except Exception as e:
+        logger.error(f"Error running bot: {e}")
 
+def main():
+    """Main entry point"""
+    try:
+        # Create logs directory if it doesn't exist
+        if not os.path.exists('logs'):
+            os.makedirs('logs')
+            
+        # Start Flask in a separate thread
+        from threading import Thread
+        flask_thread = Thread(target=run_flask)
+        flask_thread.daemon = True
+        flask_thread.start()
+        
+        # Start the bot in the main thread using asyncio
+        asyncio.run(run_bot())
+        
+    except KeyboardInterrupt:
+        logger.info("Received shutdown signal")
     except Exception as e:
         logger.error(f"Error in main function: {e}")
-        raise
+        sys.exit(1)
 
 if __name__ == "__main__":
-    # Run the async main function
-    asyncio.run(main())
+    main()
