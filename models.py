@@ -237,3 +237,22 @@ class SuspiciousURL(db.Model):
     
     def __repr__(self):
         return f"<SuspiciousURL id={self.id}, url={self.url}, category={self.category}>"
+
+class WalletSession(db.Model):
+    """WalletSession model representing a WalletConnect session."""
+    __tablename__ = "wallet_sessions"
+    
+    id = Column(Integer, primary_key=True)
+    session_id = Column(String(255), unique=True, nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    created_at = Column(Float, nullable=False)  # Unix timestamp
+    expires_at = Column(Float, nullable=True)  # Unix timestamp
+    status = Column(String(50), default="created")  # created, connected, expired, cancelled
+    uri = Column(Text, nullable=True)  # WalletConnect URI
+    connection_data = Column(JSON, nullable=True)  # Additional connection data
+    
+    # Relationships
+    user = relationship("User", backref="wallet_sessions")
+    
+    def __repr__(self):
+        return f"<WalletSession id={self.id}, session_id={self.session_id}, status={self.status}>"
