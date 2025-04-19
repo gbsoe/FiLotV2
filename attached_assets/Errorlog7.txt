@@ -1,0 +1,116 @@
+Time                     Log
+04-19 08:40...           2025-04-19 01:40:46,950 [INFO] app: Starting anti-idle thread to prevent timeout
+04-19 08:40...           2025-04-19 01:40:46,950 [INFO] app: Anti-idle thread started
+04-19 08:40...           2025-04-19 01:40:48,042 [INFO] app: Anti-idle thread: Database ping successful, result=(1,)
+04-19 08:40...           2025-04-19 01:40:48,208 [INFO] app: Anti-idle thread: Recorded keep-alive activity to prevent timeout
+04-19 08:40...           2025-04-19 01:40:48,573 [INFO] app: Database tables created successfully
+04-19 08:40...           2025-04-19 01:40:49,220 [INFO] walletconnect_utils: Database initialized successfully
+04-19 08:40...           2025-04-19 01:40:50,121 [INFO] __main__: Starting anti-idle thread for telegram bot process
+04-19 08:40...           2025-04-19 01:40:50,122 [INFO] __main__: Bot anti-idle thread started
+04-19 08:40...           * Serving Flask app 'app'
+04-19 08:40...           * Debug mode: off
+04-19 08:40...           2025-04-19 01:40:50,157 [INFO] bot: Application created with all handlers registered
+04-19 08:40...           2025-04-19 01:40:50,158 [INFO] health_check: Health check endpoint added to Flask app
+04-19 08:40...           2025-04-19 01:40:50,158 [INFO] __main__: Starting bot using application from bot.py create_application()
+04-19 08:40...           2025-04-19 01:40:50,158 [INFO] bot: Bot handlers group 0 has 15 handler(s)
+04-19 08:40...           2025-04-19 01:40:50,158 [INFO] __main__: - CommandHandler[callback=start_command]
+04-19 08:40...           2025-04-19 01:40:50,158 [INFO] __main__: - CommandHandler[callback=help_command]
+04-19 08:40...           2025-04-19 01:40:50,158 [INFO] __main__: - CommandHandler[callback=info_command]
+04-19 08:40...           2025-04-19 01:40:50,158 [INFO] __main__: - CommandHandler[callback=simulate_command]
+04-19 08:40...           2025-04-19 01:40:50,158 [INFO] __main__: - CommandHandler[callback=subscribe_command]
+04-19 08:40...           2025-04-19 01:40:50,158 [INFO] __main__: - CommandHandler[callback=unsubscribe]
+04-19 08:40...           2025-04-19 01:40:50,158 [INFO] __main__: - CommandHandler[callback=status_command]
+04-19 08:40...           2025-04-19 01:40:50,158 [INFO] __main__: - CommandHandler[callback=verify_command]
+04-19 08:40...           2025-04-19 01:40:50,159 [INFO] __main__: - CommandHandler[callback=wallet_command]
+04-19 08:40...           2025-04-19 01:40:50,159 [INFO] __main__: - CommandHandler[callback=walletconnect_command]
+04-19 08:40...           2025-04-19 01:40:50,159 [INFO] __main__: - CommandHandler[callback=profile_command]
+04-19 08:40...           2025-04-19 01:40:50,159 [INFO] __main__: - CommandHandler[callback=faq_command]
+04-19 08:40...           2025-04-19 01:40:50,159 [INFO] __main__: - CommandHandler[callback=social_command]
+04-19 08:40...           2025-04-19 01:40:50,159 [INFO] __main__: - CallbackQueryHandler[callback=handle_callback_query]
+04-19 08:40...           2025-04-19 01:40:50,159 [INFO] __main__: - MessageHandler[callback=handle_message]
+04-19 08:40...           2025-04-19 01:40:50,160 [INFO] __main__: Starting keep-alive thread
+04-19 08:40...           2025-04-19 01:40:50,160 [INFO] __main__: Running bot polling within Flask app context
+04-19 08:40...           2025-04-19 01:40:50,160 [ERROR] __main__: Error creating or starting Telegram bot: There is no current event loop in thread 'Thread-2 (run_telegram_bot)'
+04-19 08:40...           2025-04-19 01:40:50,165 [WARNING] health_check: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3000): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000000>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:40...           2025-04-19 01:40:50,168 [ERROR] __main__: Traceback (most recent call last):
+
+File "/home/runner/workspace/main.py", line 146, in run_telegram_bot  
+    application.run_polling(allowed_updates=Update.ALL_TYPES)  
+File "/home/runner/workspace/.pythonlibs/packages/telegram/ext/_application.py", line 779, in run_polling  
+    return self.__run()  
+               ^^^^^^^^^  
+File "/home/runner/workspace/.pythonlibs/packages/telegram/ext/_application.py", line 938, in __run  
+    loop = asyncio.get_event_loop()  
+           ^^^^^^^^^^^^^^^^^^^^^^^^  
+File "/nix/store/clx0micr7qw8zk36zbr4jra-python3-3.11.10/lib/python3.11/asyncio/events.py", line 681, in get_event_loop  
+    raise RuntimeError('There is no current event loop in thread %r.' % threading.current_thread().name)  
+RuntimeError: There is no current event loop in thread 'Thread-2 (run_telegram_bot)'
+
+04-19 08:40...           2025-04-19 01:40:50,171 [INFO] werkzeug: WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+04-19 08:40...           * Running on all addresses (0.0.0.0)
+04-19 08:40...           * Running on http://127.0.0.1:5000
+04-19 08:40...           * Running on http://10.0.0.237:5000
+04-19 08:40...           2025-04-19 01:40:50,171 [INFO] werkzeug: Press CTRL+C to quit
+
+/nix/store/clx0micr7qw8zk36zbr4jra7-python3-3.11.10/lib/python3.11/threading.py  
+RuntimeWarning: coroutine 'Updater.start_polling' was never awaited  
+  self._invoke_excepthook(self)  
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+
+04-19 08:41...           2025-04-19 01:40:50,210 [INFO] __main__: Bot process anti-idle: Database ping successful, result=(1,)
+04-19 08:41...           2025-04-19 01:40:50,331 [INFO] __main__: Bot process anti-idle: Updated statistics
+04-19 08:41...           2025-04-19 01:41:20,168 [WARNING] health_check: Keep-alive ping failed:  
+HTTPConnectionPool(host='0.0.0.0', port=3000): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000000>: Failed to establish a new connection: [Errno 111] Connection refused'))
+
+04-19 08:41...           2025-04-19 01:41:48,299 [INFO] app: Anti-idle thread: Database ping successful, result=(1,)
+04-19 08:41...           2025-04-19 01:41:48,426 [INFO] app: Anti-idle thread: Recorded keep-alive activity to prevent timeout
+04-19 08:41...           2025-04-19 01:41:50,172 [WARNING] health_check: Keep-alive ping failed:  
+HTTPConnectionPool(host='0.0.0.0', port=3000): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000000>: Failed to establish a new connection: [Errno 111] Connection refused'))
+
+04-19 08:41...           2025-04-19 01:41:50,420 [INFO] __main__: Bot process anti-idle: Database ping successful, result=(1,)
+04-19 08:41...           2025-04-19 01:41:50,542 [INFO] __main__: Bot process anti-idle: Updated statistics
+04-19 08:42...           2025-04-19 01:42:20,752 [WARNING] health_check: Keep-alive ping failed:  
+HTTPConnectionPool(host='0.0.0.0', port=3000): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000000>: Failed to establish a new connection: [Errno 111] Connection refused'))
+
+04-19 08:42...           2025-04-19 01:42:49,093 [INFO] app: Anti-idle thread: Database ping successful, result=(1,)
+04-19 08:42...           2025-04-19 01:42:49,214 [INFO] app: Anti-idle thread: Recorded keep-alive activity to prevent timeout
+04-19 08:42...           2025-04-19 01:42:50,756 [WARNING] health_check: Keep-alive ping failed:  
+HTTPConnectionPool(host='0.0.0.0', port=3000): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000000>: Failed to establish a new connection: [Errno 111] Connection refused'))
+
+04-19 08:42:51.287 [INFO] domain.antivirus-db-process-idle: Database ping successful, result={}
+04-19 08:42:51.327 [INFO] domain.antivirus-db-process-idle: Updated statistics
+04-19 08:42:51.368 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:42:51.449 [INFO] app-AntIdleThread: Recorded keep-alive activity to prevent timeout
+04-19 08:42:48.426 [INFO] app-AntIdleThread: Recorded keep-alive activity to prevent timeout
+04-19 08:41:50.172 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:41:50.429 [INFO] domain.antivirus-db-process-idle: Database ping successful, result={}
+04-19 08:41:50.542 [INFO] domain.antivirus-db-process-idle: Updated statistics
+04-19 08:42:50.752 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:42:49.893 [INFO] domain.antivirus-db-process-idle: Database ping successful, result={}
+04-19 08:42:49.985 [INFO] app-AntIdleThread: Recorded keep-alive activity to prevent timeout
+04-19 08:42:50.756 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:42:51.227 [INFO] domain.antivirus-db-process-idle: Database ping successful, result={}
+04-19 08:43:20.763 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:43:49.387 [INFO] domain.antivirus-db-process-idle: Database ping successful, result={}
+04-19 08:43:49.431 [INFO] app-AntIdleThread: Recorded keep-alive activity to prevent timeout
+04-19 08:43:50.760 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:43:51.411 [INFO] domain.antivirus-db-process-idle: Database ping successful, result={}
+
+04-19 08:44:20.772 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:44:49.224 [INFO] app-AntIdleThread: Recorded keep-alive activity to prevent timeout
+04-19 08:44:49.643 [INFO] domain.antivirus-db-process-idle: Database ping successful, result={}
+04-19 08:44:50.775 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:44:51.426 [INFO] domain.antivirus-db-process-idle: Database ping successful, result={}
+04-19 08:44:51.747 [INFO] domain.antivirus-db-process-idle: Updated statistics
+04-19 08:45:20.779 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:45:49.341 [INFO] app-AntIdleThread: Recorded keep-alive activity to prevent timeout
+04-19 08:45:50.307 [INFO] app-AntIdleThread: Recorded keep-alive activity to prevent timeout
+04-19 08:45:50.783 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:45:52.436 [INFO] domain.antivirus-db-process-idle: Database ping successful, result={}
+04-19 08:45:52.171 [INFO] domain.antivirus-db-process-idle: Updated statistics
+04-19 08:46:20.788 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:46:50.162 [INFO] app-AntIdleThread: Recorded keep-alive activity to prevent timeout
+04-19 08:46:50.290 [INFO] app-AntIdleThread: Recorded keep-alive activity to prevent timeout
+04-19 08:46:50.790 [WARNING] HealthCheck: Keep-alive ping failed: HTTPConnectionPool(host='0.0.0.0', port=3003): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f934474e110>: Failed to establish a new connection: [Errno 111] Connection refused'))
+04-19 08:46:52.269 [INFO] domain.antivirus-db-process-idle: Database ping successful, result={}
+04-19 08:46:52.403 [INFO] domain.antivirus-db-process-idle: Updated statistics
