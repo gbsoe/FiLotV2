@@ -228,8 +228,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a help message when the command /help is issued."""
     try:
-        user = update.effective_user
-        db_utils.log_user_activity(user.id, "help_command")
+        from app import app
+        with app.app_context():
+            user = update.effective_user
+            db_utils.log_user_activity(user.id, "help_command")
         
         await update.message.reply_markdown(
             "🤖 *FiLot Bot Commands*\n\n"
@@ -665,8 +667,10 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display FAQ information when the command /faq is issued."""
     try:
-        user = update.effective_user
-        db_utils.log_user_activity(user.id, "faq_command")
+        from app import app
+        with app.app_context():
+            user = update.effective_user
+            db_utils.log_user_activity(user.id, "faq_command")
         
         # Format the FAQ content with emojis and clear sections
         faq_text = """
