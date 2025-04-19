@@ -12,6 +12,7 @@ import logging
 import time
 import traceback
 from app import app  # Import the Flask app from app.py
+application = app  # Add WSGI application reference
 
 # Configure logging
 logging.basicConfig(
