@@ -162,6 +162,7 @@ def run_telegram_bot():
         # Function to handle a specific update by determining its type and routing to appropriate handler
         def handle_update(update_dict):
             import asyncio
+            from app import app
             
             try:
                 # Convert the dictionary to a Telegram Update object
@@ -191,25 +192,30 @@ def run_telegram_bot():
                     command = text_parts[0][1:].split('@')[0]  # Remove the '/' and any bot username
                     context.args = text_parts[1:]
                     
-                    # Route to appropriate command handler
-                    if command in command_handlers:
-                        logger.info(f"Calling handler for command: {command}")
-                        handler = command_handlers[command]
-                        loop.run_until_complete(handler(update_obj, context))
-                    else:
-                        logger.info(f"Unknown command: {command}")
+                    # Execute inside the Flask app context
+                    with app.app_context():
+                        # Route to appropriate command handler
+                        if command in command_handlers:
+                            logger.info(f"Calling handler for command: {command}")
+                            handler = command_handlers[command]
+                            loop.run_until_complete(handler(update_obj, context))
+                        else:
+                            logger.info(f"Unknown command: {command}")
                 
                 # Handle callback queries
                 elif update_obj.callback_query:
                     logger.info("Calling callback query handler")
-                    loop.run_until_complete(handle_callback_query(update_obj, context))
+                    with app.app_context():
+                        loop.run_until_complete(handle_callback_query(update_obj, context))
                 
                 # Handle regular messages
                 elif update_obj.message and update_obj.message.text:
                     logger.info("Calling regular message handler")
-                    loop.run_until_complete(handle_message(update_obj, context))
+                    with app.app_context():
+                        loop.run_until_complete(handle_message(update_obj, context))
                 
-                loop.close()
+                # Don't close the loop - this causes issues with PTB's async operations
+                # loop.close()  # <-- Removed this line
                 logger.info(f"Successfully processed update ID: {update_dict.get('update_id')}")
                 
             except Exception as e:
