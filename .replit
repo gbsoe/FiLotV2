@@ -5,7 +5,7 @@ channel = "stable-24_05"
 packages = ["freetype", "lcms2", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "openjpeg", "tcl", "tk", "zlib"]
 
 [deployment]
-deploymentTarget = "autoscale"
+deploymentTarget = "reservedvm"
 run = ["sh", "-c", "python main.py"]
 
 [workflows]
