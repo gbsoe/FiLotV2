@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
@@ -31,45 +30,52 @@ with app.app_context():
 def start_telegram_bot():
     """Start the Telegram bot in a separate thread"""
     logger.info("Starting Telegram bot thread")
-    
+
     # Check for bot token
     token = os.environ.get('TELEGRAM_TOKEN') or os.environ.get('TELEGRAM_BOT_TOKEN')
     if not token:
         logger.error("CRITICAL: No TELEGRAM_TOKEN or TELEGRAM_BOT_TOKEN found in environment!")
         logger.error("Bot cannot start without a token")
         return None
-    
+
     # Log token presence (don't log the actual token!)
     token_start = token[:4] if token else "None"
     logger.info(f"Found Telegram token (starting with {token_start}...)")
-    
+
     def run_bot():
         try:
-            # Import and run the bot application creation function directly
-            logger.info("Creating Telegram bot application directly")
+            import asyncio
+
+            # Create new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            logger.info("Creating Telegram bot application")
             from bot import create_application
-            
+
             # Create the application
             application = create_application()
             if not application:
                 logger.error("Failed to create Telegram bot application")
                 return
-                
+
             logger.info("Telegram bot application created successfully")
-            
+
             # Log handler count
             for group, handlers in application.handlers.items():
                 logger.info(f"Bot handlers group {group} has {len(handlers)} handler(s)")
-            
-            # Start polling for updates - use Flask app context for database operations
+
+            # Start polling for updates with Flask context
             logger.info("Starting bot polling with Flask app context")
-            with app.app_context():  # This is the Flask app context, not Telegram's
-                application.run_polling(allowed_updates=["message", "callback_query"])
-                
+            with app.app_context():
+                loop.run_until_complete(application.initialize())
+                loop.run_until_complete(application.start_polling(allowed_updates=["message", "callback_query"]))
+                loop.run_forever()
+
         except Exception as e:
             logger.error(f"Error starting Telegram bot: {e}")
             logger.error(traceback.format_exc())
-    
+
     # Start the bot in a new thread
     bot_thread = threading.Thread(target=run_bot, name="TelegramBotThread")
     bot_thread.daemon = True  # daemon thread will exit when main thread exits
@@ -81,7 +87,7 @@ def start_telegram_bot():
 def start_anti_idle_thread():
     """Start anti-idle thread"""
     logger.info("Starting anti-idle thread in WSGI app")
-    
+
     def keep_alive():
         logger.info("Anti-idle thread active")
         while True:
@@ -89,11 +95,11 @@ def start_anti_idle_thread():
                 with app.app_context():
                     from sqlalchemy import text
                     from models import db, ErrorLog, BotStatistics
-                    
+
                     # Log health status
                     result = db.session.execute(text("SELECT 1")).fetchone()
                     logger.info(f"WSGI anti-idle: Database ping successful, result={result}")
-                    
+
                     # Create a log entry to show activity
                     log = ErrorLog(
                         error_type="keep_alive_wsgi",
@@ -102,7 +108,7 @@ def start_anti_idle_thread():
                         resolved=True
                     )
                     db.session.add(log)
-                    
+
                     # Update statistics
                     stats = BotStatistics.query.order_by(BotStatistics.id.desc()).first()
                     if stats:
@@ -112,7 +118,7 @@ def start_anti_idle_thread():
             except Exception as e:
                 logger.error(f"WSGI anti-idle error: {e}")
             time.sleep(60)
-    
+
     idle_thread = threading.Thread(target=keep_alive, daemon=True)
     idle_thread.start()
     logger.info("WSGI anti-idle thread started")
