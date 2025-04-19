@@ -345,6 +345,9 @@ async def kill_walletconnect_session(session_id: str) -> Dict[str, Any]:
     Returns:
         Dictionary with operation result
     """
+    # Import app at function level to avoid circular imports
+    from app import app
+    
     # If the database is not available, just return success
     if not PSYCOPG2_AVAILABLE or not DATABASE_URL:
         logger.warning("Database not available for session deletion, skipping")
@@ -355,37 +358,39 @@ async def kill_walletconnect_session(session_id: str) -> Dict[str, Any]:
         }
     
     try:
-        # Skip database check if not available
-        conn = get_db_connection()
-        if not conn:
-            logger.warning("Could not connect to database for session deletion")
-            return {
-                "success": True,
-                "message": "Session considered terminated (database unreachable)",
-                "warning": "Database operations skipped - could not connect"
-            }
-            
-        try:
-            cursor = conn.cursor()
-            
-            # Simple deletion without checking first
-            cursor.execute(
-                "DELETE FROM wallet_sessions WHERE session_id = %s",
-                (session_id,)
-            )
-            
-            cursor.close()
-            conn.close()
-            
-        except Exception as db_error:
-            logger.error(f"Database error while killing session: {db_error}")
-            if conn and conn.closed == 0:
+        # Use app context for database operations
+        with app.app_context():
+            # Skip database check if not available
+            conn = get_db_connection()
+            if not conn:
+                logger.warning("Could not connect to database for session deletion")
+                return {
+                    "success": True,
+                    "message": "Session considered terminated (database unreachable)",
+                    "warning": "Database operations skipped - could not connect"
+                }
+                
+            try:
+                cursor = conn.cursor()
+                
+                # Simple deletion without checking first
+                cursor.execute(
+                    "DELETE FROM wallet_sessions WHERE session_id = %s",
+                    (session_id,)
+                )
+                
+                cursor.close()
                 conn.close()
-            return {
-                "success": True,
-                "message": "Session considered terminated (database error)",
-                "warning": f"Database error: {str(db_error)}"
-            }
+                
+            except Exception as db_error:
+                logger.error(f"Database error while killing session: {db_error}", exc_info=True)
+                if conn and conn.closed == 0:
+                    conn.close()
+                return {
+                    "success": True,
+                    "message": "Session considered terminated (database error)",
+                    "warning": f"Database error: {str(db_error)}"
+                }
         
         return {
             "success": True,
@@ -393,7 +398,7 @@ async def kill_walletconnect_session(session_id: str) -> Dict[str, Any]:
         }
         
     except Exception as e:
-        logger.error(f"Error killing WalletConnect session: {e}")
+        logger.error(f"Error killing WalletConnect session: {e}", exc_info=True)
         return {
             "success": True,  # Return success anyway to avoid blocking the UI
             "message": "Session considered terminated (error occurred)",
@@ -410,6 +415,9 @@ async def get_user_walletconnect_sessions(telegram_user_id: int) -> Dict[str, An
     Returns:
         Dictionary with list of sessions
     """
+    # Import app at function level to avoid circular imports
+    from app import app
+    
     # If database not available, return empty list
     if not PSYCOPG2_AVAILABLE or not DATABASE_URL:
         logger.warning("Database not available for getting user sessions, returning empty list")
@@ -421,61 +429,63 @@ async def get_user_walletconnect_sessions(telegram_user_id: int) -> Dict[str, An
         }
     
     try:
-        conn = get_db_connection()
-        if not conn:
-            logger.warning("Could not connect to database for getting user sessions")
-            return {
-                "success": True,
-                "telegram_user_id": telegram_user_id,
-                "sessions": [],
-                "warning": "Database connection failed - cannot retrieve sessions"
-            }
-            
-        try:
-            cursor = conn.cursor()
-            
-            cursor.execute(
-                """
-                SELECT session_id, session_data, status, created_at 
-                FROM wallet_sessions 
-                WHERE telegram_user_id = %s
-                ORDER BY created_at DESC
-                """,
-                (telegram_user_id,)
-            )
-            
-            sessions = []
-            for row in cursor.fetchall():
-                session_id, session_data, status, created_at = row
-                sessions.append({
-                    "session_id": session_id,
-                    "status": status,
-                    "created_at": created_at.isoformat() if created_at else None,
-                    "uri": session_data.get("uri", "") if session_data else "",
-                })
-            
-            cursor.close()
-            conn.close()
-            
-            return {
-                "success": True,
-                "telegram_user_id": telegram_user_id,
-                "sessions": sessions
-            }
-            
-        except Exception as db_error:
-            logger.error(f"Database error while getting user sessions: {db_error}")
-            if conn and conn.closed == 0:
+        # Use app context for database operations
+        with app.app_context():
+            conn = get_db_connection()
+            if not conn:
+                logger.warning("Could not connect to database for getting user sessions")
+                return {
+                    "success": True,
+                    "telegram_user_id": telegram_user_id,
+                    "sessions": [],
+                    "warning": "Database connection failed - cannot retrieve sessions"
+                }
+                
+            try:
+                cursor = conn.cursor()
+                
+                cursor.execute(
+                    """
+                    SELECT session_id, session_data, status, created_at 
+                    FROM wallet_sessions 
+                    WHERE telegram_user_id = %s
+                    ORDER BY created_at DESC
+                    """,
+                    (telegram_user_id,)
+                )
+                
+                sessions = []
+                for row in cursor.fetchall():
+                    session_id, session_data, status, created_at = row
+                    sessions.append({
+                        "session_id": session_id,
+                        "status": status,
+                        "created_at": created_at.isoformat() if created_at else None,
+                        "uri": session_data.get("uri", "") if session_data else "",
+                    })
+                
+                cursor.close()
                 conn.close()
-            return {
-                "success": True,
-                "telegram_user_id": telegram_user_id,
-                "sessions": [],
-                "warning": f"Database error: {str(db_error)}"
-            }
+                
+                return {
+                    "success": True,
+                    "telegram_user_id": telegram_user_id,
+                    "sessions": sessions
+                }
+                
+            except Exception as db_error:
+                logger.error(f"Database error while getting user sessions: {db_error}", exc_info=True)
+                if conn and conn.closed == 0:
+                    conn.close()
+                return {
+                    "success": True,
+                    "telegram_user_id": telegram_user_id,
+                    "sessions": [],
+                    "warning": f"Database error: {str(db_error)}"
+                }
             
     except Exception as e:
-        logger.error(f"Error getting user WalletConnect sessions: {e}")
+        logger.error(f"Error getting user WalletConnect sessions: {e}", exc_info=True)
         return {
             "success": True,  # Return success with empty list to avoid blocking the UI
             "telegram_user_id": telegram_user_id,

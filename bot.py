@@ -259,8 +259,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show information about cryptocurrency pools when the command /info is issued."""
     try:
+        # Import app at function level to avoid circular imports
+        from app import app
+        
+        # Get user info before entering app context
         user = update.effective_user
-        db_utils.log_user_activity(user.id, "info_command")
+        
+        # Use app context for database operations
+        with app.app_context():
+            # Log the activity inside app context
+            db_utils.log_user_activity(user.id, "info_command")
         
         # Determine whether this is a direct command or a callback query
         is_callback = update.callback_query is not None
@@ -296,7 +304,7 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await message.reply_text(formatted_info)
         logger.info("Sent pool info response")
     except Exception as e:
-        logger.error(f"Error in info command: {e}, type: {type(e)}")
+        logger.error(f"Error in info command: {e}", exc_info=True)
         
         # Handle errors for both command types
         try:
@@ -314,8 +322,16 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Simulate investment returns when the command /simulate is issued."""
     try:
+        # Import app at function level to avoid circular imports
+        from app import app
+        
+        # Get user info before entering app context
         user = update.effective_user
-        db_utils.log_user_activity(user.id, "simulate_command")
+        
+        # Use app context for database operations
+        with app.app_context():
+            # Log the activity inside app context
+            db_utils.log_user_activity(user.id, "simulate_command")
         
         # Set default amount to 1000 if not provided
         amount = 1000.0
@@ -362,7 +378,7 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text(formatted_simulation, reply_markup=reply_markup)
         logger.info(f"Sent simulation response for amount ${amount:.2f}")
     except Exception as e:
-        logger.error(f"Error in simulate command: {e}")
+        logger.error(f"Error in simulate command: {e}", exc_info=True)
         await update.message.reply_text(
             "Sorry, an error occurred while processing your request. Please try again later."
         )
@@ -1282,12 +1298,16 @@ async def send_daily_updates() -> None:
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle callback queries from inline keyboards."""
     try:
+        # Import app at function level to avoid circular imports
+        from app import app
+        
         query = update.callback_query
         user = query.from_user
         callback_data = query.data
         
-        # Log user activity
-        db_utils.log_user_activity(user.id, f"callback_{callback_data}")
+        # Log user activity within app context
+        with app.app_context():
+            db_utils.log_user_activity(user.id, f"callback_{callback_data}")
         
         # Acknowledge the callback query
         await query.answer()
@@ -1323,14 +1343,16 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                 
                 # Update the session status in the database
                 if status != session_info["status"]:
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        "UPDATE wallet_sessions SET status = %s WHERE session_id = %s",
-                        (status, session_id)
-                    )
-                    cursor.close()
-                    conn.close()
+                    # Use app context for database operations
+                    with app.app_context():
+                        conn = get_db_connection()
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "UPDATE wallet_sessions SET status = %s WHERE session_id = %s",
+                            (status, session_id)
+                        )
+                        cursor.close()
+                        conn.close()
                 
                 if status == "connected":
                     try:
