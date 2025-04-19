@@ -153,12 +153,22 @@ def run_telegram_bot():
 
 def main() -> None:
     """
-    Main function to start the Telegram bot only.
-    We assume Flask is already running via gunicorn.
+    Main function to start both the Flask app and Telegram bot.
     """
     try:
-        # Run the Telegram bot directly (not in a thread)
-        run_telegram_bot()
+        if os.environ.get('PRODUCTION') == 'true':
+            # In production, run only the bot since Flask runs via gunicorn
+            run_telegram_bot()
+        else:
+            # In development, run both Flask and bot
+            from threading import Thread
+            bot_thread = Thread(target=run_telegram_bot)
+            bot_thread.daemon = True
+            bot_thread.start()
+            
+            # Run Flask app
+            app.run(host='0.0.0.0', port=5000)
+            
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:

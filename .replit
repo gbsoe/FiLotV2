@@ -6,10 +6,10 @@ packages = ["freetype", "lcms2", "libimagequant", "libjpeg", "libtiff", "libwebp
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
+run = ["sh", "-c", "python main.py"]
 
 [workflows]
-runButton = "Run Telegram Bot"
+runButton = "Production Server"
 
 [[workflows.workflow]]
 name = "Project"
@@ -58,6 +58,19 @@ args = "python main.py"
 name = "Run Telegram Bot"
 author = 40935428
 mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
+
+[[workflows.workflow]]
+name = "Production Server"
+author = 40935428
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "export PRODUCTION=true"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
