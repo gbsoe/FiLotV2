@@ -11,6 +11,7 @@ import threading
 import logging
 import time
 import traceback
+import signal
 from app import app  # Import the Flask app from app.py
 application = app  # Add WSGI application reference
 
@@ -21,11 +22,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize or verify database tables
-with app.app_context():
-    from models import db
-    db.create_all()
-    logger.info("Database tables created or verified successfully")
+# Global variable for the bot thread
+bot_thread = None
+
+def cleanup_handler(signum, frame):
+    """Handle cleanup when receiving shutdown signal"""
+    logger.info("Received shutdown signal, cleaning up...")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, cleanup_handler)
 
 def start_telegram_bot():
     """Start the Telegram bot in a separate thread"""
@@ -45,43 +50,45 @@ def start_telegram_bot():
     def run_bot():
         try:
             import asyncio
+            from bot import create_application
 
             # Create new event loop for this thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
             logger.info("Creating Telegram bot application")
-            from bot import create_application
-
-            # Create the application
             application = create_application()
+
             if not application:
                 logger.error("Failed to create Telegram bot application")
                 return
 
-            logger.info("Telegram bot application created successfully")
-
-            # Log handler count
-            for group, handlers in application.handlers.items():
-                logger.info(f"Bot handlers group {group} has {len(handlers)} handler(s)")
-
-            # Start polling for updates with Flask context
-            logger.info("Starting bot polling with Flask app context")
+            # Start polling with Flask context
+            logger.info("Starting bot polling with Flask context")
             with app.app_context():
                 loop.run_until_complete(application.initialize())
-                loop.run_until_complete(application.updater.start_polling(allowed_updates=["message", "callback_query"]))
-                loop.run_forever()
+                loop.run_until_complete(application.run_polling())
 
         except Exception as e:
             logger.error(f"Error starting Telegram bot: {e}")
             logger.error(traceback.format_exc())
 
-    # Start the bot in a new thread
-    bot_thread = threading.Thread(target=run_bot, name="TelegramBotThread")
-    bot_thread.daemon = True  # daemon thread will exit when main thread exits
-    bot_thread.start()
-    logger.info(f"Telegram bot thread started with ID {bot_thread.ident}")
+    global bot_thread
+    if bot_thread is None or not bot_thread.is_alive():
+        bot_thread = threading.Thread(target=run_bot, name="TelegramBotThread")
+        bot_thread.daemon = True
+        bot_thread.start()
+        logger.info(f"Telegram bot thread started with ID {bot_thread.ident}")
+    else:
+        logger.info("Bot thread already running")
+
     return bot_thread
+
+# Initialize or verify database tables
+with app.app_context():
+    from models import db
+    db.create_all()
+    logger.info("Database tables created or verified successfully")
 
 # Anti-idle thread to keep the application alive
 def start_anti_idle_thread():
@@ -130,11 +137,7 @@ anti_idle_thread = start_anti_idle_thread()
 # Start the Telegram bot when the WSGI app starts
 if 'TELEGRAM_TOKEN' in os.environ or 'TELEGRAM_BOT_TOKEN' in os.environ:
     try:
-        bot_thread = start_telegram_bot()
-        if bot_thread:
-            logger.info("Telegram bot thread started successfully")
-        else:
-            logger.error("Failed to start Telegram bot thread")
+        start_telegram_bot()
     except Exception as e:
         logger.error(f"Exception starting Telegram bot: {e}")
         logger.error(traceback.format_exc())
@@ -146,4 +149,4 @@ application = app
 
 # If run directly, start the development server
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)
