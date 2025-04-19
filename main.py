@@ -528,15 +528,43 @@ def run_telegram_bot():
                                     import asyncio
 
                                     # Create and manage our own event loop for this thread
+                                    # Use a new event loop for each request to avoid conflicts
                                     loop = asyncio.new_event_loop()
                                     asyncio.set_event_loop(loop)
 
                                     try:
                                         # Get the handler
                                         handler = command_handlers[command]
-
-                                        # Run the handler in this thread's event loop
-                                        loop.run_until_complete(handler(update_obj, context))
+                                        
+                                        # Special handling for known problematic commands
+                                        if command in ["status", "subscribe", "unsubscribe", "social", "profile", "wallet", "faq"]:
+                                            logger.info(f"Special handling for command: {command}")
+                                            # We need to create a completely isolated task
+                                            response_text = None
+                                            
+                                            # Define a task that can run in isolation
+                                            async def run_handler():
+                                                try:
+                                                    # App context is needed for database operations
+                                                    with app.app_context():
+                                                        await handler(update_obj, context)
+                                                    return True
+                                                except Exception as e:
+                                                    logger.error(f"Error in {command} handler task: {e}")
+                                                    logger.error(traceback.format_exc())
+                                                    return False
+                                            
+                                            # Run the task in this event loop
+                                            success = loop.run_until_complete(run_handler())
+                                            
+                                            if not success:
+                                                send_response(
+                                                    chat_id,
+                                                    f"Sorry, an error occurred while processing your {command} request. Please try again later."
+                                                )
+                                        else:
+                                            # Standard handling for other commands
+                                            loop.run_until_complete(handler(update_obj, context))
                                     except Exception as handler_error:
                                         logger.error(f"Error running handler {command}: {handler_error}")
                                         logger.error(traceback.format_exc())
@@ -548,9 +576,12 @@ def run_telegram_bot():
                                         # Clean up the loop 
                                         try:
                                             pending = asyncio.all_tasks(loop)
-                                            loop.run_until_complete(asyncio.gather(*pending))
-                                        except Exception:
-                                            pass
+                                            if pending:
+                                                loop.run_until_complete(asyncio.gather(*pending))
+                                        except Exception as e:
+                                            logger.error(f"Error cleaning up asyncio tasks: {e}")
+                                        finally:
+                                            loop.close()
                             else:
                                 logger.info(f"Unknown command: {command}")
                                 send_response(
@@ -797,8 +828,22 @@ def run_telegram_bot():
                     if last_update_id > 0:
                         params["offset"] = last_update_id + 1
 
-                    # Make the API call
+                    # First, try to delete webhook (if any)
+                    try:
+                        logger.info("Attempting to delete any existing webhook")
+                        delete_webhook_resp = requests.get(f"{base_url}/deleteWebhook?drop_pending_updates=true")
+                        if delete_webhook_resp.status_code == 200:
+                            webhook_result = delete_webhook_resp.json()
+                            logger.info(f"Webhook deletion result: {webhook_result}")
+                        else:
+                            logger.warning(f"Failed to delete webhook: {delete_webhook_resp.status_code} - {delete_webhook_resp.text}")
+                    except Exception as e:
+                        logger.error(f"Error deleting webhook: {e}")
+                    
+                    # Make the API call with exponential backoff
                     logger.info(f"Requesting updates from Telegram API...")
+                    # Add unique parameter to avoid conflicts with other instances
+                    params["allowed_updates"] = json.dumps(["message", "callback_query", "edited_message"])
                     response = requests.get(f"{base_url}/getUpdates", params=params, timeout=60)
 
                     # Process the response if successful
