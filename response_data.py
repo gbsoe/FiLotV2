@@ -53,19 +53,21 @@ def get_pool_data():
     Falls back to default data if the API is not accessible.
     """
     try:
-        import requests
-
-        # Set API endpoint URL 
-        api_url = "https://raydium-trader-filot.replit.app/pools"
-
+        from raydium_client import get_client
+        
+        # Get the Raydium client instance
+        client = get_client()
+        
         # Try to fetch data from the API
-        logger.info(f"Fetching pool data from Raydium API service")
-        response = requests.get(api_url, timeout=10)
-
-        # Check if response was successful
-        if response.status_code == 200:
-            data = response.json()
-            pools_data = data.get('pools', {})
+        logger.info("Fetching pool data from Raydium API service")
+        pools_data = client.get_pools()
+        
+        # Restructure the data to match expected format
+        data = {
+            'pools': pools_data,
+            'topAPR': pools_data.get('bestPerformance', []),
+            'topStable': pools_data.get('topStable', [])
+        }
 
             # Fetch real token prices from CoinGecko
             token_symbols = set()
