@@ -75,35 +75,29 @@ def format_pool_info(pools: List[Dict[str, Any]], stable_pools: Optional[List[Di
             if any(stable in pair_name for stable in stable_tokens):
                 stable_pools.append(pool)
 
-    # Exactly 2 pools for Best Performing Investments Today:
+    # Always use the provided pools (should be 2 best performance pools):
     # 1. Highest 24h APR
     # 2. Highest TVL
     try:
-        pools_by_apr = sorted(pools, key=lambda p: float(get_value(p, 'apr_24h')), reverse=True)
-        pools_by_tvl = sorted(pools, key=lambda p: float(get_value(p, 'tvl')), reverse=True)
-        
-        top_apr_pool = pools_by_apr[0] if pools_by_apr else None
-        top_tvl_pool = pools_by_tvl[0] if pools_by_tvl else None
-        
-        # Make sure we have 2 different pools (if possible)
-        top_pools = []
-        if top_apr_pool:
-            top_pools.append(top_apr_pool)
-        if top_tvl_pool and get_value(top_tvl_pool, 'id') != get_value(top_apr_pool, 'id'):
-            top_pools.append(top_tvl_pool)
-        elif len(pools_by_apr) > 1:
-            # If top APR and TVL are the same pool, get the second highest APR
-            top_pools.append(pools_by_apr[1])
+        # Make sure we have exactly 2 different pools for the best performing section
+        if len(pools) > 2:
+            # If there are more than 2 pools, pick the 2 with highest APR
+            top_pools = sorted(pools, key=lambda p: float(get_value(p, 'apr_24h')), reverse=True)[:2]
+        else:
+            # Otherwise use all provided pools
+            top_pools = pools
     except (ValueError, IndexError):
         # Fallback if sorting fails
         top_pools = pools[:2] if len(pools) >= 2 else pools
 
-    # Sort stable pools by APR and take top 3
+    # Always use all provided stable pools (should be 3 stable pools)
     try:
-        stable_pools = sorted(stable_pools, key=lambda p: float(get_value(p, 'apr_24h')), reverse=True)[:3]
+        # Sort stable pools by APR 
+        if stable_pools:
+            stable_pools = sorted(stable_pools, key=lambda p: float(get_value(p, 'apr_24h')), reverse=True)
     except ValueError:
-        # Fallback if sorting fails
-        stable_pools = stable_pools[:3] if len(stable_pools) >= 3 else stable_pools
+        # Fallback if sorting fails - just use the provided stable pools
+        pass
 
     # Header
     result = "📈 Latest Crypto Investment Update:\n\n"
@@ -230,11 +224,11 @@ def format_simulation_results(pools: List[Dict[str, Any]], amount: float) -> str
         # Sort pools by APR (24h) for better display
         sorted_pools = sorted(pools, key=lambda p: float(get_value(p, 'apr_24h')), reverse=True)
 
-        # Limit to top 3 pools to avoid overly long messages
-        display_pools = sorted_pools[:3]
+        # Use all pools provided for simulation (should be 2 best performance pools)
+        display_pools = sorted_pools
     except (ValueError, TypeError):
         # Fallback if sorting fails
-        display_pools = pools[:3] if len(pools) >= 3 else pools
+        display_pools = pools
 
     if not display_pools:
         return "No pools available for simulation. Please try again later."

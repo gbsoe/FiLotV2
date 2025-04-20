@@ -289,9 +289,10 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         # Get predefined pool data directly as dictionaries
         predefined_data = get_predefined_pool_data()
         
-        # Process top APR and stable pools from the predefined data
-        top_pools = predefined_data.get('topAPR', [])
-        stable_pools = predefined_data.get('topStable', [])
+        # Process top performing pools and stable pools from the predefined data
+        # These should be 2 best performance pools and 3 stable pools
+        top_pools = predefined_data.get('bestPerformance', [])  # Get 2 best performance pools
+        stable_pools = predefined_data.get('topStable', [])    # Get all 3 stable pools
         
         if not top_pools:
             await message.reply_text(
@@ -357,8 +358,9 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         # Get predefined pool data directly as dictionaries
         predefined_data = get_predefined_pool_data()
         
-        # Process top APR pools from the predefined data
-        pool_list = predefined_data.get('topAPR', [])
+        # Process top APR pools from the predefined data (bestPerformance = topAPR)
+        # These should be the 2 highest-performing pools
+        pool_list = predefined_data.get('bestPerformance', [])
         
         if not pool_list:
             await update.message.reply_text(
@@ -366,7 +368,7 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             )
             return
             
-        # For simulation, we only need the top performing pools
+        # For simulation, we use the top performing pools (2 pools)
         formatted_simulation = format_simulation_results(pool_list, amount)
         
         # Add wallet connection options - both direct and WalletConnect
