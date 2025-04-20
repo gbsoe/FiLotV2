@@ -49,53 +49,214 @@ TVL_RANGES = {
 
 def get_pool_data():
     """
-    Return pool data for the bot from the local Raydium API service.
+    Return pool data for the bot from the Raydium API service.
     Falls back to default data if the API is not accessible.
     """
     try:
+        # Using the external Raydium API service at https://raydium-trader-filot.replit.app/
         import requests
-
-        # Set API endpoint URL 
+        
+        # Set API endpoint URL
         api_url = "https://raydium-trader-filot.replit.app/pools"
-
+        
         # Try to fetch data from the API
-        logger.info(f"Fetching pool data from Raydium API service")
+        logger.info(f"Fetching pool data from Raydium API service at {api_url}")
         response = requests.get(api_url, timeout=10)
-
+        
         # Check if response was successful
         if response.status_code == 200:
-            data = response.json()
-            pools_data = data.get('pools', {})
-
-            # Fetch real token prices from CoinGecko
+            pools_data = response.json()
+            logger.info(f"Successfully retrieved data from Raydium API service: {len(pools_data.get('topAPR', []))} top APR pools")
+            
+            # Fetch real token prices from CoinGecko to supplement the API data
             token_symbols = set()
-            for pool in pools_data.get('bestPerformance', []):
+            for pool in pools_data.get('topAPR', []):
                 pair_name = pool.get('pairName', '')
                 if '/' in pair_name:
                     token_a, token_b = pair_name.split('/')
                     token_symbols.add(token_a)
                     token_symbols.add(token_b)
-
+            
             # Get token prices from CoinGecko
             token_prices = coingecko_utils.get_multiple_token_prices(list(token_symbols))
             logger.info(f"Fetched token prices: {token_prices}")
-
-            # Update pool data with actual token prices
-            for pool in pools_data.get('bestPerformance', []):
-                pair_name = pool.get('pairName', '')
-                if '/' in pair_name:
-                    token_a, token_b = pair_name.split('/')
-                    pool['tokenPrices'] = {
-                        token_a: token_prices.get(token_a, 0),
-                        token_b: token_prices.get(token_b, 0)
-                    }
-
-            logger.info(f"Successfully retrieved data: {len(pools_data.get('bestPerformance', []))} best performance pools")
-            return pools_data
-
+            
+            # Update pool data with actual token prices if they're not already included
+            for pool in pools_data.get('topAPR', []):
+                if 'tokenPrices' not in pool:
+                    pair_name = pool.get('pairName', '')
+                    if '/' in pair_name:
+                        token_a, token_b = pair_name.split('/')
+                        pool['tokenPrices'] = {
+                            token_a: token_prices.get(token_a, 0),
+                            token_b: token_prices.get(token_b, 0)
+                        }
+            
+            if pools_data.get('topAPR', []):
+                return pools_data
+            else:
+                logger.warning("API returned empty pool data, using fallback")
+                raise ValueError("Empty pool data from API")
+        else:
+            logger.error(f"Failed to fetch pool data from API: HTTP {response.status_code}")
+            raise ValueError(f"API returned status code {response.status_code}")
+            
     except Exception as e:
-        logger.error(f"Error fetching pool data: {e}")
-        return {"bestPerformance": [], "topStable": []}
+        logger.error(f"Error fetching pool data from Raydium API service: {e}")
+        
+        # Fallback to using CoinGecko prices with predefined pool structure
+        try:
+            # Get all unique token symbols from pool pairs
+            token_symbols = set()
+            for token_a, token_b in POOL_TOKEN_PAIRS.values():
+                token_symbols.add(token_a)
+                token_symbols.add(token_b)
+            
+            # Fetch real token prices from CoinGecko
+            token_prices = coingecko_utils.get_multiple_token_prices(list(token_symbols))
+            logger.info(f"Fetched token prices for fallback: {token_prices}")
+            
+            # Use default price if CoinGecko price not available
+            default_prices = {
+                "SOL": 125.0,
+                "ETH": 3000.0,
+                "RAY": 0.75,
+                "USDC": 1.0,
+                "USDT": 1.0,
+                "BTC": 65000.0
+            }
+            
+            # Combine real prices with defaults for missing tokens
+            for symbol, price in default_prices.items():
+                if symbol not in token_prices:
+                    token_prices[symbol] = price
+            
+            # Return simplified fallback data with real token prices
+            default_data = {
+                "topAPR": [
+                    {
+                        "id": "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv",
+                        "pairName": "SOL/USDC",
+                        "apr": 134.0,
+                        "aprWeekly": 68.5,
+                        "aprMonthly": 95.7,
+                        "liquidity": 9051107.35,
+                        "fee": 0.0025,
+                        "volume24h": 2500000,
+                        "txCount": 5000,
+                        "tokenPrices": {
+                            "SOL": token_prices.get("SOL", default_prices["SOL"]),
+                            "USDC": token_prices.get("USDC", default_prices["USDC"])
+                        }
+                    },
+                    {
+                        "id": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
+                        "pairName": "SOL/RAY",
+                        "apr": 95.5,
+                        "aprWeekly": 48.2,
+                        "aprMonthly": 68.9,
+                        "liquidity": 3542987.62,
+                        "fee": 0.0025,
+                        "volume24h": 987654,
+                        "txCount": 2500,
+                        "tokenPrices": {
+                            "SOL": token_prices.get("SOL", default_prices["SOL"]),
+                            "RAY": token_prices.get("RAY", default_prices["RAY"])
+                        }
+                    },
+                    {
+                        "id": "CYbD9RaToYMtWKA7QZyoLahnHdWq553Vm62Lh6qWtuxq",
+                        "pairName": "SOL/USDC",
+                        "apr": 31.65,
+                        "aprWeekly": 30.8,
+                        "aprMonthly": 31.2,
+                        "liquidity": 6254321.75,
+                        "fee": 0.0025,
+                        "volume24h": 1245678,
+                        "txCount": 3256,
+                        "tokenPrices": {
+                            "SOL": token_prices.get("SOL", default_prices["SOL"]),
+                            "USDC": token_prices.get("USDC", default_prices["USDC"])
+                        }
+                    }
+                ],
+                "mandatory": [
+                    {
+                        "id": "eth_usdc_pool",
+                        "pairName": "ETH/USDC",
+                        "apr": 8.6,
+                        "aprWeekly": 8.2,
+                        "aprMonthly": 7.9,
+                        "liquidity": 7654321,
+                        "fee": 0.0020,
+                        "volume24h": 2345678,
+                        "txCount": 3987,
+                        "tokenPrices": {
+                            "ETH": token_prices.get("ETH", default_prices["ETH"]),
+                            "USDC": token_prices.get("USDC", default_prices["USDC"])
+                        }
+                    }
+                ]
+            }
+            
+            logger.info("Using fallback pool data with real token prices")
+            return default_data
+            
+        except Exception as fallback_error:
+            logger.error(f"Error generating fallback pool data: {fallback_error}")
+            
+            # Ultimate fallback with hardcoded values
+            logger.info("Using ultimate fallback data with hardcoded values")
+            return {
+                "topAPR": [
+                    {
+                        "id": "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv",
+                        "pairName": "SOL/USDC",
+                        "apr": 134.0,
+                        "aprWeekly": 68.5,
+                        "aprMonthly": 95.7,
+                        "liquidity": 9051107.35,
+                        "fee": 0.0025,
+                        "volume24h": 2500000,
+                        "txCount": 5000,
+                        "tokenPrices": {
+                            "SOL": 131.7,
+                            "USDC": 1.00
+                        }
+                    },
+                    {
+                        "id": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
+                        "pairName": "SOL/RAY",
+                        "apr": 95.5,
+                        "aprWeekly": 48.2,
+                        "aprMonthly": 68.9,
+                        "liquidity": 3542987.62,
+                        "fee": 0.0025,
+                        "volume24h": 987654,
+                        "txCount": 2500,
+                        "tokenPrices": {
+                            "SOL": 131.7,
+                            "RAY": 0.75
+                        }
+                    },
+                    {
+                        "id": "CYbD9RaToYMtWKA7QZyoLahnHdWq553Vm62Lh6qWtuxq",
+                        "pairName": "SOL/USDC",
+                        "apr": 31.65,
+                        "aprWeekly": 30.8,
+                        "aprMonthly": 31.2,
+                        "liquidity": 6254321.75,
+                        "fee": 0.0025,
+                        "volume24h": 1245678,
+                        "txCount": 3256,
+                        "tokenPrices": {
+                            "SOL": 131.7,
+                            "USDC": 1.00
+                        }
+                    }
+                ],
+                "mandatory": []
+            }
 
 def get_predefined_responses():
     """
@@ -206,26 +367,26 @@ def get_legacy_responses():
 def get_predefined_response(query: str) -> Optional[str]:
     """
     Get a predefined response for a query.
-
+    
     Args:
         query: User's query text
-
+        
     Returns:
         Predefined response or None if no match is found
     """
     if not query:
         return None
-
+        
     query_lower = query.lower().strip()
-
+    
     # Log the query for debugging
     import logging
     logger = logging.getLogger("question_detector")
     logger.info(f"Processing potential question: '{query_lower}'")
-
+    
     # Get all responses
     responses = get_predefined_responses()
-
+    
     # Define variations for each canonical query (extended with more variations)
     variations = {
         "what is filot": [
@@ -273,7 +434,7 @@ def get_predefined_response(query: str) -> Optional[str]:
             "investor profiles", "risk tolerance", "risk settings"
         ]
     }
-
+    
     # Check for single-word queries using key terms (extended)
     key_terms = {
         'la': 'what is la token',
@@ -336,26 +497,26 @@ def get_predefined_response(query: str) -> Optional[str]:
         if all(keyword in query_lower for keyword in keywords):
             logger.info(f"Matched keyword combination: {keywords} → {response_key}")
             return responses.get(response_key)
-
+    
     # Word similarity check (for typos and slight variations)
     import difflib
-
+    
     # Create a flat list of all variations
     all_variations = []
     for canonical, variants in variations.items():
         for variant in variants:
             all_variations.append((variant, canonical))
-
+    
     # Find closest matching variation using sequence matcher
     best_match = None
     best_ratio = 0.8  # Minimum threshold for a match
-
+    
     for variant, canonical in all_variations:
         ratio = difflib.SequenceMatcher(None, query_lower, variant).ratio()
         if ratio > best_ratio:
             best_ratio = ratio
             best_match = canonical
-
+    
     if best_match:
         logger.info(f"Matched by similarity ({best_ratio:.2f}): '{query_lower}' → {best_match}")
         return responses.get(best_match)
