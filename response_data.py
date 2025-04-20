@@ -96,12 +96,17 @@ def get_pool_data():
                     "volume24h": "123456.78",
                     "volume7d": "7654321.09"
                 }
-            ]
+            ],
+            # Add topAPR as an alias to bestPerformance for backward compatibility
+            "topAPR": []
         }
+        
+        # Copy bestPerformance pools to topAPR for backward compatibility
+        pools_data["topAPR"] = pools_data["bestPerformance"]
 
         # Get token prices from CoinGecko for the tokens in our pools
         token_symbols = set()
-        for pool in pools_data["bestPerformance"] + pools_data["topStable"]:
+        for pool in pools_data["bestPerformance"] + pools_data["topStable"] + pools_data["topAPR"]:
             if "/" in pool["pairName"]:
                 token_a, token_b = pool["pairName"].split("/")
                 token_symbols.add(token_a)
@@ -111,8 +116,8 @@ def get_pool_data():
         token_prices = coingecko_utils.get_multiple_token_prices(list(token_symbols))
         logger.info(f"Fetched token prices: {token_prices}")
 
-        # Update pool data with token prices
-        for pool in pools_data["bestPerformance"] + pools_data["topStable"]:
+        # Update pool data with token prices for all arrays
+        for pool in pools_data["bestPerformance"] + pools_data["topStable"] + pools_data["topAPR"]:
             if "/" in pool["pairName"]:
                 token_a, token_b = pool["pairName"].split("/")
                 pool["tokenPrices"] = {
@@ -122,7 +127,12 @@ def get_pool_data():
         return pools_data
     except Exception as e:
         logger.error(f"Error fetching pool data: {e}")
-        return {"bestPerformance": [], "topStable": []}
+        # Return empty data structure with all necessary keys for backward compatibility
+        return {
+            "bestPerformance": [], 
+            "topStable": [],
+            "topAPR": []
+        }
 
 def get_predefined_responses():
     """
