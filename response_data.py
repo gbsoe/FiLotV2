@@ -49,7 +49,7 @@ TVL_RANGES = {
 
 def get_pool_data():
     """
-    Return pool data for the bot from the local Raydium API service.
+    Return pool data for the bot from the Raydium API service.
     Falls back to default data if the API is not accessible.
     """
     try:

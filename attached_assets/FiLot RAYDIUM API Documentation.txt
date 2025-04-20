@@ -1,0 +1,246 @@
+# Raydium API Service Documentation
+
+## Overview
+The Raydium API Service provides access to Solana liquidity pools data through Raydium SDK. This service is deployed at: https://raydium-trader-filot.replit.app
+
+## Authentication
+All API endpoints require authentication using an API key header.
+
+```http
+x-api-key: your_api_key_here
+```
+
+## Base URL
+```
+https://raydium-trader-filot.replit.app
+```
+
+## Rate Limiting
+The API implements rate limiting to prevent abuse. If you exceed the rate limit, you'll receive a 429 (Too Many Requests) response.
+
+## Endpoints
+
+### 1. Health Check
+Check if the API service is running properly.
+
+**Endpoint:** `GET /health`
+
+**Response Example:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-20T12:00:00Z"
+}
+```
+
+### 2. Get All Pools
+Retrieve all categorized liquidity pools.
+
+**Endpoint:** `GET /pools`
+
+**Response Example:**
+```json
+{
+  "pools": {
+    "bestPerformance": [
+      {
+        "id": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+        "tokenPair": "SOL/USDC",
+        "baseMint": "So11111111111111111111111111111111111111112",
+        "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "apr24h": "52.45",
+        "apr7d": "48.32",
+        "apr30d": "45.67",
+        "liquidityUsd": "1750000.00",
+        "price": "103.25"
+      }
+    ],
+    "topStable": [
+      // Similar structure to bestPerformance pools
+    ]
+  }
+}
+```
+
+### 3. Filter Pools
+Filter pools based on various criteria.
+
+**Endpoint:** `GET /pools/filter`
+
+**Query Parameters:**
+- `tokenSymbol` (string): Filter by token symbol (e.g., "SOL")
+- `minApr` (number): Minimum APR threshold
+- `maxApr` (number): Maximum APR threshold
+- `limit` (number, default: 10): Maximum number of results
+
+**Example Request:**
+```bash
+curl -H "x-api-key: your_api_key" "https://raydium-trader-filot.replit.app/pools/filter?tokenSymbol=SOL&minApr=20&limit=5"
+```
+
+**Response Example:**
+```json
+{
+  "count": 2,
+  "pools": [
+    {
+      "id": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+      "tokenPair": "SOL/USDC",
+      "apr24h": "52.45",
+      "liquidityUsd": "1750000.00",
+      "price": "103.25"
+    }
+  ]
+}
+```
+
+### 4. Cache Management
+
+#### Get Cache Statistics
+**Endpoint:** `GET /cache/stats`
+
+**Response Example:**
+```json
+{
+  "hits": 150,
+  "misses": 23,
+  "keys": 15,
+  "ksize": 450,
+  "vsize": 1024
+}
+```
+
+#### Clear Cache
+**Endpoint:** `POST /cache/clear`
+
+**Response Example:**
+```json
+{
+  "status": "success",
+  "message": "Cache cleared successfully"
+}
+```
+
+## Error Handling
+
+### Error Response Format
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Detailed error message"
+  }
+}
+```
+
+### Common Error Codes
+- `401`: Unauthorized - Invalid or missing API key
+- `429`: Too Many Requests - Rate limit exceeded
+- `400`: Bad Request - Invalid parameters
+- `500`: Internal Server Error - Server-side error
+
+## Code Examples
+
+### Python Example
+```python
+import requests
+import os
+
+class RaydiumClient:
+    def __init__(self, api_key):
+        self.base_url = "https://raydium-trader-filot.replit.app"
+        self.headers = {
+            "x-api-key": api_key,
+            "Content-Type": "application/json"
+        }
+    
+    def get_pools(self):
+        response = requests.get(f"{self.base_url}/pools", headers=self.headers)
+        response.raise_for_status()
+        return response.json()
+    
+    def filter_pools(self, token_symbol=None, min_apr=None, max_apr=None, limit=10):
+        params = {
+            "tokenSymbol": token_symbol,
+            "minApr": min_apr,
+            "maxApr": max_apr,
+            "limit": limit
+        }
+        response = requests.get(
+            f"{self.base_url}/pools/filter",
+            headers=self.headers,
+            params={k: v for k, v in params.items() if v is not None}
+        )
+        response.raise_for_status()
+        return response.json()
+
+# Usage example
+client = RaydiumClient("your_api_key_here")
+sol_pools = client.filter_pools(token_symbol="SOL", min_apr=20)
+print(sol_pools)
+```
+
+### JavaScript Example
+```javascript
+class RaydiumClient {
+  constructor(apiKey) {
+    this.baseUrl = "https://raydium-trader-filot.replit.app";
+    this.headers = {
+      "x-api-key": apiKey,
+      "Content-Type": "application/json"
+    };
+  }
+
+  async getPools() {
+    const response = await fetch(`${this.baseUrl}/pools`, {
+      headers: this.headers
+    });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return await response.json();
+  }
+
+  async filterPools(params = {}) {
+    const queryString = new URLSearchParams(
+      Object.entries(params).filter(([_, v]) => v != null)
+    ).toString();
+    
+    const response = await fetch(
+      `${this.baseUrl}/pools/filter?${queryString}`,
+      { headers: this.headers }
+    );
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return await response.json();
+  }
+}
+
+// Usage example
+const client = new RaydiumClient("your_api_key_here");
+client.filterPools({ tokenSymbol: "SOL", minApr: 20 })
+  .then(pools => console.log(pools))
+  .catch(error => console.error('Error:', error));
+```
+
+## Best Practices
+
+1. **Error Handling**
+   - Always implement proper error handling in your code
+   - Check for rate limiting responses (429)
+   - Validate API responses before processing
+
+2. **Caching**
+   - Implement client-side caching when appropriate
+   - Use the cache statistics endpoint to monitor cache performance
+   - Clear cache when necessary using the clear cache endpoint
+
+3. **Rate Limiting**
+   - Implement exponential backoff for rate limit errors
+   - Monitor your API usage
+   - Consider implementing request queuing for high-volume applications
+
+4. **Security**
+   - Never expose your API key in client-side code
+   - Use HTTPS for all API calls
+   - Regularly rotate your API keys
+
+## Support
+For support or questions, please create an issue in the project repository on Replit.
