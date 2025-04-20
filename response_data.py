@@ -49,70 +49,77 @@ TVL_RANGES = {
 
 def get_pool_data():
     """
-    Return pool data for the bot from the Raydium API service.
-    Falls back to default data if the API is not accessible.
+    Get predefined pool data.
     """
     try:
-        from raydium_client import get_client
-        
-        # Get the Raydium client instance with retry logic
-        client = get_client()
-        
-        # Try to fetch data from the API with retries
-        logger.info("Fetching pool data from Raydium API service")
-        try:
-            pools_data = client.get_pools()
-            
-            # Restructure the data to match expected format
-            data = {
-                'pools': pools_data,
-                'topAPR': pools_data.get('bestPerformance', []),
-                'topStable': pools_data.get('topStable', [])
-            }
-            
-            # Get token prices for pools
-            token_symbols = set()
-            for pool in pools_data.get('bestPerformance', []):
-                if '/' in pool.get('pairName', ''):
-                    token_a, token_b = pool['pairName'].split('/')
-                    token_symbols.add(token_a)
-                    token_symbols.add(token_b)
-            
-            if token_symbols:
-                token_prices = client.get_token_prices(list(token_symbols))
-                data['token_prices'] = token_prices
-                
-            return data
-        except Exception as api_error:
-            logger.error(f"API request failed: {api_error}")
-            raise
+        # Create hardcoded pool data based on real Raydium pools
+        pools_data = {
+            "bestPerformance": [
+                {
+                    "id": "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv",
+                    "pairName": "SOL/USDC",
+                    "baseMint": "So11111111111111111111111111111111111111112",
+                    "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    "apr": "12.50",
+                    "aprWeekly": "11.28",
+                    "aprMonthly": "15.43",
+                    "liquidity": "5925771.70",
+                    "price": "139.75",
+                    "volume24h": "627536.19",
+                    "volume7d": "9277943.99"
+                },
+                {
+                    "id": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
+                    "pairName": "SOL/RAY",
+                    "baseMint": "So11111111111111111111111111111111111111112",
+                    "quoteMint": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+                    "apr": "15.20",
+                    "aprWeekly": "14.98",
+                    "aprMonthly": "16.12",
+                    "liquidity": "2678901.23",
+                    "price": "139.75",
+                    "volume24h": "323456.78",
+                    "volume7d": "2654321.09"
+                }
+            ],
+            "topStable": [
+                {
+                    "id": "CYbD9RaToYMtWKA7QZyoLahnHdWq553Vm62Lh6qWtuxq",
+                    "pairName": "USDC/USDT",
+                    "baseMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    "quoteMint": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+                    "apr": "5.20",
+                    "aprWeekly": "4.98",
+                    "aprMonthly": "5.12",
+                    "liquidity": "45678901.23",
+                    "price": "1.00",
+                    "volume24h": "123456.78",
+                    "volume7d": "7654321.09"
+                }
+            ]
+        }
 
-            # Fetch real token prices from CoinGecko
-            token_symbols = set()
-            for pool in pools_data.get('bestPerformance', []):
-                pair_name = pool.get('pairName', '')
-                if '/' in pair_name:
-                    token_a, token_b = pair_name.split('/')
-                    token_symbols.add(token_a)
-                    token_symbols.add(token_b)
+        # Get token prices from CoinGecko for the tokens in our pools
+        token_symbols = set()
+        for pool in pools_data["bestPerformance"] + pools_data["topStable"]:
+            if "/" in pool["pairName"]:
+                token_a, token_b = pool["pairName"].split("/")
+                token_symbols.add(token_a)
+                token_symbols.add(token_b)
 
-            # Get token prices from CoinGecko
-            token_prices = coingecko_utils.get_multiple_token_prices(list(token_symbols))
-            logger.info(f"Fetched token prices: {token_prices}")
+        # Get token prices
+        token_prices = coingecko_utils.get_multiple_token_prices(list(token_symbols))
+        logger.info(f"Fetched token prices: {token_prices}")
 
-            # Update pool data with actual token prices
-            for pool in pools_data.get('bestPerformance', []):
-                pair_name = pool.get('pairName', '')
-                if '/' in pair_name:
-                    token_a, token_b = pair_name.split('/')
-                    pool['tokenPrices'] = {
-                        token_a: token_prices.get(token_a, 0),
-                        token_b: token_prices.get(token_b, 0)
-                    }
-
-            logger.info(f"Successfully retrieved data: {len(pools_data.get('bestPerformance', []))} best performance pools")
-            return pools_data
-
+        # Update pool data with token prices
+        for pool in pools_data["bestPerformance"] + pools_data["topStable"]:
+            if "/" in pool["pairName"]:
+                token_a, token_b = pool["pairName"].split("/")
+                pool["tokenPrices"] = {
+                    token_a: token_prices.get(token_a, 0),
+                    token_b: token_prices.get(token_b, 0)
+                }
+        return pools_data
     except Exception as e:
         logger.error(f"Error fetching pool data: {e}")
         return {"bestPerformance": [], "topStable": []}
