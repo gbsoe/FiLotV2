@@ -12,6 +12,10 @@ import time
 from typing import Dict, Any, Optional, List
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -31,14 +35,14 @@ class RaydiumClient:
         if not self.api_key:
             raise ValueError("RAYDIUM_API_KEY environment variable is required")
 
-        # Headers for all requests
-        self.headers = {
+        # Create a session for better performance
+        self.session = requests.Session()
+        self.session.headers.update({
             "x-api-key": self.api_key,
             "Content-Type": "application/json"
-        }
+        })
 
-        # Create a session with retry strategy
-        self.session = requests.Session()
+        # Configure retry strategy
         retry_strategy = Retry(
             total=3,
             backoff_factor=2,
@@ -56,14 +60,12 @@ class RaydiumClient:
                 if method.lower() == 'get':
                     response = self.session.get(
                         f"{self.base_url}{endpoint}",
-                        headers=self.headers,
                         params=params,
                         timeout=10
                     )
                 else:
                     response = self.session.post(
                         f"{self.base_url}{endpoint}",
-                        headers=self.headers,
                         json=params,
                         timeout=10
                     )
@@ -83,6 +85,49 @@ class RaydiumClient:
                     logger.error(f"Request failed: {str(e)}")
                     raise
 
+    def get_pools(self) -> Dict[str, Any]:
+        """Get all categorized liquidity pools."""
+        logger.info("Fetching pools data")
+        try:
+            response = self.make_request_with_retry("/api/pools")
+            return {
+                'bestPerformance': response.get('pools', {}).get('bestPerformance', []),
+                'topStable': response.get('pools', {}).get('topStable', [])
+            }
+        except Exception as e:
+            logger.error(f"Error fetching pools: {e}")
+            return {'bestPerformance': [], 'topStable': []}
+
+    def filter_pools(
+        self,
+        token_symbol: Optional[str] = None,
+        min_apr: Optional[float] = None,
+        max_apr: Optional[float] = None,
+        limit: int = 5
+    ) -> Dict[str, Any]:
+        """Filter pools based on criteria."""
+        logger.info(f"Filtering pools: token={token_symbol}, min_apr={min_apr}, max_apr={max_apr}")
+        try:
+            params = {
+                "tokenSymbol": token_symbol,
+                "minApr": min_apr,
+                "maxApr": max_apr,
+                "limit": limit
+            }
+            params = {k: v for k, v in params.items() if v is not None}
+            return self.make_request_with_retry("/api/filter", params=params)
+        except Exception as e:
+            logger.error(f"Error filtering pools: {e}")
+            return {"count": 0, "pools": []}
+
+    def get_pool_by_id(self, pool_id: str) -> Dict[str, Any]:
+        """Get specific pool by ID."""
+        try:
+            return self.make_request_with_retry(f"/api/pool/{pool_id}")
+        except Exception as e:
+            logger.error(f"Error fetching pool {pool_id}: {e}")
+            return None
+
     def check_health(self) -> Dict[str, Any]:
         """Check if the API service is healthy."""
         logger.info("Checking API health")
@@ -99,41 +144,6 @@ class RaydiumClient:
             return self.make_request_with_retry("/metadata")
         except Exception as e:
             logger.error(f"Error fetching API metadata: {e}")
-            raise
-
-    def get_pools(self, limit: Optional[int] = None) -> Dict[str, Any]:
-        """Get all categorized liquidity pools."""
-        logger.info("Fetching pools data")
-        try:
-            params = {"limit": limit} if limit else None
-            response = self.make_request_with_retry("/pools", params=params)
-            return response.get('pools', {})
-        except Exception as e:
-            logger.error(f"Error fetching pools: {e}")
-            raise
-
-    def filter_pools(
-        self,
-        token_symbol: Optional[str] = None,
-        token_address: Optional[str] = None,
-        min_apr: Optional[float] = None,
-        max_apr: Optional[float] = None,
-        limit: int = 10
-    ) -> Dict[str, Any]:
-        """Filter pools based on criteria."""
-        logger.info(f"Filtering pools: token={token_symbol}, min_apr={min_apr}, max_apr={max_apr}")
-        try:
-            params = {
-                "tokenSymbol": token_symbol,
-                "tokenAddress": token_address,
-                "minApr": min_apr,
-                "maxApr": max_apr,
-                "limit": limit
-            }
-            params = {k: v for k, v in params.items() if v is not None}
-            return self.make_request_with_retry("/pools/filter", params=params)
-        except Exception as e:
-            logger.error(f"Error filtering pools: {e}")
             raise
 
     def get_cache_stats(self) -> Dict[str, Any]:
