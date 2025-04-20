@@ -70,7 +70,7 @@ async function findHighAprSolPools(minApr = 20, limit = 5) {
         limit: limit
       }
     });
-    
+
     console.log(`Found ${response.data.count} SOL pools with APR > ${minApr}%`);
     return response.data;
   } catch (error) {
@@ -133,13 +133,13 @@ def get_all_pools():
         response = session.get(f"{BASE_URL}/api/pools", timeout=10)
         response.raise_for_status()  # Raises an exception for 4XX/5XX responses
         data = response.json()
-        
+
         best_performance = data["pools"]["bestPerformance"]
         top_stable = data["pools"]["topStable"]
-        
+
         print(f"Retrieved {len(best_performance)} best performance pools")
         print(f"Retrieved {len(top_stable)} top stable pools")
-        
+
         return data
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 401:
@@ -162,7 +162,7 @@ def find_high_apr_sol_pools(min_apr=20, limit=5):
             "minApr": min_apr,
             "limit": limit
         }
-        
+
         response = session.get(
             f"{BASE_URL}/api/filter",
             params=params,
@@ -170,7 +170,7 @@ def find_high_apr_sol_pools(min_apr=20, limit=5):
         )
         response.raise_for_status()
         data = response.json()
-        
+
         print(f"Found {data['count']} SOL pools with APR > {min_apr}%")
         return data
     except requests.exceptions.RequestException as e:
@@ -239,7 +239,7 @@ For improved reliability, implement retry logic with exponential backoff.
 ```javascript
 async function makeRequestWithRetry(url, options = {}, maxRetries = 3) {
   let retries = 0;
-  
+
   while (retries < maxRetries) {
     try {
       const response = await api.request({
@@ -256,7 +256,7 @@ async function makeRequestWithRetry(url, options = {}, maxRetries = 3) {
         // Retry on rate limit (429) or server errors (5xx)
         retries++;
         console.log(`Retry attempt ${retries} for ${url}`);
-        
+
         // Exponential backoff
         const delay = Math.pow(2, retries) * 1000;
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -281,7 +281,7 @@ import time
 
 def make_request_with_retry(url_path, method='get', params=None, max_retries=3):
     retries = 0
-    
+
     while retries < max_retries:
         try:
             if method.lower() == 'get':
@@ -292,7 +292,7 @@ def make_request_with_retry(url_path, method='get', params=None, max_retries=3):
                 )
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
-                
+
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -305,14 +305,14 @@ def make_request_with_retry(url_path, method='get', params=None, max_retries=3):
                 # Retry on rate limit (429) or server errors (5xx)
                 retries += 1
                 print(f"Retry attempt {retries} for {url_path}")
-                
+
                 # Exponential backoff
                 delay = 2 ** retries
                 time.sleep(delay)
             else:
                 # Don't retry for other errors
                 raise
-    
+
 # Example usage
 try:
     data = make_request_with_retry('/api/pools')
