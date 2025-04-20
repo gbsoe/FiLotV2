@@ -60,13 +60,17 @@ def get_pool_data():
                     "pairName": "SOL/USDC",
                     "baseMint": "So11111111111111111111111111111111111111112",
                     "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                    "apr": "48.67",  # Updated based on screenshot
-                    "aprWeekly": "47.46",  # Trade fees from screenshot
-                    "aprMonthly": "45.25",
-                    "liquidity": "9308852",  # Updated TVL from screenshot
-                    "price": "139.75",
-                    "volume24h": "30262011",  # From screenshot
-                    "volume7d": "9277943.99"
+                    "apr": "49.67",  # Updated to match Raydium SDK direct value
+                    "aprWeekly": "58.99",  # Updated to match Raydium SDK direct value
+                    "aprMonthly": "95.52",  # Updated to match Raydium SDK direct value
+                    "apr24h": "49.67",  # Added new field format as in API reference
+                    "apr7d": "58.99",  # Added new field format as in API reference
+                    "apr30d": "95.52",  # Added new field format as in API reference
+                    "liquidity": "9337025.91",  # Updated TVL from Raydium SDK data
+                    "liquidityUsd": "9337025.91",  # Added new field format as in API reference
+                    "price": "136.79",
+                    "volume24h": "30996598.11",  # Updated from Raydium SDK data
+                    "volume7d": "449622307.18"  # Updated from Raydium SDK data
                 },
                 {
                     "id": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
