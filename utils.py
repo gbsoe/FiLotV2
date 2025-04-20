@@ -44,46 +44,66 @@ def format_pool_info(pools: List[Dict[str, Any]], stable_pools: Optional[List[Di
         # Try all possible keys
         for possible_key in value_map.get(key, [key]):
             if possible_key in pool:
-                return pool[possible_key]
-
+                try:
+                    # Return the value as is for string values, convert to float for numeric values
+                    val = pool[possible_key]
+                    if key in ['apr_24h', 'apr_7d', 'apr_30d', 'tvl'] and isinstance(val, str):
+                        return float(val)
+                    return val
+                except (ValueError, TypeError):
+                    pass  # If conversion fails, try next key
+                
         return default
 
     # Helper function to get token price
     def get_token_price(pool, token_symbol):
         if 'tokenPrices' in pool and token_symbol in pool['tokenPrices']:
-            return pool['tokenPrices'][token_symbol]
+            try:
+                return float(pool['tokenPrices'][token_symbol])
+            except (ValueError, TypeError):
+                return 0
         return 0
+
+    # Use provided stable_pools if given, otherwise find stable pools
+    if stable_pools is None:
+        # Find stable pools (SOL/USDC, SOL/RAY, etc.)
+        stable_tokens = ["USDC", "USDT", "RAY"]
+        stable_pools = []
+
+        for pool in pools:
+            pair_name = pool.get('pairName', '')
+            if any(stable in pair_name for stable in stable_tokens):
+                stable_pools.append(pool)
 
     # Exactly 2 pools for Best Performing Investments Today:
     # 1. Highest 24h APR
     # 2. Highest TVL
-    pools_by_apr = sorted(pools, key=lambda p: get_value(p, 'apr_24h'), reverse=True)
-    pools_by_tvl = sorted(pools, key=lambda p: get_value(p, 'tvl'), reverse=True)
-
-    top_apr_pool = pools_by_apr[0] if pools_by_apr else None
-    top_tvl_pool = pools_by_tvl[0] if pools_by_tvl else None
-
-    # Make sure we have 2 different pools (if possible)
-    top_pools = []
-    if top_apr_pool:
-        top_pools.append(top_apr_pool)
-    if top_tvl_pool and get_value(top_tvl_pool, 'id') != get_value(top_apr_pool, 'id', None):
-        top_pools.append(top_tvl_pool)
-    elif len(pools_by_apr) > 1:
-        # If top APR and TVL are the same pool, get the second highest APR
-        top_pools.append(pools_by_apr[1])
-
-    # Find stable pools (SOL/USDC, SOL/RAY, etc.)
-    stable_tokens = ["USDC", "USDT", "RAY"]
-    stable_pools = []
-
-    for pool in pools:
-        pair_name = pool.get('pairName', '')
-        if any(stable in pair_name for stable in stable_tokens):
-            stable_pools.append(pool)
+    try:
+        pools_by_apr = sorted(pools, key=lambda p: float(get_value(p, 'apr_24h')), reverse=True)
+        pools_by_tvl = sorted(pools, key=lambda p: float(get_value(p, 'tvl')), reverse=True)
+        
+        top_apr_pool = pools_by_apr[0] if pools_by_apr else None
+        top_tvl_pool = pools_by_tvl[0] if pools_by_tvl else None
+        
+        # Make sure we have 2 different pools (if possible)
+        top_pools = []
+        if top_apr_pool:
+            top_pools.append(top_apr_pool)
+        if top_tvl_pool and get_value(top_tvl_pool, 'id') != get_value(top_apr_pool, 'id'):
+            top_pools.append(top_tvl_pool)
+        elif len(pools_by_apr) > 1:
+            # If top APR and TVL are the same pool, get the second highest APR
+            top_pools.append(pools_by_apr[1])
+    except (ValueError, IndexError):
+        # Fallback if sorting fails
+        top_pools = pools[:2] if len(pools) >= 2 else pools
 
     # Sort stable pools by APR and take top 3
-    stable_pools = sorted(stable_pools, key=lambda p: get_value(p, 'apr_24h'), reverse=True)[:3]
+    try:
+        stable_pools = sorted(stable_pools, key=lambda p: float(get_value(p, 'apr_24h')), reverse=True)[:3]
+    except ValueError:
+        # Fallback if sorting fails
+        stable_pools = stable_pools[:3] if len(stable_pools) >= 3 else stable_pools
 
     # Header
     result = "📈 Latest Crypto Investment Update:\n\n"
@@ -91,40 +111,67 @@ def format_pool_info(pools: List[Dict[str, Any]], stable_pools: Optional[List[Di
     # Best Performing Investments Today section
     result += "Best Performing Investments Today:\n"
     for pool in top_pools:
-        token_a = get_value(pool, 'token_a_symbol')
-        token_b = get_value(pool, 'token_b_symbol')
-        token_pair = f"{token_a}/{token_b}"
-        token_a_price = get_token_price(pool, token_a)
-
-        result += (
-            f"• Pool ID: 📋 {get_value(pool, 'id')}\n"
-            f"  Token Pair: {token_pair}\n"
-            f"  24h APR: {get_value(pool, 'apr_24h'):.2f}%\n"
-            f"  7d APR: {get_value(pool, 'apr_7d'):.2f}%\n"
-            f"  30d APR: {get_value(pool, 'apr_30d'):.2f}%\n"
-            f"  TVL (USD): ${get_value(pool, 'tvl'):,.2f}\n"
-            f"  Current Price (USD): ${token_a_price} per {token_a}\n"
-        )
-        result += "\n"
+        try:
+            token_a = get_value(pool, 'token_a_symbol')
+            token_b = get_value(pool, 'token_b_symbol')
+            token_pair = f"{token_a}/{token_b}"
+            
+            # Parse numeric values safely
+            pool_id = str(get_value(pool, 'id'))
+            apr_24h = float(get_value(pool, 'apr_24h'))
+            apr_7d = float(get_value(pool, 'apr_7d'))
+            apr_30d = float(get_value(pool, 'apr_30d'))
+            tvl = float(get_value(pool, 'tvl'))
+            token_a_price = float(get_token_price(pool, token_a))
+            
+            # Build result string with safe values
+            pool_info = (
+                f"• Pool ID: 📋 {pool_id}\n"
+                f"  Token Pair: {token_pair}\n"
+                f"  24h APR: {apr_24h:.2f}%\n"
+                f"  7d APR: {apr_7d:.2f}%\n"
+                f"  30d APR: {apr_30d:.2f}%\n"
+                f"  TVL (USD): ${tvl:,.2f}\n"
+                f"  Current Price (USD): ${token_a_price:.2f} per {token_a}\n"
+            )
+            result += pool_info + "\n"
+        except Exception as e:
+            # Skip this pool if formatting fails
+            continue
 
     # Top Stable Investments section
     result += "Top Stable Investments (e.g., SOL-USDC / SOL-USDT):\n"
-    for pool in stable_pools:
-        token_a = get_value(pool, 'token_a_symbol')
-        token_b = get_value(pool, 'token_b_symbol')
-        token_pair = f"{token_a}/{token_b}"
-        token_a_price = get_token_price(pool, token_a)
-
-        result += (
-            f"• Pool ID: 📋 {get_value(pool, 'id')}\n"
-            f"  Token Pair: {token_pair}\n"
-            f"  24h APR: {get_value(pool, 'apr_24h'):.2f}%\n"
-            f"  7d APR: {get_value(pool, 'apr_7d'):.2f}%\n"
-            f"  30d APR: {get_value(pool, 'apr_30d'):.2f}%\n"
-            f"  TVL (USD): ${get_value(pool, 'tvl'):,.2f}\n"
-            f"  Current Price (USD): ${token_a_price} per {token_a}\n"
-        )
-        result += "\n"
+    if stable_pools:
+        for pool in stable_pools:
+            try:
+                token_a = get_value(pool, 'token_a_symbol')
+                token_b = get_value(pool, 'token_b_symbol')
+                token_pair = f"{token_a}/{token_b}"
+                
+                # Parse numeric values safely
+                pool_id = str(get_value(pool, 'id'))
+                apr_24h = float(get_value(pool, 'apr_24h'))
+                apr_7d = float(get_value(pool, 'apr_7d'))
+                apr_30d = float(get_value(pool, 'apr_30d'))
+                tvl = float(get_value(pool, 'tvl'))
+                token_a_price = float(get_token_price(pool, token_a))
+                
+                # Build result string with safe values
+                pool_info = (
+                    f"• Pool ID: 📋 {pool_id}\n"
+                    f"  Token Pair: {token_pair}\n"
+                    f"  24h APR: {apr_24h:.2f}%\n"
+                    f"  7d APR: {apr_7d:.2f}%\n"
+                    f"  30d APR: {apr_30d:.2f}%\n"
+                    f"  TVL (USD): ${tvl:,.2f}\n"
+                    f"  Current Price (USD): ${token_a_price:.2f} per {token_a}\n"
+                )
+                result += pool_info + "\n"
+            except Exception as e:
+                # Skip this pool if formatting fails
+                continue
+    else:
+        result += "No stable pool data available at the moment.\n\n"
 
     result += "\nWant to see your potential earnings? Try /simulate amount (default is $1000)."
 
@@ -168,15 +215,26 @@ def format_simulation_results(pools: List[Dict[str, Any]], amount: float) -> str
         # Try all possible keys
         for possible_key in value_map.get(key, [key]):
             if possible_key in pool:
-                return pool[possible_key]
+                try:
+                    # Return the value as is for string values, convert to float for numeric values
+                    val = pool[possible_key]
+                    if key in ['apr_24h', 'apr_7d', 'apr_30d', 'tvl'] and isinstance(val, str):
+                        return float(val)
+                    return val
+                except (ValueError, TypeError):
+                    pass  # If conversion fails, try next key
 
         return default
 
-    # Sort pools by APR (24h) for better display
-    sorted_pools = sorted(pools, key=lambda p: get_value(p, 'apr_24h'), reverse=True)
+    try:
+        # Sort pools by APR (24h) for better display
+        sorted_pools = sorted(pools, key=lambda p: float(get_value(p, 'apr_24h')), reverse=True)
 
-    # Limit to top 3 pools to avoid overly long messages
-    display_pools = sorted_pools[:3]
+        # Limit to top 3 pools to avoid overly long messages
+        display_pools = sorted_pools[:3]
+    except (ValueError, TypeError):
+        # Fallback if sorting fails
+        display_pools = pools[:3] if len(pools) >= 3 else pools
 
     if not display_pools:
         return "No pools available for simulation. Please try again later."
@@ -186,31 +244,37 @@ def format_simulation_results(pools: List[Dict[str, Any]], amount: float) -> str
 
     # Generate simulations for each pool
     for pool in display_pools:
-        # Calculate potential earnings
-        apr_24h = get_value(pool, 'apr_24h')
-        daily_rate = apr_24h / 365
+        try:
+            # Parse numeric values safely
+            pool_id = str(get_value(pool, 'id'))
+            apr_24h = float(get_value(pool, 'apr_24h'))
+            
+            # Calculate rates and earnings
+            daily_rate = apr_24h / 365
+            daily_earnings = amount * (daily_rate / 100)
+            weekly_earnings = daily_earnings * 7
+            monthly_earnings = daily_earnings * 30
+            yearly_earnings = amount * (apr_24h / 100)
 
-        # Calculate earnings for different time periods
-        daily_earnings = amount * (daily_rate / 100)
-        weekly_earnings = daily_earnings * 7
-        monthly_earnings = daily_earnings * 30
-        yearly_earnings = amount * (apr_24h / 100)
+            # Get token information
+            token_a = get_value(pool, 'token_a_symbol')
+            token_b = get_value(pool, 'token_b_symbol')
+            token_pair = f"{token_a}/{token_b}"
 
-        # Token pair and pool ID
-        token_a = get_value(pool, 'token_a_symbol')
-        token_b = get_value(pool, 'token_b_symbol')
-        token_pair = f"{token_a}/{token_b}"
-
-        # Format each pool's simulation results
-        result += (
-            f"• Pool ID: 📋 {get_value(pool, 'id')}\n"
-            f"  Token Pair: {token_pair}\n"
-            f"  - Daily Earnings: ${daily_earnings:.2f}\n"
-            f"  - Weekly Earnings: ${weekly_earnings:.2f}\n"
-            f"  - Monthly Earnings: ${monthly_earnings:.2f}\n"
-            f"  - Annual Earnings: ${yearly_earnings:.2f}\n"
-            f"\n"
-        )
+            # Format each pool's simulation results
+            pool_info = (
+                f"• Pool ID: 📋 {pool_id}\n"
+                f"  Token Pair: {token_pair}\n"
+                f"  - Daily Earnings: ${daily_earnings:.2f}\n"
+                f"  - Weekly Earnings: ${weekly_earnings:.2f}\n"
+                f"  - Monthly Earnings: ${monthly_earnings:.2f}\n"
+                f"  - Annual Earnings: ${yearly_earnings:.2f}\n"
+                f"\n"
+            )
+            result += pool_info
+        except Exception as e:
+            # Skip this pool if calculation fails
+            continue
 
     # Add disclaimer
     result += "Disclaimer: The numbers above are estimations and actual earnings may vary."
