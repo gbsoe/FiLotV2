@@ -6,39 +6,20 @@ import math
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime, timedelta
 
-def format_pool_info(pools: List[Dict[str, Any]]) -> str:
+def format_pool_info(pools: List[Dict[str, Any]], stable_pools: Optional[List[Dict[str, Any]]] = None) -> str:
     """
     Format pool information for display in Telegram messages.
 
     Args:
         pools: List of pool dictionaries from API or response_data
+        stable_pools: List of stable pool dictionaries (optional)
 
     Returns:
         Formatted string
     """
     if not pools:
         return "No pools available at the moment. Please try again later."
-
-    result = "📈 Latest Crypto Investment Update:\n\n"
-    result += "Best Performing Investments Today:\n"
-
-    for pool in pools:
-        result += f"• Pool ID: 📋 {pool.get('id', 'Unknown')}\n"
-        result += f"  Token Pair: {pool.get('pairName', 'Unknown')}\n"
-        result += f"  24h APR: {pool.get('apr', '0.00')}%\n"
-        result += f"  7d APR: {pool.get('aprWeekly', '0.00')}%\n"
-        result += f"  30d APR: {pool.get('aprMonthly', '0.00')}%\n"
-        result += f"  TVL (USD): ${float(pool.get('liquidity', 0)):,.2f}\n"
-
-        # Get base token from pair name
-        base_token = pool.get('pairName', '/').split('/')[0] if '/' in pool.get('pairName', '') else ''
-        result += f"  Current Price (USD): ${float(pool.get('price', 0)):,.2f} per {base_token}\n\n"
-
-    result += "Top Stable Investments (e.g., SOL-USDC / SOL-USDT):\n\n"
-    result += "Want to see your potential earnings? Try /simulate amount (default is $1000)."
-
-    return result
-
+    
     # Helper function to safely get dictionary values
     def get_value(pool, key, default=0):
         # Handle the different key names in our response_data vs. API

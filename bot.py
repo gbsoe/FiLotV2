@@ -289,16 +289,17 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         # Get predefined pool data directly as dictionaries
         predefined_data = get_predefined_pool_data()
         
-        # Process top APR pools from the predefined data
-        pool_list = predefined_data.get('topAPR', [])
+        # Process top APR and stable pools from the predefined data
+        top_pools = predefined_data.get('topAPR', [])
+        stable_pools = predefined_data.get('topStable', [])
         
-        if not pool_list:
+        if not top_pools:
             await message.reply_text(
                 "Sorry, I couldn't retrieve pool data at the moment. Please try again later."
             )
             return
             
-        formatted_info = format_pool_info(pool_list)
+        formatted_info = format_pool_info(top_pools, stable_pools)
         
         # Use regular reply_text to avoid markdown formatting issues
         await message.reply_text(formatted_info)
@@ -365,6 +366,7 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             )
             return
             
+        # For simulation, we only need the top performing pools
         formatted_simulation = format_simulation_results(pool_list, amount)
         
         # Add wallet connection options - both direct and WalletConnect
