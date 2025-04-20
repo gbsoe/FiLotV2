@@ -1,0 +1,216 @@
+# Raydium API Service - API Documentation
+
+This document provides comprehensive documentation for the Raydium API Service, including all endpoints, parameters, and examples.
+
+## Base URL
+
+- Local Development: `http://localhost:3000`
+- Replit Deployment: `https://[repl-name].[repl-owner].repl.co`
+
+## Authentication
+
+All API endpoints (except public endpoints) require authentication using an API key. Include the API key in the request headers:
+
+```
+x-api-key: your-api-key-here
+```
+
+API keys can be obtained and managed through the dashboard interface.
+
+## Public Endpoints
+
+### Health Check
+- **Endpoint**: `/health`
+- **Method**: `GET`
+- **Description**: Check if the API is running properly
+- **Response Example**:
+  ```json
+  {
+    "status": "healthy",
+    "timestamp": "2025-04-20T00:00:00.000Z",
+    "version": "1.0.0"
+  }
+  ```
+
+### Service Status
+- **Endpoint**: `/service-status`
+- **Method**: `GET`
+- **Description**: Check the status of the Raydium connection
+- **Response Example**:
+  ```json
+  {
+    "connected": true,
+    "poolsCount": 7,
+    "lastUpdate": "2025-04-20T00:00:00.000Z",
+    "error": null
+  }
+  ```
+
+## Authenticated Endpoints
+
+### Get All Pools
+- **Endpoint**: `/api/pools`
+- **Method**: `GET`
+- **Description**: Get all available liquidity pools, categorized by performance
+- **Authentication**: Required
+- **Response Example**:
+  ```json
+  {
+    "timestamp": "2025-04-20T00:00:00.000Z",
+    "pools": {
+      "bestPerformance": [
+        {
+          "id": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+          "tokenPair": "SOL/USDC",
+          "baseMint": "So11111111111111111111111111111111111111112",
+          "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "apr24h": "10.50",
+          "apr7d": "12.28",
+          "apr30d": "20.43",
+          "liquidityUsd": "6925771.70",
+          "price": "139.75",
+          "volume24h": "627536.19",
+          "volume7d": "9277943.99",
+          "formatted": "â€¢ Pool ID: ðŸ“‹ 58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2\n  Token Pair: SOL/USDC\n  24h APR: 10.50%\n  7d APR: 12.28%\n  30d APR: 20.43%\n  TVL (USD): $6,925,771.70\n  Current Price (USD): $139.75 per SOL"
+        }
+      ],
+      "topStable": [
+        {
+          "id": "pool-id-here",
+          "tokenPair": "USDC/USDT",
+          "baseMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "quoteMint": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+          "apr24h": "5.20",
+          "apr7d": "4.98",
+          "apr30d": "5.12",
+          "liquidityUsd": "45678901.23",
+          "price": "1.00",
+          "volume24h": "123456.78",
+          "volume7d": "7654321.09",
+          "formatted": "â€¢ Pool ID: ðŸ“‹ pool-id-here\n  Token Pair: USDC/USDT\n  24h APR: 5.20%\n  7d APR: 4.98%\n  30d APR: 5.12%\n  TVL (USD): $45,678,901.23\n  Current Price (USD): $1.00 per USDC"
+        }
+      ]
+    }
+  }
+  ```
+
+### Filter Pools
+- **Endpoint**: `/api/filter`
+- **Method**: `GET`
+- **Description**: Filter pools by various criteria
+- **Authentication**: Required
+- **Query Parameters**:
+  - `tokenSymbol` (string, optional): Filter by token symbol (e.g., "SOL")
+  - `tokenAddress` (string, optional): Filter by token address
+  - `minApr` (number, optional): Minimum APR percentage
+  - `maxApr` (number, optional): Maximum APR percentage 
+  - `limit` (number, optional): Maximum number of results to return (default: 10)
+- **Response Example**:
+  ```json
+  {
+    "timestamp": "2025-04-20T00:00:00.000Z",
+    "count": 2,
+    "pools": [
+      {
+        "id": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+        "tokenPair": "SOL/USDC",
+        "baseMint": "So11111111111111111111111111111111111111112",
+        "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "apr24h": "10.50",
+        "apr7d": "12.28",
+        "apr30d": "20.43",
+        "liquidityUsd": "6925771.70",
+        "price": "139.75",
+        "volume24h": "627536.19",
+        "volume7d": "9277943.99",
+        "formatted": "â€¢ Pool ID: ðŸ“‹ 58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2\n  Token Pair: SOL/USDC\n  24h APR: 10.50%\n  7d APR: 12.28%\n  30d APR: 20.43%\n  TVL (USD): $6,925,771.70\n  Current Price (USD): $139.75 per SOL"
+      }
+    ]
+  }
+  ```
+
+### Get Pool by ID
+- **Endpoint**: `/api/pool/:id`
+- **Method**: `GET`
+- **Description**: Get details for a specific pool by ID
+- **Authentication**: Required
+- **URL Parameters**:
+  - `id` (string, required): The pool ID
+- **Response Example**:
+  ```json
+  {
+    "pool": {
+      "id": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+      "tokenPair": "SOL/USDC",
+      "baseMint": "So11111111111111111111111111111111111111112",
+      "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "apr24h": "10.50",
+      "apr7d": "12.28",
+      "apr30d": "20.43",
+      "liquidityUsd": "6925771.70",
+      "price": "139.75",
+      "volume24h": "627536.19",
+      "volume7d": "9277943.99",
+      "formatted": "â€¢ Pool ID: ðŸ“‹ 58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2\n  Token Pair: SOL/USDC\n  24h APR: 10.50%\n  7d APR: 12.28%\n  30d APR: 20.43%\n  TVL (USD): $6,925,771.70\n  Current Price (USD): $139.75 per SOL"
+    }
+  }
+  ```
+
+## Response Structure
+
+Each pool object in the API responses contains the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string | Unique pool identifier |
+| tokenPair | string | Token pair in format "TOKEN1/TOKEN2" |
+| baseMint | string | Base token mint address |
+| quoteMint | string | Quote token mint address |
+| apr24h | string | 24-hour APR percentage |
+| apr7d | string | 7-day APR percentage |
+| apr30d | string | 30-day APR percentage |
+| liquidityUsd | string | Total Value Locked (TVL) in USD |
+| price | string | Current price of base token in USD |
+| volume24h | string | 24-hour trading volume in USD |
+| volume7d | string | 7-day trading volume in USD |
+| formatted | string | Human-readable formatted string with pool information |
+
+## Error Handling
+
+The API uses standard HTTP status codes and returns JSON responses for errors:
+
+### Error Response Format
+
+```json
+{
+  "error": "Error message describing what went wrong",
+  "timestamp": "2025-04-20T00:00:00.000Z"
+}
+```
+
+### Common Error Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| 400 | Bad Request - Invalid parameters |
+| 401 | Unauthorized - Invalid or missing API key |
+| 404 | Not Found - Resource not found |
+| 429 | Too Many Requests - Rate limit exceeded |
+| 500 | Internal Server Error - Server-side error |
+
+## Rate Limiting
+
+The API implements rate limiting to prevent abuse:
+
+- 100 requests per minute per API key
+- 5,000 requests per day per API key
+
+When a rate limit is exceeded, the API returns a 429 status code with information about when to retry.
+
+## Best Practices
+
+1. **Use Connection Pooling**: Reuse HTTP connections for better performance
+2. **Handle Errors Gracefully**: Implement proper error handling for all API calls
+3. **Implement Retry Logic**: Use exponential backoff for transient errors
+4. **Cache Responses**: Consider caching responses to reduce API load
+5. **Keep API Keys Secure**: Never expose your API key in client-side code
