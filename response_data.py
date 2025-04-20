@@ -55,19 +55,37 @@ def get_pool_data():
     try:
         from raydium_client import get_client
         
-        # Get the Raydium client instance
+        # Get the Raydium client instance with retry logic
         client = get_client()
         
-        # Try to fetch data from the API
+        # Try to fetch data from the API with retries
         logger.info("Fetching pool data from Raydium API service")
-        pools_data = client.get_pools()
-        
-        # Restructure the data to match expected format
-        data = {
-            'pools': pools_data,
-            'topAPR': pools_data.get('bestPerformance', []),
-            'topStable': pools_data.get('topStable', [])
-        }
+        try:
+            pools_data = client.get_pools()
+            
+            # Restructure the data to match expected format
+            data = {
+                'pools': pools_data,
+                'topAPR': pools_data.get('bestPerformance', []),
+                'topStable': pools_data.get('topStable', [])
+            }
+            
+            # Get token prices for pools
+            token_symbols = set()
+            for pool in pools_data.get('bestPerformance', []):
+                if '/' in pool.get('pairName', ''):
+                    token_a, token_b = pool['pairName'].split('/')
+                    token_symbols.add(token_a)
+                    token_symbols.add(token_b)
+            
+            if token_symbols:
+                token_prices = client.get_token_prices(list(token_symbols))
+                data['token_prices'] = token_prices
+                
+            return data
+        except Exception as api_error:
+            logger.error(f"API request failed: {api_error}")
+            raise
 
             # Fetch real token prices from CoinGecko
             token_symbols = set()

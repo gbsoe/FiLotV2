@@ -8,6 +8,7 @@ Client for interacting with the Raydium API Service.
 import os
 import logging
 import requests
+import time
 from typing import Dict, Any, Optional, List
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -24,7 +25,7 @@ class RaydiumClient:
 
     def __init__(self):
         """Initialize the client with configuration from environment variables."""
-        self.base_url = os.environ.get("NODE_SERVICE_URL", "https://raydium-trader-filot.replit.app") #Use environment variable if available, otherwise default
+        self.base_url = os.environ.get("RAYDIUM_API_URL", "https://raydium-trader-filot.replit.app")
         self.api_key = os.environ.get("RAYDIUM_API_KEY", "")
 
         if not self.api_key:
@@ -36,25 +37,57 @@ class RaydiumClient:
             "Content-Type": "application/json"
         }
 
-        # Create a session with retry strategy for connection pooling
+        # Create a session with retry strategy
         self.session = requests.Session()
         retry_strategy = Retry(
             total=3,
-            backoff_factor=1,
+            backoff_factor=2,
             status_forcelist=[429, 500, 502, 503, 504]
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
 
+    def make_request_with_retry(self, endpoint: str, method: str = 'get', params: dict = None, max_retries: int = 3) -> Dict[str, Any]:
+        """Make API request with retry logic."""
+        retries = 0
+        while retries < max_retries:
+            try:
+                if method.lower() == 'get':
+                    response = self.session.get(
+                        f"{self.base_url}{endpoint}",
+                        headers=self.headers,
+                        params=params,
+                        timeout=10
+                    )
+                else:
+                    response = self.session.post(
+                        f"{self.base_url}{endpoint}",
+                        headers=self.headers,
+                        json=params,
+                        timeout=10
+                    )
+
+                response.raise_for_status()
+                return response.json()
+            except requests.exceptions.RequestException as e:
+                if (hasattr(e, 'response') and 
+                    e.response is not None and
+                    (e.response.status_code == 429 or e.response.status_code >= 500) and
+                    retries < max_retries - 1):
+                    retries += 1
+                    delay = 2 ** retries
+                    logger.warning(f"Retry attempt {retries} for {endpoint} after {delay}s delay")
+                    time.sleep(delay)
+                else:
+                    logger.error(f"Request failed: {str(e)}")
+                    raise
+
     def check_health(self) -> Dict[str, Any]:
         """Check if the API service is healthy."""
         logger.info("Checking API health")
         try:
-            response = self.session.get(f"{self.base_url}/health", headers=self.headers)
-            response.raise_for_status()
-            logger.info("API health check successful")
-            return response.json()
+            return self.make_request_with_retry("/health")
         except Exception as e:
             logger.error(f"API health check failed: {e}")
             raise
@@ -63,27 +96,20 @@ class RaydiumClient:
         """Get detailed metadata about the API service."""
         logger.info("Fetching API service metadata")
         try:
-            response = self.session.get(f"{self.base_url}/metadata", headers=self.headers)
-            response.raise_for_status()
-            logger.info("Successfully retrieved API metadata")
-            return response.json()
+            return self.make_request_with_retry("/metadata")
         except Exception as e:
             logger.error(f"Error fetching API metadata: {e}")
             raise
 
-    def get_pools(self, limit: int = None) -> Dict[str, List[Dict[str, Any]]]:
+    def get_pools(self, limit: Optional[int] = None) -> Dict[str, Any]:
         """Get all categorized liquidity pools."""
-        logger.info("Fetching all pools data")
+        logger.info("Fetching pools data")
         try:
-            params = {}
-            if limit is not None:
-                params["limit"] = limit
-            response = self.session.get(f"{self.base_url}/pools", headers=self.headers, params=params)
-            response.raise_for_status()
-            pools_data = response.json()
-            return pools_data.get('pools', []) #Handle case where 'pools' key might be missing
+            params = {"limit": limit} if limit else None
+            response = self.make_request_with_retry("/pools", params=params)
+            return response.get('pools', {})
         except Exception as e:
-            logger.error(f"Error fetching pools data: {e}")
+            logger.error(f"Error fetching pools: {e}")
             raise
 
     def filter_pools(
@@ -95,7 +121,7 @@ class RaydiumClient:
         limit: int = 10
     ) -> Dict[str, Any]:
         """Filter pools based on criteria."""
-        logger.info(f"Filtering pools: token_symbol={token_symbol}, min_apr={min_apr}, max_apr={max_apr}, limit={limit}")
+        logger.info(f"Filtering pools: token={token_symbol}, min_apr={min_apr}, max_apr={max_apr}")
         try:
             params = {
                 "tokenSymbol": token_symbol,
@@ -105,74 +131,32 @@ class RaydiumClient:
                 "limit": limit
             }
             params = {k: v for k, v in params.items() if v is not None}
-
-            response = self.session.get(
-                f"{self.base_url}/pools/filter",
-                headers=self.headers,
-                params=params
-            )
-            response.raise_for_status()
-            return response.json()
+            return self.make_request_with_retry("/pools/filter", params=params)
         except Exception as e:
             logger.error(f"Error filtering pools: {e}")
             raise
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
-        logger.info("Fetching cache statistics")
-        try:
-            response = self.session.get(f"{self.base_url}/cache/stats", headers=self.headers)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"Error fetching cache statistics: {e}")
-            raise
+        return self.make_request_with_retry("/cache/stats")
 
     def clear_cache(self) -> Dict[str, Any]:
         """Clear the API service cache."""
-        logger.info("Clearing API cache")
+        return self.make_request_with_retry("/cache/clear", method='post')
+
+    def get_token_prices(self, symbols: Optional[List[str]] = None) -> Dict[str, float]:
+        """Get current prices for specified tokens."""
         try:
-            response = self.session.post(f"{self.base_url}/cache/clear", headers=self.headers)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"Error clearing API cache: {e}")
-            raise
-
-    def get_token_prices(self, symbols: List[str] = None) -> Dict[str, float]:
-        """
-        Get current prices for specified tokens.
-
-        Args:
-            symbols: List of token symbols to get prices for (e.g., ["SOL", "USDC"])
-                    If None, fetches prices for all available tokens
-
-        Returns:
-            Dictionary mapping token symbols to their current prices in USD
-        """
-        logger.info(f"Fetching token prices for {symbols if symbols else 'all tokens'}")
-        try:
-            params = {}
-            if symbols:
-                params["symbols"] = ",".join(symbols)
-
-            response = self.session.get(
-                f"{self.base_url}/tokens/prices",
-                headers=self.headers,
-                params=params
-            )
-            response.raise_for_status()
-            price_data = response.json()
-            logger.info(f"Successfully retrieved prices for {len(price_data)} tokens")
-            return price_data
+            params = {"symbols": ",".join(symbols)} if symbols else None
+            return self.make_request_with_retry("/tokens/prices", params=params)
         except Exception as e:
             logger.error(f"Error fetching token prices: {e}")
             raise
 
-# Singleton instance for use throughout the application
+# Singleton instance
 _instance = None
 
-def get_client():
+def get_client() -> RaydiumClient:
     """Get the singleton RaydiumClient instance."""
     global _instance
     if _instance is None:
