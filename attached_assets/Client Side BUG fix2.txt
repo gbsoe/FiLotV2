@@ -1,0 +1,271 @@
+# Raydium API Client Data Integrity Fix Guide
+
+## Critical Issues Found
+
+Our investigation has identified several critical issues with your client-side implementation of the Raydium API. This document outlines the problems and provides specific recommendations to fix them.
+
+## Summary of Issues
+
+1. **Non-existent Pool IDs**: Two of the five pool IDs you're using don't exist in the Raydium system.
+2. **Token Pair Mismatches**: Some pools are displaying incorrect token pairs.
+3. **APR Value Discrepancies**: The APR values displayed for several pools are significantly different from the actual values.
+4. **Hard-coded or Outdated Data**: Some data appears to be hard-coded rather than fetched from the API.
+
+## Detailed Analysis
+
+### Pool Existence Verification
+
+| Pool ID | Exists in Raydium | Client Token Pair | Actual Token Pair |
+|---------|-------------------|-------------------|-------------------|
+| 3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv | âœ… Yes | SOL/USDC | WSOL/USDC |
+| 2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2 | âœ… Yes | SOL/RAY | WSOL/RAY |
+| HQ8oeaHofBJyM8DMhCD5YasRXjqT3cGjcCHcVNnYEGS1 | âŒ No | SOL/USDT | N/A |
+| Ar1owSzR5L6LXBYm7kJsEU9vHzCpexGZY6nqfuh1WjG5 | âŒ No | ETH/USDC | N/A |
+| CYbD9RaToYMtWKA7QZyoLahnHdWq553Vm62Lh6qWtuxq | âœ… Yes | USDC/USDT | WSOL/USDC |
+
+### APR Value Comparison (for existing pools)
+
+#### Pool: 3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv (SOL/USDC)
+
+| APR Period | Client Display | Actual Value | Difference |
+|------------|----------------|--------------|------------|
+| 24h APR    | 49.67%         | 48.77%       | 0.90%      |
+| 7d APR     | 58.99%         | 58.60%       | 0.39%      |
+| 30d APR    | 95.52%         | 95.63%       | 0.11%      |
+
+#### Pool: 2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2 (SOL/RAY)
+
+| APR Period | Client Display | Actual Value | Difference |
+|------------|----------------|--------------|------------|
+| 24h APR    | 42.37%         | 47.81%       | 5.44%      |
+| 7d APR     | 44.62%         | 45.06%       | 0.44%      |
+| 30d APR    | 48.91%         | 55.01%       | 6.10%      |
+
+#### Pool: CYbD9RaToYMtWKA7QZyoLahnHdWq553Vm62Lh6qWtuxq (WSOL/USDC)
+
+| APR Period | Client Display | Actual Value | Difference |
+|------------|----------------|--------------|------------|
+| 24h APR    | 8.32%          | 17.77%       | 9.45%      |
+| 7d APR     | 8.14%          | 22.25%       | 14.11%     |
+| 30d APR    | 7.96%          | 34.33%       | 26.37%     |
+
+## Root Causes and Solutions
+
+### 1. Invalid Pool IDs
+
+**Problem**: You're displaying data for pools that don't exist in the Raydium system.
+
+**Solution**:
+- Remove the non-existent pool IDs (HQ8oeaHofBJyM8DMhCD5YasRXjqT3cGjcCHcVNnYEGS1 and Ar1owSzR5L6LXBYm7kJsEU9vHzCpexGZY6nqfuh1WjG5)
+- Replace them with valid pools by querying the API for available pools:
+
+```javascript
+// Get a list of valid, high-performing pools
+const response = await api.get('/api/pools');
+const bestPerformancePools = response.data.pools.bestPerformance;
+```
+
+### 2. Hard-coded or Cached Data
+
+**Problem**: The significant differences in APR values and token pairs indicate you may be using hard-coded or heavily cached data.
+
+**Solution**:
+- Ensure you're making fresh API calls to get the latest data
+- Add cache-busting parameters to prevent browser caching:
+
+```javascript
+const timestamp = new Date().getTime();
+const response = await api.get(`/api/pool/${poolId}?_t=${timestamp}`);
+```
+
+### 3. Incorrect Token Pair Mapping
+
+**Problem**: The token pair "WSOL/USDC" from the API is being displayed as "SOL/USDC", which is technically correct for user display but should be consistent.
+
+**Solution**:
+- Handle token symbol mapping consistently:
+
+```javascript
+// Helper function to normalize token symbols for display
+function normalizeTokenSymbol(symbol) {
+  // Special case for WSOL (Wrapped SOL) - display as SOL
+  if (symbol === 'WSOL') return 'SOL';
+  return symbol;
+}
+
+// Format token pair for display
+function formatTokenPair(tokenPair) {
+  const [tokenA, tokenB] = tokenPair.split('/');
+  return `${normalizeTokenSymbol(tokenA)}/${normalizeTokenSymbol(tokenB)}`;
+}
+```
+
+### 4. Completely Incorrect Pool Information
+
+**Problem**: The CYbD9RaToYMtWKA7QZyoLahnHdWq553Vm62Lh6qWtuxq pool is completely misrepresented - it's a SOL/USDC pool, not USDC/USDT, and the APR values are entirely different.
+
+**Solution**:
+- Stop using any hard-coded data for this pool
+- Always fetch current data from the API
+- Implement proper error handling for when API data doesn't match expectations:
+
+```javascript
+// Fetch pool data with validation
+async function getValidatedPoolData(poolId) {
+  try {
+    const response = await api.get(`/api/pool/${poolId}?_t=${Date.now()}`);
+    const pool = response.data.pool;
+    
+    if (!pool) {
+      console.error(`No data returned for pool ${poolId}`);
+      return null;
+    }
+    
+    // Log information for debugging
+    console.log(`Fetched data for pool ${poolId}:`, pool);
+    
+    return pool;
+  } catch (error) {
+    console.error(`Error fetching pool ${poolId}:`, error);
+    return null;
+  }
+}
+```
+
+## Implementation Plan
+
+1. **Immediate fixes**:
+   - Remove references to non-existent pool IDs
+   - Implement proper token symbol normalization
+   - Add cache-busting to API requests
+
+2. **Validation layer**:
+   - Add validation to ensure pools exist before displaying them
+   - Implement error handling for API failures
+
+3. **Dynamic pool discovery**:
+   - Instead of hard-coding pool IDs, fetch the best-performing pools dynamically
+
+4. **Real-time updates**:
+   - Implement a refresh mechanism to keep data current
+
+## Example Implementation
+
+Here's an implementation that addresses these issues:
+
+```javascript
+// Normalize token symbols for display
+function normalizeTokenSymbol(symbol) {
+  if (symbol === 'WSOL') return 'SOL';
+  return symbol;
+}
+
+// Format token pair for display
+function formatTokenPair(tokenPair) {
+  if (!tokenPair) return 'Unknown/Unknown';
+  const [tokenA, tokenB] = tokenPair.split('/');
+  return `${normalizeTokenSymbol(tokenA)}/${normalizeTokenSymbol(tokenB)}`;
+}
+
+// Fetch top performing pools dynamically
+async function getTopPerformingPools() {
+  try {
+    const timestamp = Date.now();
+    const response = await api.get(`/api/pools?_t=${timestamp}`);
+    
+    if (!response.data || !response.data.pools) {
+      console.error('Invalid response format from /api/pools');
+      return [];
+    }
+    
+    // Combine best performance and stable pools
+    const pools = [
+      ...(response.data.pools.bestPerformance || []),
+      ...(response.data.pools.topStable || [])
+    ];
+    
+    // Filter out any pools that don't have complete data
+    return pools.filter(pool => pool && pool.id && pool.tokenPair);
+  } catch (error) {
+    console.error('Error fetching top pools:', error);
+    return [];
+  }
+}
+
+// Format pool data for display
+function formatPoolData(pool) {
+  if (!pool) return 'No pool data available';
+  
+  // Normalize the token pair
+  const normalizedTokenPair = formatTokenPair(pool.tokenPair);
+  
+  // Get token symbols for price display
+  const baseToken = normalizedTokenPair.split('/')[0];
+  
+  return `â€¢ Pool ID: ðŸ“‹ ${pool.id}
+  Token Pair: ${normalizedTokenPair}
+  24h APR: ${parseFloat(pool.apr24h).toFixed(2)}%
+  7d APR: ${parseFloat(pool.apr7d).toFixed(2)}%
+  30d APR: ${parseFloat(pool.apr30d).toFixed(2)}%
+  TVL (USD): $${parseFloat(pool.liquidityUsd).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}
+  Current Price (USD): $${parseFloat(pool.price).toFixed(2)} per ${baseToken}`;
+}
+
+// Implement the full solution
+async function displayInvestmentUpdate() {
+  // Get top performing pools dynamically
+  const pools = await getTopPerformingPools();
+  
+  if (pools.length === 0) {
+    return "Unable to fetch investment data at this time. Please try again later.";
+  }
+  
+  // Sort by APR (highest first)
+  const sortedPools = [...pools].sort((a, b) => 
+    parseFloat(b.apr24h) - parseFloat(a.apr24h)
+  );
+  
+  // Select top pools for each category
+  const topPools = sortedPools.slice(0, 2);
+  
+  // Find stable pools (USDC/USDT pairs or similar)
+  const stablePools = pools.filter(pool => 
+    pool.tokenPair.includes('USDC') || 
+    pool.tokenPair.includes('USDT') ||
+    pool.tokenPair.includes('DAI')
+  ).slice(0, 3);
+  
+  // Format the complete investment update
+  let message = "ðŸ“ˆ Latest Crypto Investment Update:\n\n";
+  
+  // Add top performing investments
+  message += "Best Performing Investments Today:\n";
+  topPools.forEach(pool => {
+    message += formatPoolData(pool) + "\n\n";
+  });
+  
+  // Add stable investments
+  message += "Top Stable Investments:\n";
+  stablePools.forEach(pool => {
+    message += formatPoolData(pool) + "\n\n";
+  });
+  
+  message += "Want to see your potential earnings? Try /simulate amount (default is $1000).";
+  
+  return message;
+}
+```
+
+## Next Steps
+
+1. Implement these changes as soon as possible to ensure data integrity
+2. Add additional validation to prevent similar issues in the future
+3. Set up monitoring to alert you if pool data appears inconsistent
+4. Consider implementing an automated testing routine that validates pool data against the Raydium website
+
+By addressing these issues, you'll ensure your users receive accurate and current investment data that properly reflects what's available on Raydium.
+
+If you have any questions about implementing these fixes, please don't hesitate to contact our API support team.
