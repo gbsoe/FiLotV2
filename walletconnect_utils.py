@@ -1,5 +1,6 @@
 """
 WalletConnect utilities for the Telegram cryptocurrency pool bot
+Integrates with the Solana wallet service for improved wallet connectivity and transaction handling.
 """
 
 import os
@@ -10,6 +11,7 @@ import uuid
 import asyncio
 from typing import Dict, Any, Optional, Union, Tuple
 import urllib.parse  # Standard library for URL encoding
+from datetime import datetime, timedelta
 
 # Configure logging
 logging.basicConfig(
@@ -17,6 +19,15 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# Import SolanaWalletService
+try:
+    from solana_wallet_service import get_wallet_service
+    SOLANA_SERVICE_AVAILABLE = True
+    logger.info("Solana wallet service is available")
+except ImportError:
+    logger.warning("Solana wallet service not available, will use legacy implementation")
+    SOLANA_SERVICE_AVAILABLE = False
 
 # Try to import optional dependencies with fallbacks
 try:
@@ -42,6 +53,11 @@ except ImportError:
 WALLETCONNECT_PROJECT_ID = os.environ.get("WALLETCONNECT_PROJECT_ID")
 if not WALLETCONNECT_PROJECT_ID:
     logger.warning("WALLETCONNECT_PROJECT_ID not found in environment variables")
+
+# Check for Solana RPC URL
+SOLANA_RPC_URL = os.environ.get("SOLANA_RPC_URL")
+if not SOLANA_RPC_URL:
+    logger.warning("SOLANA_RPC_URL not found in environment variables, will use public endpoint")
 
 # Database connection string
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -94,7 +110,9 @@ def init_db():
                     session_data JSONB,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     telegram_user_id BIGINT,
-                    status VARCHAR(50) DEFAULT 'pending'
+                    status VARCHAR(50) DEFAULT 'pending',
+                    wallet_address TEXT,
+                    expires_at TIMESTAMP
                 )
             """)
             
@@ -123,7 +141,76 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
     # Import app at function level to avoid circular imports
     from app import app
     
-    # Note: We don't require a project ID anymore - we can generate a basic URI without it
+    # If Solana wallet service is available, use it instead of the legacy implementation
+    if SOLANA_SERVICE_AVAILABLE:
+        try:
+            # Get wallet service
+            wallet_service = get_wallet_service()
+            
+            # Create session
+            result = await wallet_service.create_session(telegram_user_id)
+            
+            # Save to database if successful and database is available
+            if result["success"] and PSYCOPG2_AVAILABLE and DATABASE_URL:
+                try:
+                    with app.app_context():
+                        conn = get_db_connection()
+                        if conn:
+                            cursor = conn.cursor()
+                            
+                            # Convert to ISO format if datetime objects
+                            expires_at = result.get("expires_at")
+                            if isinstance(expires_at, str):
+                                # Already in correct format
+                                pass
+                            elif hasattr(expires_at, "isoformat"):
+                                # Convert datetime to string
+                                expires_at = expires_at.isoformat()
+                            else:
+                                # Use default expiration if not available
+                                expires_at = (datetime.now() + timedelta(hours=1)).isoformat()
+                            
+                            session_data = {
+                                "uri": result.get("uri", ""),
+                                "qr_uri": result.get("qr_uri", ""),
+                                "created": int(time.time()),
+                                "session_id": result["session_id"],
+                                "security_level": result.get("security_level", "read_only"),
+                                "expires_at": expires_at,
+                            }
+                            
+                            cursor.execute(
+                                """
+                                INSERT INTO wallet_sessions 
+                                (session_id, session_data, telegram_user_id, status, wallet_address, expires_at) 
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                                """, 
+                                (
+                                    result["session_id"], 
+                                    Json(session_data), 
+                                    telegram_user_id, 
+                                    result.get("status", "pending"),
+                                    result.get("wallet_address", None),
+                                    expires_at
+                                )
+                            )
+                            
+                            cursor.close()
+                            conn.close()
+                            logger.info(f"Saved WalletConnect session to database")
+                except Exception as db_error:
+                    logger.warning(f"Could not save WalletConnect session to database: {db_error}")
+            
+            # Return the result from the wallet service
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error creating session with Solana wallet service: {e}")
+            logger.info("Falling back to legacy implementation")
+            # Fall through to legacy implementation
+    
+    # Legacy implementation
+    logger.info("Using legacy WalletConnect implementation")
     if not WALLETCONNECT_PROJECT_ID:
         logger.warning("WalletConnect Project ID not configured, using basic URI format")
     
@@ -191,22 +278,24 @@ async def create_walletconnect_session(telegram_user_id: int) -> Dict[str, Any]:
                     if conn:
                         cursor = conn.cursor()
                         
+                        expires_at = datetime.now() + timedelta(hours=1)
+                        
                         session_data = {
                             "uri": data["uri"],
                             "raw_wc_uri": data.get("raw_wc_uri", ""),
                             "created": int(time.time()),
                             "session_id": data.get("id", ""),
                             "security_level": "read_only",
-                            "expires_at": int(time.time()) + 3600,
+                            "expires_at": expires_at.isoformat(),
                         }
                         
                         cursor.execute(
                             """
                             INSERT INTO wallet_sessions 
-                            (session_id, session_data, telegram_user_id, status) 
-                            VALUES (%s, %s, %s, %s)
+                            (session_id, session_data, telegram_user_id, status, expires_at) 
+                            VALUES (%s, %s, %s, %s, %s)
                             """, 
-                            (session_id, Json(session_data), telegram_user_id, "pending")
+                            (session_id, Json(session_data), telegram_user_id, "pending", expires_at)
                         )
                         
                         cursor.close()
@@ -246,6 +335,26 @@ async def check_walletconnect_session(session_id: str) -> Dict[str, Any]:
     """
     # Import app at function level to avoid circular imports
     from app import app
+    
+    # If Solana wallet service is available, use it instead of the legacy implementation
+    if SOLANA_SERVICE_AVAILABLE:
+        try:
+            # Get wallet service
+            wallet_service = get_wallet_service()
+            
+            # Check session
+            result = await wallet_service.check_session(session_id)
+            
+            # Return the result from the wallet service
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error checking session with Solana wallet service: {e}")
+            logger.info("Falling back to legacy implementation")
+            # Fall through to legacy implementation
+    
+    # Legacy implementation
+    logger.info("Using legacy session check implementation")
     
     # If the database is not available, provide some basic info
     if not PSYCOPG2_AVAILABLE or not DATABASE_URL:
@@ -362,6 +471,26 @@ async def kill_walletconnect_session(session_id: str) -> Dict[str, Any]:
     """
     # Import app at function level to avoid circular imports
     from app import app
+    
+    # If Solana wallet service is available, use it instead of the legacy implementation
+    if SOLANA_SERVICE_AVAILABLE:
+        try:
+            # Get wallet service
+            wallet_service = get_wallet_service()
+            
+            # Disconnect wallet
+            result = await wallet_service.disconnect_wallet(session_id)
+            
+            # Return the result from the wallet service
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error disconnecting wallet with Solana wallet service: {e}")
+            logger.info("Falling back to legacy implementation")
+            # Fall through to legacy implementation
+    
+    # Legacy implementation
+    logger.info("Using legacy session deletion implementation")
     
     # If the database is not available, just return success
     if not PSYCOPG2_AVAILABLE or not DATABASE_URL:
