@@ -212,6 +212,7 @@ class SolanaWalletService:
         """Initialize the wallet service."""
         self.client = get_or_create_client()
         self.sessions = {}  # In-memory session storage for development
+        self._transaction_callbacks = {}  # Callbacks for transaction status changes
         
     async def validate_wallet_address(self, address: str) -> bool:
         """
@@ -717,6 +718,109 @@ class SolanaWalletService:
             return {
                 "success": False,
                 "error": f"Error simulating transaction: {str(e)}"
+            }
+    
+    async def execute_transaction(self, transaction_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute a transaction.
+        
+        Args:
+            transaction_data: The transaction data
+            
+        Returns:
+            Execution results
+        """
+        try:
+            # In a real implementation, we would build and sign the transaction
+            # For now, we'll use the fallback mock implementation
+            
+            # Generate a transaction signature
+            transaction_signature = f"mock_signature_{str(uuid.uuid4())[:8]}"
+            
+            # Get transaction type
+            transaction_type = transaction_data.get("type", "unknown")
+            wallet_address = transaction_data.get("wallet_address")
+            
+            # Validate wallet address
+            if not await self.validate_wallet_address(wallet_address):
+                return {
+                    "success": False,
+                    "error": "Invalid wallet address"
+                }
+            
+            # Log the transaction execution
+            logger.info(f"Executing transaction: type={transaction_type}, wallet={wallet_address}")
+            
+            # In a production environment, this would actually submit the transaction to the blockchain
+            # For now, we'll return a success response with the signature
+            
+            # Handle different transaction types
+            if transaction_type == "swap":
+                # Execute swap transaction
+                from_token = transaction_data.get("from_token")
+                to_token = transaction_data.get("to_token")
+                amount = transaction_data.get("amount")
+                
+                logger.info(f"Executing swap: {amount} {from_token} -> {to_token}")
+                
+                return {
+                    "success": True,
+                    "transaction_type": transaction_type,
+                    "signature": transaction_signature,
+                    "message": f"Successfully swapped {amount} {from_token} to {to_token}",
+                    "from_token": from_token,
+                    "to_token": to_token,
+                    "amount": amount,
+                    "wallet_address": wallet_address
+                }
+            elif transaction_type == "add_liquidity":
+                # Execute add liquidity transaction
+                token_a = transaction_data.get("token_a")
+                token_b = transaction_data.get("token_b")
+                amount = transaction_data.get("amount")
+                pool_id = transaction_data.get("pool_id")
+                
+                logger.info(f"Executing add liquidity: {amount} USD to {token_a}/{token_b} pool")
+                
+                return {
+                    "success": True,
+                    "transaction_type": transaction_type,
+                    "signature": transaction_signature,
+                    "message": f"Successfully added liquidity to {token_a}/{token_b} pool",
+                    "token_a": token_a,
+                    "token_b": token_b,
+                    "amount": amount,
+                    "pool_id": pool_id,
+                    "wallet_address": wallet_address
+                }
+            elif transaction_type == "remove_liquidity":
+                # Execute remove liquidity transaction
+                pool_id = transaction_data.get("pool_id")
+                percentage = transaction_data.get("percentage", 100)
+                amount = transaction_data.get("amount")
+                
+                logger.info(f"Executing remove liquidity: {percentage}% from pool {pool_id}")
+                
+                return {
+                    "success": True,
+                    "transaction_type": transaction_type,
+                    "signature": transaction_signature,
+                    "message": f"Successfully removed {percentage}% liquidity from pool",
+                    "pool_id": pool_id,
+                    "percentage": percentage,
+                    "amount": amount,
+                    "wallet_address": wallet_address
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Unknown transaction type: {transaction_type}"
+                }
+        except Exception as e:
+            logger.error(f"Error executing transaction: {e}")
+            return {
+                "success": False,
+                "error": f"Error executing transaction: {str(e)}"
             }
 
     def format_wallet_info(self, balance_result: Dict[str, Any]) -> str:
