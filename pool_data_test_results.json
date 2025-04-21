@@ -1,0 +1,152 @@
+{
+  "bestPerformance": [
+    {
+      "id": "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv",
+      "tokenPair": "SOL/USDC",
+      "baseMint": "So11111111111111111111111111111111111111112",
+      "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "apr24h": "61.99",
+      "apr7d": "58.02",
+      "apr30d": "93.78",
+      "liquidityUsd": "9466125.65",
+      "price": "141.59",
+      "volume24h": "39376198.94",
+      "volume7d": "447767214.87",
+      "formatted": "\u2022 Pool ID: \ud83d\udccb 3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv\n  Token Pair: SOL/USDC\n  24h APR: 61.99%\n  7d APR: 58.02%\n  30d APR: 93.78%\n  TVL (USD): $9,466,125.65\n  Current Price (USD): $141.59 per SOL",
+      "originalTokenPair": "SOL/USDC",
+      "pairName": "SOL/USDC",
+      "apr": "61.99",
+      "aprWeekly": "58.02",
+      "aprMonthly": "93.78",
+      "liquidity": "9466125.65",
+      "tokenPrices": {
+        "SOL": 141.64,
+        "USDC": 0.999947
+      }
+    },
+    {
+      "id": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
+      "tokenPair": "SOL/RAY",
+      "baseMint": "So11111111111111111111111111111111111111112",
+      "quoteMint": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+      "apr24h": "49.25",
+      "apr7d": "42.82",
+      "apr30d": "51.65",
+      "liquidityUsd": "3891312.60",
+      "price": "61.78",
+      "volume24h": "10108398.01",
+      "volume7d": "106299706.06",
+      "formatted": "\u2022 Pool ID: \ud83d\udccb 2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2\n  Token Pair: SOL/RAY\n  24h APR: 49.25%\n  7d APR: 42.82%\n  30d APR: 51.65%\n  TVL (USD): $3,891,312.60\n  Current Price (USD): $61.78 per SOL",
+      "originalTokenPair": "SOL/RAY",
+      "pairName": "SOL/RAY",
+      "apr": "49.25",
+      "aprWeekly": "42.82",
+      "aprMonthly": "51.65",
+      "liquidity": "3891312.60",
+      "tokenPrices": {
+        "SOL": 141.64,
+        "RAY": 2.29
+      }
+    }
+  ],
+  "topStable": [
+    {
+      "id": "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv",
+      "tokenPair": "SOL/USDC",
+      "baseMint": "So11111111111111111111111111111111111111112",
+      "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "apr24h": "61.99",
+      "apr7d": "58.02",
+      "apr30d": "93.78",
+      "liquidityUsd": "9466125.65",
+      "price": "141.59",
+      "volume24h": "39376198.94",
+      "volume7d": "447767214.87",
+      "formatted": "\u2022 Pool ID: \ud83d\udccb 3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv\n  Token Pair: SOL/USDC\n  24h APR: 61.99%\n  7d APR: 58.02%\n  30d APR: 93.78%\n  TVL (USD): $9,466,125.65\n  Current Price (USD): $141.59 per SOL",
+      "originalTokenPair": "SOL/USDC",
+      "pairName": "SOL/USDC",
+      "apr": "61.99",
+      "aprWeekly": "58.02",
+      "aprMonthly": "93.78",
+      "liquidity": "9466125.65",
+      "tokenPrices": {
+        "SOL": 141.64,
+        "USDC": 0.999947
+      }
+    },
+    {
+      "id": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
+      "tokenPair": "SOL/RAY",
+      "baseMint": "So11111111111111111111111111111111111111112",
+      "quoteMint": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+      "apr24h": "49.25",
+      "apr7d": "42.82",
+      "apr30d": "51.65",
+      "liquidityUsd": "3891312.60",
+      "price": "61.78",
+      "volume24h": "10108398.01",
+      "volume7d": "106299706.06",
+      "formatted": "\u2022 Pool ID: \ud83d\udccb 2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2\n  Token Pair: SOL/RAY\n  24h APR: 49.25%\n  7d APR: 42.82%\n  30d APR: 51.65%\n  TVL (USD): $3,891,312.60\n  Current Price (USD): $61.78 per SOL",
+      "originalTokenPair": "SOL/RAY",
+      "pairName": "SOL/RAY",
+      "apr": "49.25",
+      "aprWeekly": "42.82",
+      "aprMonthly": "51.65",
+      "liquidity": "3891312.60",
+      "tokenPrices": {
+        "SOL": 141.64,
+        "RAY": 2.29
+      }
+    }
+  ],
+  "topAPR": [
+    {
+      "id": "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv",
+      "tokenPair": "SOL/USDC",
+      "baseMint": "So11111111111111111111111111111111111111112",
+      "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "apr24h": "61.99",
+      "apr7d": "58.02",
+      "apr30d": "93.78",
+      "liquidityUsd": "9466125.65",
+      "price": "141.59",
+      "volume24h": "39376198.94",
+      "volume7d": "447767214.87",
+      "formatted": "\u2022 Pool ID: \ud83d\udccb 3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv\n  Token Pair: SOL/USDC\n  24h APR: 61.99%\n  7d APR: 58.02%\n  30d APR: 93.78%\n  TVL (USD): $9,466,125.65\n  Current Price (USD): $141.59 per SOL",
+      "originalTokenPair": "SOL/USDC",
+      "pairName": "SOL/USDC",
+      "apr": "61.99",
+      "aprWeekly": "58.02",
+      "aprMonthly": "93.78",
+      "liquidity": "9466125.65",
+      "tokenPrices": {
+        "SOL": 141.64,
+        "USDC": 0.999947
+      }
+    },
+    {
+      "id": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
+      "tokenPair": "SOL/RAY",
+      "baseMint": "So11111111111111111111111111111111111111112",
+      "quoteMint": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+      "apr24h": "49.25",
+      "apr7d": "42.82",
+      "apr30d": "51.65",
+      "liquidityUsd": "3891312.60",
+      "price": "61.78",
+      "volume24h": "10108398.01",
+      "volume7d": "106299706.06",
+      "formatted": "\u2022 Pool ID: \ud83d\udccb 2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2\n  Token Pair: SOL/RAY\n  24h APR: 49.25%\n  7d APR: 42.82%\n  30d APR: 51.65%\n  TVL (USD): $3,891,312.60\n  Current Price (USD): $61.78 per SOL",
+      "originalTokenPair": "SOL/RAY",
+      "pairName": "SOL/RAY",
+      "apr": "49.25",
+      "aprWeekly": "42.82",
+      "aprMonthly": "51.65",
+      "liquidity": "3891312.60",
+      "tokenPrices": {
+        "SOL": 141.64,
+        "RAY": 2.29
+      }
+    }
+  ]
+}
