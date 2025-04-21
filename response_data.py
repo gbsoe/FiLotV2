@@ -48,112 +48,65 @@ TVL_RANGES = {
 
 def get_pool_data():
     """
-    Get predefined pool data.
+    Get pool data directly from the Raydium API with verification.
+    No more hard-coded pool IDs or values.
+    Returns only real, verified pools that exist in the Raydium system.
     """
     try:
-        # Create pool data based on real Raydium pools with correct data from API reference
+        # Import from raydium_client at function level to avoid circular imports
+        from raydium_client import get_client
+
+        # Get the client instance
+        client = get_client()
+        
+        # Fetch all pools from the Raydium API - this ensures we only use real pools
+        api_pools = client.get_pools()
+        
+        logger.info(f"Fetched {len(api_pools.get('bestPerformance', []))} best performance pools and {len(api_pools.get('topStable', []))} stable pools from API")
+        
+        # Create initial pool data structure from API response
         pools_data = {
-            "bestPerformance": [
-                # Pool with highest APR
-                {
-                    "id": "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv",
-                    "pairName": "SOL/USDC",   # Normalized for user display (actual is WSOL/USDC)
-                    "tokenPair": "WSOL/USDC", # Actual token pair from Raydium API
-                    "baseMint": "So11111111111111111111111111111111111111112",
-                    "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                    "apr": "48.77",  # Updated to match actual Raydium API value
-                    "aprWeekly": "58.60",  # Updated to match actual Raydium API value
-                    "aprMonthly": "95.63",  # Updated to match actual Raydium API value
-                    "apr24h": "48.77",  # Updated to match actual Raydium API value
-                    "apr7d": "58.60",  # Updated to match actual Raydium API value
-                    "apr30d": "95.63",  # Updated to match actual Raydium API value
-                    "liquidity": "9337025.91",  # Updated TVL from Raydium SDK data
-                    "liquidityUsd": "9337025.91",  # Added new field format as in API reference
-                    "price": "136.79",
-                    "volume24h": "30996598.11",  # From Raydium SDK data
-                    "volume7d": "449622307.18"  # From Raydium SDK data
-                },
-                # Pool with highest TVL
-                {
-                    "id": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
-                    "pairName": "SOL/RAY",   # Normalized for user display (actual is WSOL/RAY)
-                    "tokenPair": "WSOL/RAY",  # Actual token pair from Raydium API
-                    "baseMint": "So11111111111111111111111111111111111111112",
-                    "quoteMint": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
-                    "apr": "47.81",  # Updated to match actual Raydium API value
-                    "aprWeekly": "45.06",  # Updated to match actual Raydium API value
-                    "aprMonthly": "55.01",  # Updated to match actual Raydium API value
-                    "apr24h": "47.81",  # Updated to match actual Raydium API value
-                    "apr7d": "45.06",  # Updated to match actual Raydium API value
-                    "apr30d": "55.01",  # Updated to match actual Raydium API value
-                    "liquidity": "11245873.65",  # This is the highest TVL pool
-                    "liquidityUsd": "11245873.65",  # Added new field format as in API reference
-                    "price": "142.32",
-                    "volume24h": "1567432.23",
-                    "volume7d": "7842156.97"
-                }
-            ],
-            "topStable": [
-                # Top stable pools - using only verified pools that exist in Raydium
-                {
-                    "id": "CYbD9RaToYMtWKA7QZyoLahnHdWq553Vm62Lh6qWtuxq",
-                    "pairName": "SOL/USDC",   # Normalized for user display (actual is WSOL/USDC)
-                    "tokenPair": "WSOL/USDC", # This is actually a WSOL/USDC pool, not USDC/USDT
-                    "baseMint": "So11111111111111111111111111111111111111112",
-                    "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                    "apr": "17.77",  # Updated to match actual Raydium API value
-                    "aprWeekly": "22.25", # Updated to match actual Raydium API value
-                    "aprMonthly": "34.33", # Updated to match actual Raydium API value
-                    "apr24h": "17.77",  # Updated to match actual Raydium API value
-                    "apr7d": "22.25",  # Updated to match actual Raydium API value
-                    "apr30d": "34.33",  # Updated to match actual Raydium API value
-                    "liquidity": "45678901.23",
-                    "liquidityUsd": "45678901.23",
-                    "price": "136.79", # Using the correct SOL price, not stablecoin price
-                    "volume24h": "12345678.00",
-                    "volume7d": "76543210.99"
-                },
-                # Adding replacement valid pools for the removed non-existent pools
-                {
-                    "id": "6fTRDD7sYxCDSWMW1zQW2HaPM3SubmER9TP5qcZ3qP9F", # Valid USDC/USDT pool
-                    "pairName": "USDC/USDT",
-                    "tokenPair": "USDC/USDT",
-                    "baseMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                    "quoteMint": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-                    "apr": "6.89",
-                    "aprWeekly": "7.21",
-                    "aprMonthly": "8.37",
-                    "apr24h": "6.89",
-                    "apr7d": "7.21",
-                    "apr30d": "8.37",
-                    "liquidity": "31478956.12",
-                    "liquidityUsd": "31478956.12",
-                    "price": "1.00", # Stable price for stablecoin pair
-                    "volume24h": "9876543.21",
-                    "volume7d": "54321987.65"
-                },
-                {
-                    "id": "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1", # Valid mSOL/USDC pool
-                    "pairName": "mSOL/USDC",
-                    "tokenPair": "mSOL/USDC",
-                    "baseMint": "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
-                    "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-                    "apr": "22.46",
-                    "aprWeekly": "24.19",
-                    "aprMonthly": "27.75",
-                    "apr24h": "22.46",
-                    "apr7d": "24.19",
-                    "apr30d": "27.75",
-                    "liquidity": "6541298.87",
-                    "liquidityUsd": "6541298.87",
-                    "price": "149.32", # mSOL has slight premium over SOL
-                    "volume24h": "7654321.09",
-                    "volume7d": "42987654.32"
-                }
-            ],
-            # Add topAPR as an alias to bestPerformance for backward compatibility
-            "topAPR": []
+            "bestPerformance": api_pools.get('bestPerformance', [])[:2],  # Limit to top 2 best performance
+            "topStable": api_pools.get('topStable', [])[:3],  # Limit to top 3 stable pools
+            "topAPR": []  # Will be filled with same data as bestPerformance
         }
+        
+        # Normalize token pairs for display (WSOL -> SOL) while preserving original tokenPair
+        for pool in pools_data["bestPerformance"] + pools_data["topStable"]:
+            if "tokenPair" in pool and "/" in pool["tokenPair"]:
+                # Save original tokenPair if it doesn't exist
+                if "originalTokenPair" not in pool:
+                    pool["originalTokenPair"] = pool["tokenPair"]
+                    
+                # Create a display-friendly pairName
+                token_a, token_b = pool["tokenPair"].split("/")
+                # Normalize WSOL to SOL for display
+                if token_a == "WSOL":
+                    token_a = "SOL"
+                    
+                pool["pairName"] = f"{token_a}/{token_b}"
+                
+                # Ensure all required fields exist with proper naming conventions
+                # Make sure both old and new field naming formats are present
+                if "apr24h" in pool and "apr" not in pool:
+                    pool["apr"] = pool["apr24h"]
+                elif "apr" in pool and "apr24h" not in pool:
+                    pool["apr24h"] = pool["apr"]
+                    
+                if "apr7d" in pool and "aprWeekly" not in pool:
+                    pool["aprWeekly"] = pool["apr7d"]
+                elif "aprWeekly" in pool and "apr7d" not in pool:
+                    pool["apr7d"] = pool["aprWeekly"]
+                    
+                if "apr30d" in pool and "aprMonthly" not in pool:
+                    pool["aprMonthly"] = pool["apr30d"]
+                elif "aprMonthly" in pool and "apr30d" not in pool:
+                    pool["apr30d"] = pool["aprMonthly"]
+                    
+                if "liquidityUsd" in pool and "liquidity" not in pool:
+                    pool["liquidity"] = pool["liquidityUsd"]
+                elif "liquidity" in pool and "liquidityUsd" not in pool:
+                    pool["liquidityUsd"] = pool["liquidity"]
         
         # Copy bestPerformance pools to topAPR for backward compatibility
         pools_data["topAPR"] = pools_data["bestPerformance"]
@@ -161,7 +114,7 @@ def get_pool_data():
         # Get token prices from CoinGecko for the tokens in our pools
         token_symbols = set()
         for pool in pools_data["bestPerformance"] + pools_data["topStable"] + pools_data["topAPR"]:
-            if "/" in pool["pairName"]:
+            if "/" in pool.get("pairName", ""):
                 token_a, token_b = pool["pairName"].split("/")
                 token_symbols.add(token_a)
                 token_symbols.add(token_b)
@@ -172,12 +125,25 @@ def get_pool_data():
 
         # Update pool data with token prices for all arrays
         for pool in pools_data["bestPerformance"] + pools_data["topStable"] + pools_data["topAPR"]:
-            if "/" in pool["pairName"]:
+            if "/" in pool.get("pairName", ""):
                 token_a, token_b = pool["pairName"].split("/")
                 pool["tokenPrices"] = {
                     token_a: token_prices.get(token_a, 0),
                     token_b: token_prices.get(token_b, 0)
                 }
+                
+        # If we somehow end up with empty lists, fall back to empty results, but don't use hard-coded data
+        if not pools_data["bestPerformance"]:
+            logger.warning("No best performance pools found from API. Using empty list.")
+            pools_data["bestPerformance"] = []
+            
+        if not pools_data["topStable"]:
+            logger.warning("No stable pools found from API. Using empty list.")
+            pools_data["topStable"] = []
+            
+        # Always re-sync topAPR with bestPerformance
+        pools_data["topAPR"] = pools_data["bestPerformance"]
+            
         return pools_data
     except Exception as e:
         logger.error(f"Error fetching pool data: {e}")

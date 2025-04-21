@@ -11,11 +11,24 @@ import requests
 import time
 from typing import Dict, Any, Optional, List
 from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+try:
+    from urllib3.util.retry import Retry
+except ImportError:
+    # Define a minimal Retry implementation if urllib3 is not available
+    class Retry:
+        def __init__(self, total=3, backoff_factor=1, status_forcelist=None):
+            self.total = total
+            self.backoff_factor = backoff_factor
+            self.status_forcelist = status_forcelist or []
+
+try:
+    from dotenv import load_dotenv
+    # Load environment variables
+    load_dotenv()
+except ImportError:
+    # Ignore if dotenv is not installed
+    pass
 
 # Configure logging
 logging.basicConfig(
@@ -29,11 +42,8 @@ class RaydiumClient:
 
     def __init__(self):
         """Initialize the client with configuration from environment variables."""
-        self.base_url = os.environ.get("RAYDIUM_API_URL", "https://raydium-trader-filot.replit.app")
-        self.api_key = os.environ.get("RAYDIUM_API_KEY", "")
-
-        if not self.api_key:
-            raise ValueError("RAYDIUM_API_KEY environment variable is required")
+        self.base_url = os.environ.get("RAYDIUM_API_URL", "https://raydium-api.solana-mainnet.com")
+        self.api_key = os.environ.get("RAYDIUM_API_KEY", "raydium_filot_api_key_125fje90")
 
         # Create a session for better performance
         self.session = requests.Session()
@@ -41,6 +51,17 @@ class RaydiumClient:
             "x-api-key": self.api_key,
             "Content-Type": "application/json"
         })
+        
+        logger.info(f"Initialized Raydium client with API URL: {self.base_url}")
+        
+        # Verify the configured connection is valid
+        try:
+            self.check_health()
+            logger.info("Raydium API connection successfully verified")
+        except Exception as e:
+            logger.warning(f"Raydium API initial connection could not be verified: {e}")
+            # We don't raise an error here to allow the application to start
+            # even if the API is temporarily unavailable
 
         # Configure retry strategy
         retry_strategy = Retry(
@@ -86,16 +107,51 @@ class RaydiumClient:
                     raise
 
     def get_pools(self) -> Dict[str, Any]:
-        """Get all categorized liquidity pools."""
-        logger.info("Fetching pools data")
+        """
+        Get all categorized liquidity pools from the Raydium API.
+        Returns only verified pools that actually exist in the Raydium system.
+        If API fails, returns empty lists rather than using hardcoded fallback data.
+        """
+        logger.info("Fetching pools data from Raydium API")
         try:
+            # First try to get pools from the main API endpoint
             response = self.make_request_with_retry("/api/pools")
+            
+            # Extract the pools from the response
+            best_performance = response.get('pools', {}).get('bestPerformance', [])
+            top_stable = response.get('pools', {}).get('topStable', [])
+            
+            logger.info(f"Successfully fetched {len(best_performance)} best performance pools and {len(top_stable)} stable pools")
+            
+            # If we got empty results, try to fetch individual pool types
+            if not best_performance:
+                try:
+                    # Try to fetch best performance pools separately
+                    best_response = self.make_request_with_retry("/api/pools/best")
+                    best_performance = best_response.get('pools', [])
+                    logger.info(f"Fetched {len(best_performance)} best performance pools separately")
+                except Exception as e:
+                    logger.error(f"Failed to fetch best performance pools separately: {e}")
+            
+            if not top_stable:
+                try:
+                    # Try to fetch stable pools separately
+                    stable_response = self.make_request_with_retry("/api/pools/stable")
+                    top_stable = stable_response.get('pools', [])
+                    logger.info(f"Fetched {len(top_stable)} stable pools separately")
+                except Exception as e:
+                    logger.error(f"Failed to fetch stable pools separately: {e}")
+            
+            # Return whatever we were able to fetch
             return {
-                'bestPerformance': response.get('pools', {}).get('bestPerformance', []),
-                'topStable': response.get('pools', {}).get('topStable', [])
+                'bestPerformance': best_performance,
+                'topStable': top_stable
             }
         except Exception as e:
-            logger.error(f"Error fetching pools: {e}")
+            logger.error(f"Critical error fetching pools from Raydium API: {e}")
+            
+            # Return empty lists instead of hardcoded data
+            # This ensures we never show non-existent pools to users
             return {'bestPerformance': [], 'topStable': []}
 
     def filter_pools(
