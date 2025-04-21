@@ -46,8 +46,8 @@ TRANSACTION_STATUS_EXPIRED = "expired"
 def init_transaction_tables():
     """Initialize database tables for transaction tracking."""
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        # Get database connection
+        conn, cursor = get_db_connection()
         
         # Create transactions table if it doesn't exist
         cursor.execute("""
@@ -90,6 +90,9 @@ def init_transaction_tables():
     except Exception as e:
         logger.error(f"Error initializing transaction tables: {e}")
         return False
+
+# Initialize tables when module is imported
+init_transaction_tables()
 
 async def prepare_swap_transaction(
     user_id: int,

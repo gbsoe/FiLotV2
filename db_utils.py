@@ -11,8 +11,9 @@ import time
 import logging
 import datetime
 import shutil
+import psycopg2
 from functools import wraps
-from typing import Dict, Any, List, Optional, Union, Callable
+from typing import Dict, Any, List, Optional, Union, Callable, Tuple
 from sqlalchemy.exc import SQLAlchemyError
 
 from models import (
@@ -23,6 +24,32 @@ from app import db
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+def get_db_connection() -> Tuple[psycopg2.extensions.connection, psycopg2.extensions.cursor]:
+    """
+    Get a connection to the PostgreSQL database.
+    
+    Returns:
+        Tuple of connection and cursor objects
+    """
+    try:
+        # Get database URL from environment variable
+        database_url = os.environ.get("DATABASE_URL")
+        
+        if not database_url:
+            logger.error("DATABASE_URL environment variable not found")
+            raise ValueError("DATABASE_URL environment variable not found")
+        
+        # Connect to database
+        conn = psycopg2.connect(database_url)
+        conn.autocommit = False
+        cursor = conn.cursor()
+        
+        logger.debug("Connected to PostgreSQL database")
+        return conn, cursor
+    except Exception as e:
+        logger.error(f"Error connecting to database: {e}")
+        raise
 
 def handle_db_error(func):
     """Decorator to handle database errors."""
