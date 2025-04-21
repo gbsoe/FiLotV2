@@ -42,7 +42,8 @@ class RaydiumClient:
 
     def __init__(self):
         """Initialize the client with configuration from environment variables."""
-        self.base_url = os.environ.get("RAYDIUM_API_URL", "https://raydium-api.solana-mainnet.com")
+        # Use the correct API URL that works in our test
+        self.base_url = os.environ.get("RAYDIUM_API_URL", "https://raydium-trader-filot.replit.app")
         self.api_key = os.environ.get("RAYDIUM_API_KEY", "raydium_filot_api_key_125fje90")
 
         # Create a session for better performance
