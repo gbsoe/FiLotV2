@@ -221,6 +221,159 @@ class RaydiumClient:
         except Exception as e:
             logger.error(f"Error fetching token prices: {e}")
             raise
+            
+    def get_swap_route(self, from_token: str, to_token: str, amount: float) -> Dict[str, Any]:
+        """
+        Get the best route for swapping tokens.
+        
+        Args:
+            from_token: Token to swap from
+            to_token: Token to swap to
+            amount: Amount to swap
+            
+        Returns:
+            Dict with route details
+        """
+        logger.info(f"Getting swap route: {from_token} -> {to_token}, amount: {amount}")
+        try:
+            params = {
+                "fromToken": from_token,
+                "toToken": to_token,
+                "amount": amount
+            }
+            return self.make_request_with_retry("/api/swap/route", method='post', params=params)
+        except Exception as e:
+            logger.error(f"Error getting swap route: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+            
+    def simulate_swap(self, from_token: str, to_token: str, amount: float) -> Dict[str, Any]:
+        """
+        Simulate a token swap to get expected output without executing it.
+        
+        Args:
+            from_token: Token to swap from
+            to_token: Token to swap to
+            amount: Amount to swap
+            
+        Returns:
+            Dict with simulation results
+        """
+        logger.info(f"Simulating swap: {from_token} -> {to_token}, amount: {amount}")
+        try:
+            params = {
+                "fromToken": from_token,
+                "toToken": to_token,
+                "amount": amount
+            }
+            return self.make_request_with_retry("/api/swap/simulate", method='post', params=params)
+        except Exception as e:
+            logger.error(f"Error simulating swap: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+            
+    def get_liquidity_info(self, pool_id: str) -> Dict[str, Any]:
+        """
+        Get detailed information about a liquidity pool.
+        
+        Args:
+            pool_id: ID of the liquidity pool
+            
+        Returns:
+            Dict with pool liquidity details
+        """
+        logger.info(f"Getting liquidity info for pool: {pool_id}")
+        try:
+            return self.make_request_with_retry(f"/api/liquidity/{pool_id}")
+        except Exception as e:
+            logger.error(f"Error getting liquidity info: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+# Utility function to calculate optimal swap amounts
+def calculate_optimal_swap_amount(
+    total_amount: float,
+    token_a: str,
+    token_b: str,
+    token_ratio: float = 1.0,
+    token_prices: Optional[Dict[str, float]] = None
+) -> Dict[str, Any]:
+    """
+    Calculate the optimal distribution of tokens for adding liquidity.
+    
+    Args:
+        total_amount: Total amount in USD to add as liquidity
+        token_a: First token in the pool
+        token_b: Second token in the pool
+        token_ratio: Ratio of token_a to token_b in the pool
+        token_prices: Dictionary of token prices (optional)
+        
+    Returns:
+        Dict with token amounts
+    """
+    try:
+        logger.info(f"Calculating optimal swap amounts: {total_amount} USD for {token_a}/{token_b}")
+        
+        # Get token prices if not provided
+        if not token_prices:
+            client = get_client()
+            prices_response = client.get_token_prices([token_a, token_b])
+            token_prices = prices_response.get('prices', {})
+            
+        # Get token prices
+        price_a = token_prices.get(token_a, 1.0)
+        price_b = token_prices.get(token_b, 1.0)
+        
+        if price_a <= 0 or price_b <= 0:
+            logger.warning(f"Invalid token prices: {token_a}=${price_a}, {token_b}=${price_b}")
+            price_a = price_a or 1.0
+            price_b = price_b or 1.0
+        
+        # Calculate amounts in USD
+        amount_a_usd = total_amount / 2
+        amount_b_usd = total_amount / 2
+        
+        # Adjust based on token ratio
+        if token_ratio != 1.0:
+            adjustment_factor = (token_ratio * price_b) / price_a
+            total_parts = 1 + adjustment_factor
+            amount_a_usd = total_amount / total_parts
+            amount_b_usd = total_amount - amount_a_usd
+            
+        # Convert USD amounts to token amounts
+        token_a_amount = amount_a_usd / price_a
+        token_b_amount = amount_b_usd / price_b
+        
+        logger.info(f"Optimal amounts: {token_a_amount} {token_a} (${amount_a_usd}), {token_b_amount} {token_b} (${amount_b_usd})")
+        
+        return {
+            "success": True,
+            "total_amount_usd": total_amount,
+            "token_a": token_a,
+            "token_b": token_b,
+            "token_a_amount": token_a_amount,
+            "token_b_amount": token_b_amount,
+            "token_a_amount_usd": amount_a_usd,
+            "token_b_amount_usd": amount_b_usd,
+            "token_a_price": price_a,
+            "token_b_price": price_b,
+            "token_ratio": token_ratio
+        }
+    except Exception as e:
+        logger.error(f"Error calculating optimal swap amounts: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "token_a": token_a,
+            "token_b": token_b,
+            "total_amount_usd": total_amount
+        }
 
 # Singleton instance
 _instance = None
