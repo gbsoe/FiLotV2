@@ -857,10 +857,12 @@ def run_telegram_bot():
                         result = response.json()
                         updates = result.get("result", [])
 
-                        # Debug log
+                        # Enhanced debug log
                         logger.info(f"Received response: {len(updates)} updates")
                         if len(updates) > 0:
                             logger.info(f"Update keys: {', '.join(updates[0].keys())}")
+                            # Log full update for debugging
+                            logger.info(f"First update content: {json.dumps(updates[0])}")
 
                         # Process each update
                         for update in updates:
