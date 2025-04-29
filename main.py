@@ -126,6 +126,30 @@ def run_telegram_bot():
         # Create a bot instance directly
         bot = Bot(token=bot_token)
         logger.info("Created Telegram bot instance")
+        
+        # Send a debug message to verify bot functionality
+        try:
+            # Try to send a test message to a default chat ID for debugging
+            debug_chat_id = os.environ.get("ADMIN_CHAT_ID", "")
+            if debug_chat_id and debug_chat_id != "<use_your_actual_id_here>":
+                from datetime import datetime
+                # Use direct API call instead of bot.send_message which is async
+                import requests
+                response = requests.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json={
+                        "chat_id": debug_chat_id,
+                        "text": f"🤖 Bot restarted and online at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    }
+                )
+                if response.status_code == 200:
+                    logger.info(f"Sent startup message to debug chat {debug_chat_id}")
+                else:
+                    logger.error(f"Failed to send debug message: {response.text}")
+            else:
+                logger.info("No valid ADMIN_CHAT_ID found for debug messages")
+        except Exception as e:
+            logger.error(f"Error sending debug message: {e}")
 
         # Import command handlers
         from bot import (
