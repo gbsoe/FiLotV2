@@ -38,17 +38,27 @@ def run_flask():
 def run_bot():
     """Run the Telegram bot"""
     try:
+        # First, try to delete any existing webhook
+        token = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
+        if token:
+            import requests
+            requests.get(f"https://api.telegram.org/bot{token}/deleteWebhook?drop_pending_updates=true")
+            # Clear existing updates to prevent conflicts
+            requests.get(f"https://api.telegram.org/bot{token}/getUpdates", params={"offset": -1, "timeout": 0})
+        
         # Create and initialize the bot application
         bot_app = create_application()
         
-        # Run the bot in the current thread
+        # Run the bot with proper cleanup
         bot_app.run_polling(
             allowed_updates=["message", "callback_query"],
             close_loop=False,
-            drop_pending_updates=True
+            drop_pending_updates=True,
+            stop_signals=None  # Prevent automatic signal handling
         )
     except Exception as e:
         logger.error(f"Error running bot: {e}")
+        logger.error(traceback.format_exc())
 
 def main():
     """Main entry point with proper async handling"""
