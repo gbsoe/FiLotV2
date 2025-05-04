@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
@@ -9,6 +10,7 @@ import os
 import sys
 import logging
 import threading
+import asyncio
 from app import app
 from bot import create_application
 
@@ -33,6 +35,31 @@ def run_flask():
     except Exception as e:
         logger.error(f"Error running Flask app: {e}")
 
+def run_bot():
+    """Run the Telegram bot with proper event loop handling"""
+    try:
+        # Create new event loop for this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Create and run the bot application
+        bot_app = create_application()
+        
+        # Run the bot with the new event loop
+        loop.run_until_complete(bot_app.initialize())
+        loop.run_until_complete(bot_app.run_polling(allowed_updates=["message", "callback_query"]))
+    except Exception as e:
+        logger.error(f"Error in bot thread: {e}")
+    finally:
+        try:
+            # Clean up pending tasks
+            pending = asyncio.all_tasks(loop)
+            loop.run_until_complete(asyncio.gather(*pending))
+        except Exception as e:
+            logger.error(f"Error cleaning up tasks: {e}")
+        finally:
+            loop.close()
+
 def main():
     """Main entry point with proper async handling"""
     try:
@@ -45,9 +72,21 @@ def main():
         flask_thread.daemon = True
         flask_thread.start()
 
-        # Create and run the bot application
-        bot_app = create_application()
-        bot_app.run_polling()
+        # Start bot in a separate thread
+        bot_thread = threading.Thread(target=run_bot)
+        bot_thread.daemon = True
+        bot_thread.start()
+
+        # Keep main thread alive
+        while True:
+            try:
+                flask_thread.join(1)
+                bot_thread.join(1)
+            except KeyboardInterrupt:
+                logger.info("Received shutdown signal")
+                break
+            except Exception as e:
+                logger.error(f"Error in main loop: {e}")
 
     except Exception as e:
         logger.error(f"Error in main function: {e}")

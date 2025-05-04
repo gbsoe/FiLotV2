@@ -70,11 +70,11 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "gunicorn --bind 0.0.0.0:5000 --workers 1 --timeout 120 --preload wsgi:application"
+args = "gunicorn --bind 0.0.0.0:5000 --workers 1 --timeout 300 --preload wsgi:application"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python main.py"
+args = "python wsgi.py"
 
 [[workflows.workflow]]
 name = "Run Bot"
