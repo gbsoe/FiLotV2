@@ -70,10 +70,6 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "gunicorn --bind 0.0.0.0:5000 --workers 1 --timeout 300 --preload wsgi:application"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
 args = "python wsgi.py"
 
 [[workflows.workflow]]
