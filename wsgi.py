@@ -35,26 +35,20 @@ def run_flask():
     except Exception as e:
         logger.error(f"Error running Flask app: {e}")
 
-async def run_bot_async():
-    """Run the Telegram bot asynchronously"""
-    try:
-        bot_app = create_application()
-        await bot_app.initialize()
-        await bot_app.start()
-        await bot_app.run_polling(allowed_updates=["message", "callback_query"])
-    except Exception as e:
-        logger.error(f"Error in bot async function: {e}")
-
 def run_bot():
-    """Run the Telegram bot in its own event loop"""
+    """Run the Telegram bot"""
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(run_bot_async())
+        # Create and initialize the bot application
+        bot_app = create_application()
+        
+        # Run the bot in the current thread
+        bot_app.run_polling(
+            allowed_updates=["message", "callback_query"],
+            close_loop=False,
+            drop_pending_updates=True
+        )
     except Exception as e:
-        logger.error(f"Error in bot thread: {e}")
-    finally:
-        loop.close()
+        logger.error(f"Error running bot: {e}")
 
 def main():
     """Main entry point with proper async handling"""
@@ -68,21 +62,8 @@ def main():
         flask_thread.daemon = True
         flask_thread.start()
 
-        # Start bot in a separate thread
-        bot_thread = threading.Thread(target=run_bot)
-        bot_thread.daemon = True
-        bot_thread.start()
-
-        # Keep main thread alive
-        while True:
-            try:
-                flask_thread.join(1)
-                bot_thread.join(1)
-            except KeyboardInterrupt:
-                logger.info("Received shutdown signal")
-                break
-            except Exception as e:
-                logger.error(f"Error in main loop: {e}")
+        # Run bot directly in main thread
+        run_bot()
 
     except Exception as e:
         logger.error(f"Error in main function: {e}")
