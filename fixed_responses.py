@@ -237,10 +237,10 @@ def get_la_ecosystem_response():
         "The platform tracks thousands of pools across major Solana DEXes like Raydium, Orca, and Jupiter, providing real-time metrics on APR, TVL, and volume. "
         "What sets it apart is its advanced machine learning prediction system that forecasts pool performance trends and risk levels, while also offering specialized tracking for meme tokens and emerging projects. "
         "With its mobile-friendly design and powerful API, it makes sophisticated DeFi analytics accessible to both casual and professional investors.\n"
-        "Link: https://filotanalytics.replit.app\n\n"
+        "Link: https://filotanalytics.replit.app/\n\n"
         "*FiLotSense* provides advanced cryptocurrency sentiment analysis, aggregating and analyzing data from news outlets, social media, and blockchain metrics to deliver real-time insights. "
         "By leveraging machine learning and natural language processing, it helps investors navigate the volatile digital asset market with informed decision-making, adapting to changing market conditions for enhanced accuracy.\n"
-        "Link: https://filotsense.replit.app"
+        "Link: https://filotsense.replit.app/"
     )
 
 def get_variations():
@@ -258,34 +258,11 @@ def get_variations():
             "what's in the la ecosystem",
             "la ecosystem components",
             "la ecosystem tools",
-            "filot ecosystem"
-        ],
-        "what is la ecosystem": [
-            "what is la ecosystem",
-            "what is la! ecosystem",
-            "la ecosystem",
-            "la! ecosystem",
-            "tell me about la ecosystem",
-            "explain la ecosystem",
-            "what's in the la ecosystem",
-            "la ecosystem components",
-            "la ecosystem tools",
-            "filot ecosystem"
-        ],
+            "filot ecosystem",
+            "what is filot analytics",
+            "tell me about filot analytics",
+            "what is filotsense",
+            "tell me about filotsense"
+        ]
     }
 
-def get_la_ecosystem_response():
-    """
-    Return a detailed predefined response for "What is LA! Ecosystem?".
-    """
-    return (
-        "The LA! Ecosystem comprises interconnected tools designed to empower crypto investors with comprehensive analytics and sentiment analysis.\n\n"
-        "*FiLot Analytics* is a comprehensive analytics platform built for Solana liquidity pools that helps crypto investors make informed decisions. "
-        "The platform tracks thousands of pools across major Solana DEXes like Raydium, Orca, and Jupiter, providing real-time metrics on APR, TVL, and volume. "
-        "What sets it apart is its advanced machine learning prediction system that forecasts pool performance trends and risk levels, while also offering specialized tracking for meme tokens and emerging projects. "
-        "With its mobile-friendly design and powerful API, it makes sophisticated DeFi analytics accessible to both casual and professional investors.\n"
-        "Link: https://filotanalytics.replit.app\n\n"
-        "*FiLotSense* provides advanced cryptocurrency sentiment analysis, aggregating and analyzing data from news outlets, social media, and blockchain metrics to deliver real-time insights. "
-        "By leveraging machine learning and natural language processing, it helps investors navigate the volatile digital asset market with informed decision-making, adapting to changing market conditions for enhanced accuracy.\n"
-        "Link: https://filotsense.replit.app"
-    )
