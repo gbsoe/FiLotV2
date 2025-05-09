@@ -26,7 +26,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "Part of the FiLot Ecosystem:\n"
             "*FiLot Analytics* (https://filotanalytics.replit.app) Advanced Solana liquidity pool tracking with real-time APR, TVL, and volume data across Raydium, Orca, and Jupiter. Predict pool performance and spot emerging projects using machine learning.\n\n"
             "*FiLotSense* (https://filotsense.replit.app) Real-time crypto sentiment analysis powered by machine learning and NLP. Aggregate insights from news, social media, and blockchain data to navigate market volatility with confidence.")
-        )
+        ),
 
         "what is la token": (
             "*LA!* Token is a community-driven meme coin that forms the cornerstone of the FiLot ecosystem. "
@@ -130,7 +130,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "• *Scalable Infrastructure:* Powered by the Solana blockchain, ensuring fast, secure, and cost-effective transactions as the platform scales.\n"
             "• *Integrated Ecosystem:* Seamlessly combines investment tools, governance mechanisms, and staking rewards into one unified platform."
         ),
-        
+
         "how does filot work": (
             "*FiLot* works by combining advanced AI analytics with blockchain technology to help you make better cryptocurrency investment decisions.\n\n"
             "The process is straightforward:\n"
@@ -141,7 +141,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "5. *Monitoring:* After investing, FiLot continuously tracks performance and alerts you when to adjust your strategy.\n\n"
             "FiLot eliminates the complexity of DeFi investing by handling the technical analysis while keeping you in full control of your funds."
         ),
-        
+
         "security measures": (
             "FiLot implements comprehensive security measures to protect your investments and data:\n\n"
             "• *Non-Custodial Architecture:* FiLot never holds your funds; all transactions are executed directly from your wallet.\n"
@@ -152,7 +152,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "• *End-to-End Encryption:* All communications between your device and FiLot are fully encrypted.\n\n"
             "Your security is our top priority, and we employ industry-leading practices to safeguard your assets."
         ),
-        
+
         "investment strategies": (
             "FiLot offers several investment strategies tailored to different goals and risk tolerances:\n\n"
             "• *Income Generation:* Focus on stable pools with consistent yields, ideal for regular passive income.\n"
@@ -162,7 +162,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "• *Dynamic Rebalancing:* Actively adjust positions in response to changing market conditions.\n\n"
             "Each strategy is implemented with specific pool recommendations and clear rationales, allowing you to align investments with your financial goals."
         ),
-        
+
         "difference between defi and cefi": (
             "*DeFi* (Decentralized Finance) and *CeFi* (Centralized Finance) represent two distinct approaches to financial services:\n\n"
             "*DeFi:*\n"
@@ -179,7 +179,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "• Examples: Centralized exchanges, banks, traditional finance\n\n"
             "FiLot focuses primarily on DeFi opportunities, empowering you with greater financial sovereignty and potentially higher returns."
         ),
-        
+
         "yield farming": (
             "*Yield farming* is a DeFi strategy where you provide liquidity to protocols in exchange for rewards, often in multiple tokens.\n\n"
             "The process typically involves:\n"
@@ -190,7 +190,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "5. *Compounding returns* by reinvesting rewards for exponential growth\n\n"
             "Yield farming can generate APRs far exceeding traditional finance, but comes with risks including impermanent loss, smart contract vulnerabilities, and token price volatility."
         ),
-        
+
         "best time to invest": (
             "The optimal timing for crypto investments depends on multiple factors, and FiLot considers several principles:\n\n"
             "• *Dollar-Cost Averaging (DCA):* Regular investments over time often outperform attempts to time the market perfectly.\n"
@@ -199,7 +199,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "• *Protocol Launches:* Early participation in new pools or farming opportunities can yield higher initial returns.\n\n"
             "Rather than trying to predict perfect entry points, FiLot helps you identify value-based opportunities and suggests position sizing appropriate for your risk profile."
         ),
-        
+
         "tax implications": (
             "Cryptocurrency investments typically have tax implications that vary by jurisdiction:\n\n"
             "• *Trading Crypto:* Often treated as capital gains/losses\n"
@@ -208,7 +208,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "• *Impermanent Loss:* Tax treatment varies by country, often complex\n\n"
             "FiLot recommends maintaining detailed records of all transactions and consulting with a cryptocurrency-savvy tax professional in your jurisdiction for personalized advice."
         ),
-        
+
         "how to start with $100": (
             "Starting with $100 in crypto investing is entirely possible with these approaches:\n\n"
             "1. *Focus on a Single Asset:* Begin with a major cryptocurrency like SOL or ETH to minimize transaction costs.\n"
@@ -332,7 +332,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "⚠️ FiLot is launching soon! Get in early and let AI grow your money smarter than a bank!\n\n"
             "Token Contract Address (CA):\n`Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump`\n\n"
             "Buy LA! Token:\nhttps://pump.fun/coin/Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump"
-        ),
+        },
     }
 
 
@@ -527,7 +527,7 @@ def get_variations() -> Dict[str, List[str]]:
         ],
         "what can i ask": [
             "what can i ask",
-            "what questions can i ask",
+            "what questionscan i ask",
             "what should i ask",
             "help me ask",
             "what topics can i ask about",
@@ -646,23 +646,23 @@ def get_variations() -> Dict[str, List[str]]:
 def is_question(text: str) -> bool:
     """
     Determine if text is likely a question based on various patterns.
-    
+
     Args:
         text: The message text to analyze
-        
+
     Returns:
         True if the text is likely a question, False otherwise
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+
     # Clean the text
     text = text.strip().lower()
-    
+
     # Empty text is not a question
     if not text:
         return False
-    
+
     # Single word inputs are often questions about specific topics in a chat context
     if len(text.split()) == 1 or len(text.split()) == 2:
         # Check against common crypto and bot-related terms
@@ -674,24 +674,24 @@ def is_question(text: str) -> bool:
             if term in text:
                 logger.info(f"Treating single/short term '{text}' as question about '{term}'")
                 return True
-    
+
     # Check if ends with a question mark
     if text.endswith('?'):
         logger.info(f"Detected question mark in: '{text}'")
         return True
-    
+
     # Check for question words at the beginning - expanded list
     question_starters = [
         'what', 'how', 'why', 'when', 'where', 'which', 'who', 'is', 'are', 'can', 
         'could', 'will', 'would', 'should', 'do', 'does', 'did', 'tell me about',
         'explain', 'describe', 'show me', 'give me', 'i need', 'i want', 'help me with'
     ]
-    
+
     for starter in question_starters:
         if text.startswith(starter):  # Removed ' ' requirement to match more flexible starts
             logger.info(f"Detected question starter '{starter}' in: '{text}'")
             return True
-    
+
     # Check for question words anywhere in the text - for short messages
     if len(text.split()) <= 5:  # Only for short messages to avoid false positives
         anywhere_question_words = [
@@ -701,7 +701,7 @@ def is_question(text: str) -> bool:
             if word in text.split():
                 logger.info(f"Detected question word '{word}' in short text: '{text}'")
                 return True
-            
+
     # Check for inverted question structure - expanded patterns
     inverted_patterns = [
         r'(is|are|was|were|do|does|did|have|has|had|can|could|should|would|will) ([\w\s]+)\?*$',
@@ -709,12 +709,12 @@ def is_question(text: str) -> bool:
         r'(tell|show|explain|describe) (me|us) ([\w\s]+)\?*$',
         r'(need|want) (to know|info|information|details) ([\w\s]+)\?*$'
     ]
-    
+
     for pattern in inverted_patterns:
         if re.match(pattern, text):
             logger.info(f"Detected inverted question pattern in: '{text}'")
             return True
-    
+
     # Check for additional question patterns/expressions - expanded list
     question_expressions = [
         "explain", "tell me about", "what about", "i want to know", "can you", "i need info", 
@@ -723,12 +723,12 @@ def is_question(text: str) -> bool:
         "help me", "question about", "looking for", "searching for", "trying to find",
         "want to learn", "need to understand", "wondering about", "curious about"
     ]
-    
+
     for expression in question_expressions:
         if expression in text:
             logger.info(f"Detected question expression '{expression}' in: '{text}'")
             return True
-    
+
     # Topic-specific triggers that indicate questions about crypto topics
     crypto_question_indicators = {
         'filot': ["filot", "bot", "assistant"],
@@ -738,14 +738,14 @@ def is_question(text: str) -> bool:
         'investment': ["invest", "strategy", "return", "apr", "apy", "yield"],
         'risk': ["risk", "impermanent loss", "il", "safe"]
     }
-    
+
     for topic, indicators in crypto_question_indicators.items():
         if any(indicator in text for indicator in indicators):
             # For short texts or texts with these terms at the beginning, treat as questions
             if len(text.split()) <= 3 or any(text.startswith(indicator) for indicator in indicators):
                 logger.info(f"Detected crypto topic '{topic}' in potential question: '{text}'")
                 return True
-    
+
     # Log if we determined this isn't a question
     logger.info(f"Text not detected as question: '{text}'")
     return False
@@ -755,42 +755,42 @@ def get_predefined_response(query: str) -> Optional[str]:
     """
     Retrieve a predefined response based on the user's query using enhanced matching.
     The matching logic checks for direct keys, variations, and keyword combinations.
-    
+
     Args:
         query: User's message text
-        
+
     Returns:
         Predefined response or None if no match is found
     """
     if not query:
         return None
-        
+
     # Clean the query
     query_lower = query.lower().strip("?!.,")
-    
+
     # Get responses and variations
     responses = get_predefined_responses()
     variations = get_variations()
-    
+
     # Check if it's likely a question
     if not is_question(query) and not any(keyword in query_lower for keyword in ['hi', 'hello', 'hey', 'start']):
         # If it doesn't seem like a question and doesn't contain greeting keywords, skip matching
         logger.debug(f"Message '{query_lower}' doesn't seem like a question, skipping predefined matching")
         return None
-    
+
     # Log that we're processing a potential question
     logger.info(f"Processing potential question: '{query_lower}'")
-    
+
     # First, check for launch-related queries as a high priority match
     if 'launch' in query_lower and ('la' in query_lower or 'token' in query_lower):
         logger.info(f"Detected launch-related query: {query_lower}")
         return responses.get("tell me about la token's launch")
-    
+
     # Check for when-related queries about LA token launch
     if 'when' in query_lower and ('la' in query_lower or 'token' in query_lower):
         logger.info(f"Detected when-related LA token query: {query_lower}")
         return responses.get("tell me about la token's launch")
-    
+
     # Check for single-word queries using key terms
     key_terms = {
         'la': 'what is la token',
@@ -801,24 +801,24 @@ def get_predefined_response(query: str) -> Optional[str]:
     if query_lower in key_terms:
         logger.info(f"Matched key term: {query_lower} → {key_terms[query_lower]}")
         return responses.get(key_terms[query_lower])
-    
+
     # Check for exact matches
     if query_lower in responses:
         logger.info(f"Matched exact query: {query_lower}")
         return responses[query_lower]
-    
+
     # Check in variations (exact match or substring match)
     for canonical, variant_list in variations.items():
         if query_lower in variant_list:
             logger.info(f"Matched variation: {query_lower} → {canonical}")
             return responses.get(canonical)
-        
+
         # Look for substring matches
         for variant in variant_list:
             if variant in query_lower:
                 logger.info(f"Matched substring: '{variant}' in '{query_lower}' → {canonical}")
                 return responses.get(canonical)
-    
+
     # Check for keyword combinations
     keyword_combinations = {
         ('how', 'start'): 'how to use filot',
@@ -848,11 +848,11 @@ def get_predefined_response(query: str) -> Optional[str]:
         if all(keyword in query_lower for keyword in keywords):
             logger.info(f"Matched keyword combination: {keywords} → {response_key}")
             return responses.get(response_key)
-    
+
     # Semantic matching for more complex questions
     # This section tries to match questions that might be phrased differently
     # but are looking for the same information
-    
+
     # Topics and their related keywords
     topics = {
         "what is filot": ["platform", "service", "purpose", "about", "project", "tool", "app", "application"],
@@ -872,7 +872,7 @@ def get_predefined_response(query: str) -> Optional[str]:
         "tax implications": ["taxation", "reporting", "irs", "tax treatment", "capital gains"],
         "how to start with $100": ["beginner", "small amount", "low budget", "minimal", "starting capital"]
     }
-    
+
     for topic, keywords in topics.items():
         if any(keyword in query_lower for keyword in keywords):
             topic_words = set(topic.split())
@@ -881,7 +881,7 @@ def get_predefined_response(query: str) -> Optional[str]:
             if topic_words.intersection(query_words) and any(keyword in query_lower for keyword in keywords):
                 logger.info(f"Matched semantic topic: {topic} with keywords {[k for k in keywords if k in query_lower]}")
                 return responses.get(topic)
-    
+
     # No match found
     logger.info(f"No predefined response match for: {query_lower}")
     return None
@@ -891,7 +891,7 @@ def get_predefined_response(query: str) -> Optional[str]:
 if __name__ == "__main__":
     # Configure basic logging
     logging.basicConfig(level=logging.INFO)
-    
+
     # Test questions
     test_questions = [
         "What is FiLot?",
@@ -910,7 +910,7 @@ if __name__ == "__main__":
         "This is not a question just a statement",
         "Just random words without any meaning"
     ]
-    
+
     for q in test_questions:
         print(f"\nQuery: {q}")
         response = get_predefined_response(q)
