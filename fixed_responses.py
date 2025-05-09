@@ -254,9 +254,9 @@ def get_la_ecosystem_response():
         "*FiLot Analytics* is a comprehensive analytics platform built for Solana liquidity pools that helps crypto investors make informed decisions. "
         "The platform tracks thousands of pools across major Solana DEXes like Raydium, Orca, and Jupiter, providing real-time metrics on APR, TVL, and volume. "
         "What sets it apart is its advanced machine learning prediction system that forecasts pool performance trends and risk levels, while also offering specialized tracking for meme tokens and emerging projects. "
-        "With its mobile-friendly design and powerful API, it makes sophisticated DeFi analytics accessible to both casual and professional investors. "
-        "Link: https://filotanalytics.replit.app/\n\n"
+        "With its mobile-friendly design and powerful API, it makes sophisticated DeFi analytics accessible to both casual and professional investors.\n"
+        "Link: https://filotanalytics.replit.app\n\n"
         "*FiLotSense* provides advanced cryptocurrency sentiment analysis, aggregating and analyzing data from news outlets, social media, and blockchain metrics to deliver real-time insights. "
-        "By leveraging machine learning and natural language processing, it helps investors navigate the volatile digital asset market with informed decision-making, adapting to changing market conditions for enhanced accuracy. "
+        "By leveraging machine learning and natural language processing, it helps investors navigate the volatile digital asset market with informed decision-making, adapting to changing market conditions for enhanced accuracy.\n"
         "Link: https://filotsense.replit.app"
     )
