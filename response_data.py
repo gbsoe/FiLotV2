@@ -135,8 +135,7 @@ def get_pool_data():
                 normalized_pool["id"] = normalized_pool["address"]
                 
             # Parse and normalize token pair
-            if len
-            enPair" in normalized_pool and "/" in normalized_pool["tokenPair"]:
+            if "tokenPair" in normalized_pool and "/" in normalized_pool["tokenPair"]:
                 # Save original tokenPair if it doesn't exist
                 if "originalTokenPair" not in normalized_pool:
                     normalized_pool["originalTokenPair"] = normalized_pool["tokenPair"]
