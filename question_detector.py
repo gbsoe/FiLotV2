@@ -527,8 +527,9 @@ def get_variations() -> Dict[str, List[str]]:
         ],
         "what can i ask": [
             "what can i ask",
-            "what questionscan i ask",
-            "what should i ask",
+            "what questions can i ask", 
+            "what should i ask"
+        ]
             "help me ask",
             "what topics can i ask about",
             "what can you answer"

@@ -11,6 +11,7 @@ import sys
 import logging
 import threading
 import asyncio
+import traceback
 from app import app
 from bot import create_application
 
