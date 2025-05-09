@@ -25,7 +25,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "Soon, FiLot will offer one-click investments through Telegram and a dedicated app, making DeFi investing fast and effortless.\n\n"
             "Part of the FiLot Ecosystem:\n"
             "*FiLot Analytics* (https://filotanalytics.replit.app) Advanced Solana liquidity pool tracking with real-time APR, TVL, and volume data across Raydium, Orca, and Jupiter. Predict pool performance and spot emerging projects using machine learning.\n\n"
-            "*FiLotSense* (https://filotsense.replit.app) Real-time crypto sentiment analysis powered by machine learning and NLP. Aggregate insights from news, social media, and blockchain data to navigate market volatility with confidence.")
+            "*FiLotSense* (https://filotsense.replit.app) Real-time crypto sentiment analysis powered by machine learning and NLP. Aggregate insights from news, social media, and blockchain data to navigate market volatility with confidence."
         ),
 
         "what is la token": (
