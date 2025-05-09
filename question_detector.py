@@ -667,7 +667,7 @@ def is_question(text: str) -> bool:
     if len(text.split()) == 1 or len(text.split()) == 2:
         # Check against common crypto and bot-related terms
         crypto_terms = [
-            'filot', 'la', 'token', 'pool', 'apr', 'yield', 'liquidity', 'impermanent', 
+            'token', 'pool', 'apr', 'yield', 'liquidity', 'impermanent', 
             'risk', 'wallet', 'roadmap', 'security', 'defi', 'governance', 'investment'
         ]
         for term in crypto_terms:
