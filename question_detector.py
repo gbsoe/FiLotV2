@@ -302,16 +302,14 @@ def get_predefined_responses() -> Dict[str, str]:
             "For example, a *$1,000* deposit at a *1%* bank interest rate would earn about *$10* to *$20* in a year, whereas the same *$1,000* investment in a high-yield liquidity pool on FiLot could yield between *$100* and *$500* or more annually. This stark contrast illustrates the potential for significantly higher returns."
         ),
 
-        "what can i ask": (
-            "You can ask a wide range of questions about FiLot and the crypto market. For example, you can inquire about:\n\n"
-            "• *FiLot Features:* Questions like 'What is FiLot?' or 'How does FiLot work?' to learn about our AI-powered investment insights.\n"
-            "• *LA! Token Details:* Ask 'What is LA! Token?' or 'What are LA! Token's use cases?' to understand its role in our ecosystem and its *1 billion* token supply.\n"
-            "• *Liquidity Pools and IL:* Inquire about 'What is a liquidity pool?' or 'What is impermanent loss?' to grasp key DeFi concepts.\n"
-            "• *Market Comparisons:* Questions such as 'What is APR?' or 'Compare bank interest rates' to see how crypto returns compare to traditional finance.\n\n"
-            "Simply type your question, and I'll provide a clear, detailed answer!\n\n"
-            "*Token Contract Address (CA):*\n`Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump`\n\n"
-            "*Buy LA! Token:*\nhttps://pump.fun/coin/Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump"
-        ),
+        "what can i ask": [
+            "what can i ask",
+            "what questions can i ask", 
+            "what should i ask",
+            "help me ask",
+            "what topics can i ask about",
+            "what can you answer"
+        ],
 
         # Add the /start command response to handle if users send "start" as text
         "start": (
@@ -332,7 +330,7 @@ def get_predefined_responses() -> Dict[str, str]:
             "⚠️ FiLot is launching soon! Get in early and let AI grow your money smarter than a bank!\n\n"
             "Token Contract Address (CA):\n`Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump`\n\n"
             "Buy LA! Token:\nhttps://pump.fun/coin/Bpz8btet2EVDzjjHZAaqwjTzE5p62H9Sb5RuKVNBpump"
-        },
+        ),
     }
 
 
@@ -527,9 +525,8 @@ def get_variations() -> Dict[str, List[str]]:
         ],
         "what can i ask": [
             "what can i ask",
-            "what questions can i ask", 
-            "what should i ask"
-        ]
+            "what questions can i ask",
+            "what should i ask",
             "help me ask",
             "what topics can i ask about",
             "what can you answer"
@@ -560,8 +557,7 @@ def get_variations() -> Dict[str, List[str]]:
             "how does it work",
             "explain how filot works",
             "filot operation"
-        ],
-        "security measures": [
+        ],        "security measures": [
             "security measures",
             "how secure is filot",
             "filot security",

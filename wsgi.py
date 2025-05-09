@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
@@ -46,10 +45,10 @@ def run_bot():
             requests.get(f"https://api.telegram.org/bot{token}/deleteWebhook?drop_pending_updates=true")
             # Clear existing updates to prevent conflicts
             requests.get(f"https://api.telegram.org/bot{token}/getUpdates", params={"offset": -1, "timeout": 0})
-        
+
         # Create and initialize the bot application
         bot_app = create_application()
-        
+
         # Run the bot with proper cleanup
         bot_app.run_polling(
             allowed_updates=["message", "callback_query"],
