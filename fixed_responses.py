@@ -125,7 +125,7 @@ def get_fixed_responses():
             "• *Scalable Infrastructure:* Powered by the Solana blockchain, ensuring fast, secure, and cost-effective transactions as the platform scales.\n"
             "• *Integrated Ecosystem:* Seamlessly combines investment tools, governance mechanisms, and staking rewards into one unified platform."
         ),
-        
+
         "how does filot work": (
             "*FiLot* works by combining advanced AI analytics with blockchain technology to help you make better cryptocurrency investment decisions.\n\n"
             "The process is straightforward:\n"
@@ -136,7 +136,7 @@ def get_fixed_responses():
             "5. *Monitoring:* After investing, FiLot continuously tracks performance and alerts you when to adjust your strategy.\n\n"
             "FiLot eliminates the complexity of DeFi investing by handling the technical analysis while keeping you in full control of your funds."
         ),
-        
+
         "security measures": (
             "FiLot implements comprehensive security measures to protect your investments and data:\n\n"
             "• *Non-Custodial Architecture:* FiLot never holds your funds; all transactions are executed directly from your wallet.\n"
@@ -147,7 +147,7 @@ def get_fixed_responses():
             "• *End-to-End Encryption:* All communications between your device and FiLot are fully encrypted.\n\n"
             "Your security is our top priority, and we employ industry-leading practices to safeguard your assets."
         ),
-        
+
         # --- How-to Guides ---
         "how to use filot": (
             "Using FiLot is straightforward:\n\n"
@@ -220,5 +220,43 @@ def get_fixed_responses():
             "• Moderate: Balanced approach with established tokens and medium volatility\n"
             "• Aggressive: Higher-risk pools with emerging tokens and potentially higher rewards\n"
             "Set your preferred risk profile with /profile to get personalized recommendations."
-        )
+        ),
+
+        "what is la ecosystem": get_la_ecosystem_response()
     }
+    return fixed_responses
+
+def get_variations():
+    """
+    Return a dictionary mapping canonical queries to their variations.
+    """
+    return {
+        "what is la ecosystem": [
+            "what is la ecosystem",
+            "what is la! ecosystem",
+            "la ecosystem",
+            "la! ecosystem",
+            "tell me about la ecosystem",
+            "explain la ecosystem",
+            "what's in the la ecosystem",
+            "la ecosystem components",
+            "la ecosystem tools",
+            "filot ecosystem"
+        ],
+    }
+
+def get_la_ecosystem_response():
+    """
+    Return a detailed predefined response for "What is LA! Ecosystem?".
+    """
+    return (
+        "The LA! Ecosystem comprises interconnected tools designed to empower crypto investors with comprehensive analytics and sentiment analysis.\n\n"
+        "*FiLot Analytics* is a comprehensive analytics platform built for Solana liquidity pools that helps crypto investors make informed decisions. "
+        "The platform tracks thousands of pools across major Solana DEXes like Raydium, Orca, and Jupiter, providing real-time metrics on APR, TVL, and volume. "
+        "What sets it apart is its advanced machine learning prediction system that forecasts pool performance trends and risk levels, while also offering specialized tracking for meme tokens and emerging projects. "
+        "With its mobile-friendly design and powerful API, it makes sophisticated DeFi analytics accessible to both casual and professional investors. "
+        "Link: https://filotanalytics.replit.app/\n\n"
+        "*FiLotSense* provides advanced cryptocurrency sentiment analysis, aggregating and analyzing data from news outlets, social media, and blockchain metrics to deliver real-time insights. "
+        "By leveraging machine learning and natural language processing, it helps investors navigate the volatile digital asset market with informed decision-making, adapting to changing market conditions for enhanced accuracy. "
+        "Link: https://filotsense.replit.app"
+    )
