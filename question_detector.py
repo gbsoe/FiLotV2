@@ -15,17 +15,17 @@ def get_predefined_responses() -> Dict[str, str]:
     return {
         # --- Detailed Product Information ---
         "what is filot": (
-            "*FiLot* is a next-generation, AI-powered investment assistant that revolutionizes crypto investing. "
-            "Currently in its beta phase, FiLot provides advanced market analysis and real-time insights to help you "
-            "identify high-yield liquidity pools and make informed decisions.\n\n"
-            "Key features include:\n"
-            "• *Real-Time Analytics:* Constantly scans liquidity pools using both historical and live data.\n"
-            "• *Automated Recommendations:* Offers tailored suggestions for optimal entry and exit points based on market conditions.\n"
-            "• *Risk Management:* Evaluates pool stability and potential impermanent loss to help mitigate risks.\n"
-            "• *User-Friendly Interface:* Designed for investors of all levels with intuitive commands and clear insights.\n"
-            "• *Seamless Wallet Integration:* Easily connect your wallet to monitor and manage investments.\n\n"
-            "Looking ahead, when FiLot fully launches, the platform will enable one-click investments via Telegram or through a dedicated FiLot app—making the process simple and hassle-free.\n\n"
-            "With FiLot, you can potentially earn much more than by placing your money in a traditional bank."
+            "*FiLot* is an AI-powered investment assistant reshaping how you invest in crypto. Currently in beta, it delivers real-time market analysis and smart insights to help you find high-yield liquidity pools and make better decisions.\n\n"
+            "Key Features:\n"
+            "• *Live Analytics:* Scans liquidity pools using live and historical data.\n"
+            "• *Smart Recommendations:* Suggests optimal entry and exit points.\n"
+            "• *Risk Management:* Assesses pool stability and impermanent loss risks.\n"
+            "• *Easy Wallet Integration:* Connect your wallet to monitor and manage investments.\n"
+            "• *User-Friendly:* Designed for investors at all levels.\n\n"
+            "Soon, FiLot will offer one-click investments through Telegram and a dedicated app, making DeFi investing fast and effortless.\n\n"
+            "Part of the FiLot Ecosystem:\n"
+            "• *FiLot Analytics* (https://filotanalytics.replit.app): Advanced Solana liquidity pool tracking with real-time APR, TVL, and volume data across Raydium, Orca, and Jupiter. Predict pool performance and spot emerging projects using machine learning.\n"
+            "• *FiLotSense* (https://filotsense.replit.app): Real-time crypto sentiment analysis powered by machine learning and NLP. Aggregate insights from news, social media, and blockchain data to navigate market volatility with confidence."
         ),
 
         "what is la token": (
