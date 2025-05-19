@@ -25,6 +25,23 @@ from app import db
 # Configure logging
 logger = logging.getLogger(__name__)
 
+def ping_database() -> Tuple[bool, Any]:
+    """
+    Ping the database to keep connections alive and verify connectivity.
+    
+    Returns:
+        Tuple of (success, result)
+    """
+    try:
+        conn, cursor = get_db_connection()
+        cursor.execute("SELECT 1")
+        result = cursor.fetchone()
+        conn.close()
+        return True, result
+    except Exception as e:
+        logger.error(f"Database ping failed: {e}")
+        return False, str(e)
+
 def get_db_connection() -> Tuple[psycopg2.extensions.connection, psycopg2.extensions.cursor]:
     """
     Get a connection to the PostgreSQL database.
