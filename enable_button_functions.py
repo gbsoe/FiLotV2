@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-Script to enable functional button responses for the FiLot Telegram bot
+Script to enable fully interactive button functionality for FiLot Telegram bot
+This integrates enhanced_button_handler.py with the main bot code
 """
 
 import os
 import sys
 import logging
-import subprocess
-from dotenv import load_dotenv
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
@@ -18,129 +18,100 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
-
-def update_handle_message_function():
-    """Update the handle_message function to properly process button presses"""
-    try:
-        # Read the bot.py file
-        with open('bot.py', 'r') as f:
-            content = f.read()
-        
-        # Check if we need to update the file
-        if "if await handle_menu_navigation(update, context):" in content:
-            logger.info("Bot.py already contains the required button handling code")
-            return True
-        
-        # Find the handle_message async def line
-        import re
-        match = re.search(r'async def handle_message\(update: Update, context: ContextTypes\.DEFAULT_TYPE\) -> None:', content)
-        
-        if not match:
-            logger.error("Could not find handle_message function in bot.py")
-            return False
-        
-        # Find the function body start
-        start_pos = match.end()
-        
-        # Count the indentation at the function body start
-        next_line = content[start_pos:].lstrip('\n')
-        indentation = len(next_line) - len(next_line.lstrip())
-        
-        # Create the code to insert
-        button_handling_code = """
-    # First, check if this is a menu navigation button press
-    if await handle_menu_navigation(update, context):
-        logger.info("Handled as menu navigation button press")
-        return
-        
-    # Now continue with regular message processing
-"""
-        
-        # Format with the correct indentation
-        button_handling_code = button_handling_code.replace('\n    ', '\n' + ' ' * indentation)
-        
-        # Insert the code right after the function starts and initial try block
-        # Find the try statement
-        try_match = re.search(r'\n\s*try:\s*\n', content[start_pos:])
-        if not try_match:
-            logger.error("Could not find try block in handle_message function")
-            return False
-        
-        try_pos = start_pos + try_match.end()
-        
-        # Update the content
-        updated_content = content[:try_pos] + button_handling_code + content[try_pos:]
-        
-        # Write the updated content back to the file
-        with open('bot.py', 'w') as f:
-            f.write(updated_content)
-        
-        logger.info("Successfully updated bot.py with button handling code")
-        return True
-    except Exception as e:
-        logger.error(f"Error updating bot.py: {e}")
+def modify_main_file():
+    """
+    Modify main.py to integrate interactive button functionality
+    """
+    main_file = Path("main.py")
+    
+    if not main_file.exists():
+        logger.error("main.py not found")
         return False
-
-def update_button_responses_import():
-    """Ensure button_responses is imported in bot.py"""
-    try:
-        # Read the bot.py file
-        with open('bot.py', 'r') as f:
-            content = f.read()
+    
+    # Read the current content
+    content = main_file.read_text()
+    
+    # Check if already integrated
+    if "from enhanced_button_handler import register_handlers" in content:
+        logger.info("Enhanced button functionality already integrated")
+        return True
+    
+    # Add import for enhanced button handler
+    import_line = "from enhanced_button_handler import register_handlers"
+    
+    # Find appropriate location to add the import
+    import_section_end = content.find("# Initialize the bot")
+    if import_section_end == -1:
+        import_section_end = content.find("def create_application")
+    
+    if import_section_end == -1:
+        logger.error("Could not find appropriate import location")
+        return False
+    
+    # Split content
+    first_part = content[:import_section_end]
+    second_part = content[import_section_end:]
+    
+    # Add import
+    new_content = first_part + import_line + "\n\n" + second_part
+    
+    # Find where to register handlers
+    handler_registration = "    # Register enhanced interactive button handlers\n    register_handlers(application)\n"
+    
+    # Look for application.add_handler or run_polling section
+    if "def create_application" in new_content:
+        # Find the end of handler registration in create_application function
+        create_app_start = new_content.find("def create_application")
+        create_app_end = new_content.find("return application", create_app_start)
         
-        # Check if we need to add the import
-        if "import button_responses" in content:
-            logger.info("Bot.py already imports button_responses")
-            return True
-        
-        # Find the appropriate place to add the import
-        import_section_end = content.find("from keyboard_utils import")
-        if import_section_end == -1:
-            import_section_end = content.find("# Configure logging")
-        
-        if import_section_end == -1:
-            logger.error("Could not find appropriate place to add import")
+        if create_app_end == -1:
+            logger.error("Could not find handler registration location")
             return False
         
-        # Add import statement
-        import_statement = "import button_responses\n"
-        updated_content = content[:import_section_end] + import_statement + content[import_section_end:]
+        # Split content again
+        first_part = new_content[:create_app_end]
+        second_part = new_content[create_app_end:]
         
-        # Write the updated content back to the file
-        with open('bot.py', 'w') as f:
-            f.write(updated_content)
+        # Add handler registration
+        new_content = first_part + handler_registration + second_part
+    else:
+        # Direct call to add_handler in the main script
+        run_polling_pos = new_content.find("application.run_polling")
         
-        logger.info("Successfully added button_responses import to bot.py")
-        return True
-    except Exception as e:
-        logger.error(f"Error updating imports in bot.py: {e}")
-        return False
+        if run_polling_pos == -1:
+            logger.error("Could not find run_polling location")
+            return False
+        
+        # Find the line beginning before run_polling
+        line_start = new_content.rfind("\n", 0, run_polling_pos) + 1
+        
+        # Split content again
+        first_part = new_content[:line_start]
+        second_part = new_content[line_start:]
+        
+        # Add handler registration
+        new_content = first_part + handler_registration + second_part
+    
+    # Write back to file
+    main_file.write_text(new_content)
+    logger.info("Successfully integrated enhanced button functionality")
+    
+    return True
 
 def main():
-    """Main function to enable button functionality"""
-    logger.info("Enabling button functions for FiLot Telegram bot")
+    """
+    Main function to enable interactive button functionality
+    """
+    logger.info("Enabling fully interactive button functionality for FiLot Telegram bot")
     
-    # Update handle_message function
-    if not update_handle_message_function():
-        logger.error("Failed to update handle_message function")
+    if modify_main_file():
+        logger.info("✅ Integration successful")
+        logger.info("The bot now has fully interactive buttons that perform real database operations")
+        logger.info("Users can access the interactive menu with the /interactive command")
+        return 0
+    else:
+        logger.error("❌ Integration failed")
         return 1
-    
-    # Update imports
-    if not update_button_responses_import():
-        logger.error("Failed to update imports")
-        return 1
-    
-    # Restart the Telegram bot workflow
-    logger.info("Restarting Telegram bot workflow...")
-    
-    # Use subprocess to restart the workflow
-    subprocess.run([sys.executable, "-c", 
-                   "import replit; replit.restart_workflow('run_telegram_bot')"])
-    
-    logger.info("Button functions have been enabled successfully!")
-    return 0
 
 if __name__ == "__main__":
     sys.exit(main())

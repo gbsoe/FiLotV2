@@ -38,8 +38,16 @@ from bot import (
     profile_command,
     handle_message,
     handle_callback_query,
-    error_handler
+    error_handler,
+    faq_command,
+    social_command
 )
+
+# Import interactive menu functionality
+from interactive_menu import interactive_menu_command, interactive_callback
+
+# Import button response handlers 
+from button_responses import show_interactive_menu, handle_button_callback
 
 # Import Flask app for the web interface
 from app import app
@@ -109,6 +117,7 @@ def run_telegram_bot():
 
     This function avoids using the PTB built-in polling mechanisms which require 
     signal handlers and instead implements a direct command handling approach.
+    It now handles interactive buttons that perform real database operations.
     """
     try:
         # Import necessary modules here for thread safety
@@ -180,13 +189,15 @@ def run_telegram_bot():
             "walletconnect": walletconnect_command,  # We've implemented special direct handling for this command
             "profile": profile_command,
             "faq": faq_command,
-            "social": social_command
+            "social": social_command,
+            "interactive": interactive_menu_command  # New interactive menu with functional buttons and database operations
         }
 
         # Function to handle a specific update by determining its type and routing to appropriate handler
         def handle_update(update_dict):
             from app import app
             import threading
+            from telegram import Update
 
             try:
                 # Convert the dictionary to a Telegram Update object
@@ -631,6 +642,57 @@ def run_telegram_bot():
 
                     logger.info(f"Processing callback data: {callback_data}")
 
+                    # First try our new button_responses handler
+                    try:
+                        # Import necessary modules
+                        import asyncio
+                        from telegram import Update
+                        from telegram.ext import CallbackContext
+                        
+                        # Create a new event loop for async operations
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        
+                        # Create the Update and Context objects
+                        # Important: Pass the actual bot instance, not None
+                        update = Update.de_json(update_dict, bot)
+                        context = CallbackContext(bot, None, None, None)
+                        
+                        # First try our new interactive callback handler
+                        handled = False
+                        
+                        # Check if it's one of our new interactive callbacks
+                        if callback_data.startswith("interactive_"):
+                            # This is an interactive menu callback
+                            try:
+                                handled = loop.run_until_complete(interactive_callback(update, context))
+                                logger.info(f"Interactive menu callback handled: {handled}")
+                                handle_with_original = not handled  # Only use original handler if not handled by interactive
+                            except Exception as e:
+                                logger.error(f"Error in interactive callback: {e}")
+                                handle_with_original = True  # Fall back to original handler on error
+                        else:
+                            # Try the original button handler
+                            try:
+                                handled = loop.run_until_complete(handle_button_callback(update, context))
+                                logger.info(f"Button callback handled: {handled}")
+                                # Skip the rest of the callback processing if it was handled
+                                handle_with_original = not handled
+                            except Exception as e:
+                                logger.error(f"Error in button callback: {e}")
+                                handle_with_original = True  # Fall back to original handler on error
+                            
+                    except Exception as e:
+                        logger.error(f"Error in interactive button handler: {e}")
+                        logger.error(traceback.format_exc())
+                    finally:
+                        try:
+                            loop.close()
+                        except Exception:
+                            pass
+                    
+                    # If not handled by our interactive handler, use the original handler
+                    
                     # Immediate acknowledgment to stop the loading indicator
                     try:
                         requests.post(
