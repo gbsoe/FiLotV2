@@ -17,6 +17,7 @@ from telegram.ext import ContextTypes
 from app import app
 from models import db, User, Pool, UserActivityLog
 import solpool_api_client as solpool_api
+import filotsense_api_client as sentiment_api
 
 # Configure logging
 logging.basicConfig(
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 async def show_interactive_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Show the main interactive menu with buttons that perform real database operations
-    and connect to the SolPool Insight API
+    and connect to the SolPool Insight API and FilotSense APIs
     """
     try:
         user = update.effective_user
@@ -43,26 +44,36 @@ async def show_interactive_menu(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard = [
             [InlineKeyboardButton("📊 View Pool Data", callback_data="pools")],
             [InlineKeyboardButton("📈 View High APR Pools", callback_data="high_apr")],
+            [InlineKeyboardButton("🔍 Search by Token", callback_data="token_search")],
             [InlineKeyboardButton("🔮 View AI Predictions", callback_data="predictions")],
+            [InlineKeyboardButton("💬 Market Sentiment", callback_data="sentiment")],
             [InlineKeyboardButton("👤 My Profile", callback_data="profile")],
             [InlineKeyboardButton("❓ FAQ / Help", callback_data="faq")]
         ]
         
-        # Check if SolPool API is available
-        is_api_available = solpool_api.api_health_check()
+        # Check if APIs are available
+        is_pool_api_available = solpool_api.api_health_check()
+        is_sentiment_api_available = sentiment_api.api_health_check()
         
-        if is_api_available:
-            message = (
-                f"*Welcome to FiLot Interactive Menu, {user.first_name}!*\n\n"
-                "These buttons now connect to the SolPool Insight API for real-time data!\n"
-                "Click any option to retrieve live data:"
-            )
+        message_parts = [f"*Welcome to FiLot Interactive Menu, {user.first_name}!*\n\n"]
+        
+        if is_pool_api_available and is_sentiment_api_available:
+            message_parts.append("✅ Connected to SolPool Insight API for real-time pool data")
+            message_parts.append("✅ Connected to FilotSense API for market sentiment analysis\n")
+            message_parts.append("Click any option to retrieve live data:")
+        elif is_pool_api_available:
+            message_parts.append("✅ Connected to SolPool Insight API for real-time pool data")
+            message_parts.append("❌ Market sentiment data currently unavailable\n")
+            message_parts.append("Click any option to retrieve pool data:")
+        elif is_sentiment_api_available:
+            message_parts.append("❌ Pool data API currently unavailable")
+            message_parts.append("✅ Connected to FilotSense API for market sentiment analysis\n")
+            message_parts.append("Click any option to explore available data:")
         else:
-            message = (
-                f"*Welcome to FiLot Interactive Menu, {user.first_name}!*\n\n"
-                "These buttons connect to our database for liquidity pool information.\n"
-                "Click any option to retrieve data:"
-            )
+            message_parts.append("These buttons connect to our local database for information.\n")
+            message_parts.append("External APIs currently unavailable. Limited data may be shown.")
+        
+        message = "\n".join(message_parts)
         
         await update.message.reply_markdown(
             message,
@@ -641,20 +652,262 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
             )
             return True
             
+        elif query.data == "token_search":
+            # Show the token search menu
+            common_tokens = ["SOL", "USDC", "BONK", "JTO", "PYTH", "RAY"]
+            keyboard = []
+            
+            # Add popular tokens as buttons
+            for token in common_tokens:
+                keyboard.append([InlineKeyboardButton(f"Search {token} Pools", callback_data=f"search_token_{token}")])
+            
+            # Add back button
+            keyboard.append([InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")])
+            
+            message = (
+                "*🔍 Search Pools by Token*\n\n"
+                "Select a token to find all liquidity pools that include it:\n\n"
+                "This will show you pool data, APR, and market sentiment in one view."
+            )
+            
+            await query.edit_message_text(
+                message,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+            return True
+            
+        elif query.data.startswith("search_token_"):
+            # Search for pools containing the selected token
+            token = query.data.replace("search_token_", "")
+            
+            try:
+                # Get pools containing this token
+                token_pools = solpool_api.get_token_pools(token, limit=3)
+                
+                # Try to get sentiment data for this token
+                sentiment_data = sentiment_api.get_sentiment_data(token)
+                price_data = sentiment_api.get_price_data(token)
+                
+                # Build the message
+                message = f"*🔍 {token} Pools and Market Data*\n\n"
+                
+                # Add sentiment data if available
+                if sentiment_data.get("status") == "success" and token.upper() in sentiment_data.get("sentiment", {}):
+                    token_sentiment = sentiment_data["sentiment"][token.upper()]
+                    sentiment_score = token_sentiment.get("score", 0)
+                    
+                    # Convert sentiment score to emoji and description
+                    if sentiment_score >= 0.5:
+                        sentiment_emoji = "🟢"
+                        sentiment_desc = "Very Positive"
+                    elif sentiment_score >= 0.2:
+                        sentiment_emoji = "🟢"
+                        sentiment_desc = "Positive"
+                    elif sentiment_score >= -0.2:
+                        sentiment_emoji = "🟡"
+                        sentiment_desc = "Neutral"
+                    elif sentiment_score >= -0.5:
+                        sentiment_emoji = "🔴"
+                        sentiment_desc = "Negative"
+                    else:
+                        sentiment_emoji = "🔴"
+                        sentiment_desc = "Very Negative"
+                    
+                    message += f"*Market Sentiment:* {sentiment_emoji} {sentiment_desc} ({sentiment_score:.2f})\n"
+                
+                # Add price data if available
+                if price_data.get("status") == "success" and token.upper() in price_data.get("prices", {}):
+                    token_price = price_data["prices"][token.upper()]
+                    price = token_price.get("price_usd", 0)
+                    change_24h = token_price.get("percent_change_24h", 0)
+                    
+                    # Add emoji based on price change
+                    change_emoji = "📈" if change_24h > 0 else "📉" if change_24h < 0 else "➡️"
+                    
+                    message += f"*Current Price:* ${price:,.6f}\n"
+                    message += f"*24h Change:* {change_emoji} {change_24h:.2f}%\n\n"
+                
+                # Add pools data
+                if token_pools and len(token_pools) > 0:
+                    message += "*Available Liquidity Pools:*\n\n"
+                    
+                    for i, pool in enumerate(token_pools, 1):
+                        pair = f"{pool.get('token_a_symbol', '')}-{pool.get('token_b_symbol', '')}"
+                        apr = pool.get('apr_24h', 0)
+                        tvl = pool.get('tvl', 0)
+                        
+                        message += (
+                            f"{i}. *{pair}*\n"
+                            f"   • APR: {apr:.2f}%\n"
+                            f"   • TVL: ${tvl:,.2f}\n"
+                        )
+                        
+                        # Add prediction score if available
+                        if 'prediction_score' in pool and pool['prediction_score'] > 0:
+                            message += f"   • AI Score: {pool['prediction_score']}/100\n"
+                        
+                        message += "\n"
+                        
+                    message += "_Data sources: SolPool Insight API, FilotSense API_"
+                else:
+                    message += "*No pools found for this token*\n\n"
+                    message += "This token may not have active liquidity pools or our data sources may not track it yet."
+                
+                # Add navigation buttons
+                keyboard = [
+                    [InlineKeyboardButton("🔍 Search Another Token", callback_data="token_search")],
+                    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]
+                ]
+                
+                await query.edit_message_text(
+                    message,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode="Markdown"
+                )
+                
+            except Exception as e:
+                logger.error(f"Error searching for token {token}: {e}")
+                message = (
+                    f"*Error Searching for {token}*\n\n"
+                    "Sorry, we encountered an error while searching for pools with this token.\n"
+                    "Please try again later or select a different token."
+                )
+                
+                keyboard = [
+                    [InlineKeyboardButton("🔍 Try Another Token", callback_data="token_search")],
+                    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]
+                ]
+                
+                await query.edit_message_text(
+                    message,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode="Markdown"
+                )
+            
+            return True
+            
+        elif query.data == "sentiment":
+            # Show overall market sentiment data
+            try:
+                # Get sentiment data for major tokens
+                sentiment_data = sentiment_api.get_sentiment_data()
+                
+                if sentiment_data.get("status") == "success" and sentiment_data.get("sentiment"):
+                    message = "*💬 Market Sentiment Analysis*\n\n"
+                    message += "Current sentiment for major cryptocurrencies:\n\n"
+                    
+                    # Select important tokens to display
+                    important_tokens = ["SOL", "BTC", "ETH", "USDC", "BONK", "JTO"]
+                    sentiment_dict = sentiment_data.get("sentiment", {})
+                    
+                    for token in important_tokens:
+                        if token in sentiment_dict:
+                            score = sentiment_dict[token].get("score", 0)
+                            
+                            # Convert sentiment score to emoji and description
+                            if score >= 0.5:
+                                emoji = "🟢"
+                                desc = "Very Positive"
+                            elif score >= 0.2:
+                                emoji = "🟢"
+                                desc = "Positive"
+                            elif score >= -0.2:
+                                emoji = "🟡"
+                                desc = "Neutral"
+                            elif score >= -0.5:
+                                emoji = "🔴"
+                                desc = "Negative"
+                            else:
+                                emoji = "🔴"
+                                desc = "Very Negative"
+                            
+                            message += f"*{token}:* {emoji} {desc} ({score:.2f})\n"
+                    
+                    # Try to get topic sentiment for SOL
+                    topic_data = sentiment_api.get_topic_sentiment("SOL")
+                    if topic_data.get("status") == "success" and "SOL" in topic_data.get("data", {}):
+                        message += "\n*Solana (SOL) Sentiment by Topic:*\n"
+                        
+                        topics = topic_data["data"]["SOL"].get("topics", {})
+                        for topic, score in topics.items():
+                            # Convert topic sentiment score to emoji
+                            if score >= 0.3:
+                                emoji = "🟢"
+                            elif score >= -0.3:
+                                emoji = "🟡"
+                            else:
+                                emoji = "🔴"
+                            
+                            message += f"• {topic.capitalize()}: {emoji} ({score:.2f})\n"
+                    
+                    message += "\n_Data source: FilotSense API_"
+                    
+                else:
+                    message = "*💬 Market Sentiment Analysis*\n\n"
+                    message += "Unable to retrieve sentiment data at this time.\n"
+                    message += "Please try again later."
+                
+                keyboard = [
+                    [InlineKeyboardButton("🔍 Search Token Pools", callback_data="token_search")],
+                    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]
+                ]
+                
+                await query.edit_message_text(
+                    message,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode="Markdown"
+                )
+                
+            except Exception as e:
+                logger.error(f"Error retrieving sentiment data: {e}")
+                message = (
+                    "*💬 Market Sentiment Analysis*\n\n"
+                    "Sorry, we encountered an error while retrieving sentiment data.\n"
+                    "Please try again later."
+                )
+                
+                keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]]
+                
+                await query.edit_message_text(
+                    message,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode="Markdown"
+                )
+            
+            return True
+            
         elif query.data == "back":
             # Back to main menu
             keyboard = [
                 [InlineKeyboardButton("📊 View Pool Data", callback_data="pools")],
                 [InlineKeyboardButton("📈 View High APR Pools", callback_data="high_apr")],
+                [InlineKeyboardButton("🔍 Search by Token", callback_data="token_search")],
                 [InlineKeyboardButton("🔮 View AI Predictions", callback_data="predictions")],
+                [InlineKeyboardButton("💬 Market Sentiment", callback_data="sentiment")],
                 [InlineKeyboardButton("👤 My Profile", callback_data="profile")],
                 [InlineKeyboardButton("❓ FAQ / Help", callback_data="faq")]
             ]
             
+            # Check if APIs are available for status message
+            is_pool_api_available = solpool_api.api_health_check()
+            is_sentiment_api_available = sentiment_api.api_health_check()
+            
+            message = "*FiLot Interactive Menu*\n\n"
+            
+            if is_pool_api_available and is_sentiment_api_available:
+                message += "Connected to real-time pool data and sentiment analysis.\n"
+            elif is_pool_api_available:
+                message += "Connected to real-time pool data. Sentiment analysis unavailable.\n"
+            elif is_sentiment_api_available:
+                message += "Connected to sentiment analysis. Pool data limited.\n"
+            else:
+                message += "Using database fallbacks. External APIs unavailable.\n"
+                
+            message += "Click any option to explore:"
+            
             await query.edit_message_text(
-                "*FiLot Interactive Menu*\n\n"
-                "These buttons now connect to the SolPool Insight API for real-time data!\n"
-                "Click any option to retrieve live data:",
+                message,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
             )

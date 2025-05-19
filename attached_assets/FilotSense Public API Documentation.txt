@@ -1,0 +1,123 @@
+"FiLotSense
+
+Public API Documentation
+Access real-time cryptocurrency sentiment data
+
+API Overview
+The FilotSense Public API provides access to real-time cryptocurrency sentiment data and market prices. Our API is designed to be easy to use and integrate into your applications.
+
+ All public endpoints have a rate limit of 100 requests per hour per IP address.
+Base URL: https://filotsense.replit.app/api
+
+Authentication
+The public API endpoints don't require authentication. For more advanced features and higher rate limits, consider registering for our premium API.
+
+API Endpoints
+Get Sentiment Data
+GET /sentiment/simple
+Retrieve the latest sentiment scores for all supported cryptocurrencies.
+
+Field	Type	Description
+status	string	"success" if the request was successful, "error" otherwise.
+timestamp	string	ISO format timestamp of when the response was generated.
+message	string	A message describing the response.
+sentiment	object	Object containing sentiment data for each cryptocurrency.
+sentiment.{symbol}.score	number	Sentiment score ranging from -1 (very negative) to 1 (very positive).
+sentiment.{symbol}.timestamp	string	ISO format timestamp indicating when the sentiment data was last updated.
+Get Price Data
+GET /prices/latest
+Retrieve the latest price data for all supported cryptocurrencies.
+
+Field	Type	Description
+status	string	"success" if the request was successful, "error" otherwise.
+timestamp	string	ISO format timestamp of when the response was generated.
+message	string	A message describing the response.
+data_attribution	string	Attribution for the data source.
+prices	object	Object containing price data for each cryptocurrency.
+prices.{symbol}.price_usd	number	Current price in USD.
+prices.{symbol}.percent_change_24h	number	Percentage change in price over the last 24 hours.
+prices.{symbol}.volume_24h_usd	number	Trading volume in USD over the last 24 hours.
+prices.{symbol}.timestamp	string	ISO format timestamp indicating when the price data was last updated.
+prices.{symbol}.source	string	The source of the price data.
+Get Sentiment Data by Topic
+GET /sentiment/topics
+Retrieve sentiment data segmented by topic for all cryptocurrencies.
+
+Field	Type	Description
+status	string	"success" if the request was successful, "error" otherwise.
+timestamp	string	ISO format timestamp of when the response was generated.
+message	string	A message describing the response.
+data	object	Object containing sentiment data for each cryptocurrency.
+data.{symbol}.aggregate	number	Overall sentiment score from -1 (very negative) to 1 (very positive).
+data.{symbol}.topics	object	Sentiment scores broken down by topic.
+Get Market Correlation Data
+GET /market/correlation
+Retrieve correlation data between sentiment and price movements.
+
+Parameter	Type	Required	Description
+symbol	string	No	Cryptocurrency symbol (e.g., "BTC", "ETH", "SOL") to filter results.
+Get All Real Data
+GET /realdata
+Retrieve comprehensive real-time data including prices, sentiment, and market correlations.
+
+Get Data Sources
+GET /crypto/sources/{symbol}
+Retrieve the latest news and social media sources for a specific cryptocurrency.
+
+Parameter	Type	Required	Description
+symbol	string	Yes	Cryptocurrency symbol (e.g., "BTC", "ETH", "SOL").
+Error Handling
+The API uses conventional HTTP response codes to indicate the success or failure of an API request.
+
+Code	Description
+200 - OK	Success. The request was successful and the response body contains the requested data.
+400 - Bad Request	Invalid request. The request was malformed or contains invalid parameters.
+404 - Not Found	Resource not found. The requested resource does not exist.
+429 - Too Many Requests	Rate limit exceeded. You have made too many requests in a given time period.
+500 - Internal Server Error	Server error. An error occurred on the server. Please try again later.
+Error Response Format:
+{
+  "status": "error",
+  "code": 404,
+  "message": "Cryptocurrency with symbol 'XYZ' not found"
+}
+Premium API
+For developers and businesses requiring advanced features, higher rate limits, and access to historical data, we offer a premium API service.
+
+Developer
+$49/month
+1,000 requests per hour
+7-day historical data
+Email support
+Business
+$199/month
+10,000 requests per hour
+30-day historical data
+Source-level sentiment data
+Priority support
+Enterprise
+Custom Pricing
+Unlimited requests
+Full historical data
+Custom integration support
+Dedicated account manager
+SLA guarantees
+FilotSense
+Advanced cryptocurrency sentiment analysis for informed market decisions
+
+
+Part of the LA! Token Ecosystem
+Resources
+Home
+API Documentation
+About
+Technology Explained
+Legal
+Privacy Policy
+Disclaimer
+Terms of Service
+About
+FiLotSense provides real-time sentiment analysis for cryptocurrency markets, helping investors make informed decisions.
+
+© 2025 FiLotSense. All rights reserved."
+ https://fe58e978-bd1a-421d-bcfe-ba36724c3601-00-2h9z6owk2mmfn.spock.replit.dev/api/public-docs#:~:text=FiLotSense,All%20rights%20reserved.
