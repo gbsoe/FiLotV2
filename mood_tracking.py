@@ -208,7 +208,9 @@ async def save_mood_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
         # Save to database
         try:
-            db_utils.save_mood_entry(
+            from db_utils_mood import save_mood_entry as db_save_mood
+            
+            db_save_mood(
                 user_id=user_id,
                 mood=mood_value,
                 mood_emoji=selected_mood,
@@ -282,7 +284,8 @@ async def view_mood_history(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 user_id = update.effective_user.id
                 
                 # Get mood history from database
-                history = db_utils.get_mood_history(user_id, limit=10)
+                from db_utils_mood import get_mood_history as db_get_mood_history
+                history = db_get_mood_history(user_id, limit=10)
                 
                 if not history or len(history) == 0:
                     await query.message.reply_text(
@@ -307,6 +310,10 @@ async def view_mood_history(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                     if len(history) >= 3:
                         history_text += "\nMood pattern insights:\n"
                         
+                        # Get detailed mood stats
+                        from db_utils_mood import get_mood_stats as db_get_mood_stats
+                        mood_stats = db_get_mood_stats(user_id, days=30)
+                        
                         # Check for repeated contexts
                         contexts = [entry.get('context') for entry in history]
                         most_common_context = max(set(contexts), key=contexts.count)
@@ -315,13 +322,16 @@ async def view_mood_history(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                         if context_count >= 2:
                             history_text += f"• You most frequently record moods during '{most_common_context.replace('_', ' ').title()}' ({context_count} times)\n"
                         
-                        # Check for mood trends
-                        mood_values = [MOOD_EMOJIS.get(entry.get('mood_emoji', '😐'), 'neutral') for entry in history]
-                        if 'anxious' in mood_values or 'sad' in mood_values or 'angry' in mood_values:
-                            history_text += "• You've experienced some negative emotions around investing recently\n"
+                        # Check for mood trends from stats
+                        mood_counts = mood_stats.get('mood_counts', {})
                         
-                        if 'very_happy' in mood_values or 'happy' in mood_values:
-                            history_text += "• You've had some positive emotions around investing recently\n"
+                        negative_moods = sum(mood_counts.get(m, 0) for m in ['anxious', 'sad', 'angry'])
+                        if negative_moods > 0:
+                            history_text += f"• You've experienced {negative_moods} negative emotions around investing recently\n"
+                        
+                        positive_moods = sum(mood_counts.get(m, 0) for m in ['very_happy', 'happy'])
+                        if positive_moods > 0:
+                            history_text += f"• You've had {positive_moods} positive emotions around investing recently\n"
                     
                     # Add a reminder about emotional investing
                     history_text += "\nRemember: Being aware of your emotions can help you make more rational investment decisions!"
