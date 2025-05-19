@@ -329,3 +329,29 @@ def format_number(value: float, decimals: int = 2) -> str:
 def format_currency(value: float, decimals: int = 2) -> str:
     """Format a currency value."""
     return f"${format_number(value, decimals)}"
+
+def escape_markdown(text: str) -> str:
+    """
+    Escape special characters for Telegram's MarkdownV2 format.
+    
+    Args:
+        text: The text to escape
+        
+    Returns:
+        Escaped text safe for MarkdownV2 format
+    """
+    if text is None:
+        return ""
+        
+    # Characters that need to be escaped in MarkdownV2:
+    # '_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!'
+    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    
+    # Convert to string if not already
+    text = str(text)
+    
+    # Escape each character
+    for char in escape_chars:
+        text = text.replace(char, f"\\{char}")
+        
+    return text
