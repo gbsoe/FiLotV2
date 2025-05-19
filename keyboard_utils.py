@@ -6,7 +6,7 @@ Keyboard utilities for FiLot Telegram bot
 Handles the creation and management of keyboard buttons
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple, Callable, Awaitable, Union
 import logging
 
 from telegram import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, Update
@@ -20,6 +20,70 @@ logger = logging.getLogger(__name__)
 
 # Cache of user's current menu state
 user_menu_state: Dict[int, MenuType] = {}
+
+# Handler type definition
+CommandHandler = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
+
+# Comprehensive button mapping
+# Format: {button_text: (action_type, action_value)}
+# action_type can be: "menu", "command", "message", "function"
+BUTTON_ACTIONS = {
+    # Main menu buttons
+    "💰 Explore Pools": ("menu", MenuType.EXPLORE),
+    "👤 My Account": ("menu", MenuType.ACCOUNT),
+    "💹 Invest": ("menu", MenuType.INVEST),
+    "ℹ️ Help": ("menu", MenuType.HELP),
+    
+    # Explore menu buttons
+    "📊 Pool Information": ("menu", MenuType.POOL_INFO),
+    "📈 High APR Pools": ("command", "/info high_apr"),
+    "💵 Stable Pools": ("command", "/info stable"),
+    "📊 All Pools": ("command", "/info all"),
+    "🔍 Search Pool": ("message", "Please enter a token pair to search for (e.g., SOL-USDC)"),
+    "🔮 Simulate Investment": ("menu", MenuType.SIMULATE),
+    
+    # Account menu buttons
+    "👛 Wallet": ("menu", MenuType.WALLET),
+    "📋 Profile": ("menu", MenuType.PROFILE),
+    "🔔 Subscriptions": ("menu", MenuType.SUBSCRIBE),
+    
+    # Invest menu buttons
+    "🧠 Smart Invest": ("command", "/invest smart"),
+    "⭐ Top Pools": ("command", "/info top"),
+    "💼 My Investments": ("command", "/status"),
+    
+    # Simulation menu buttons
+    "💲 Quick Simulate": ("command", "/simulate 1000"),
+    "📊 Custom Simulation": ("message", "Please enter your custom investment amount using /simulate [amount].\nFor example: /simulate 5000"),
+    "📑 Simulation History": ("menu", MenuType.SIMULATE),  # Placeholder until implemented
+    
+    # Help menu buttons
+    "📚 Commands": ("command", "/help"),
+    "📱 Contact": ("command", "/contact"),
+    "🔗 Links": ("command", "/social"),
+    
+    # FAQ menu buttons
+    "💡 About Liquidity Pools": ("command", "/faq liquidity"),
+    "💱 About APR": ("command", "/faq apr"),
+    "⚠️ About Impermanent Loss": ("command", "/faq impermanent"),
+    "💸 About DeFi": ("command", "/faq defi"),
+    "🔑 About Wallets": ("command", "/faq wallets"),
+    
+    # Wallet and profile buttons
+    "💳 Wallet Settings": ("command", "/wallet"),
+    "👤 Profile Settings": ("command", "/profile"),
+    
+    # Back buttons (will be handled separately)
+    "⬅️ Back to Main Menu": ("special", "back_to_main"),
+}
+
+# Determine which menus should use one-time keyboard
+ONE_TIME_KEYBOARD_MENUS = {
+    MenuType.SIMULATE,
+    MenuType.WALLET,
+    MenuType.PROFILE,
+    MenuType.FAQ,
+}
 
 
 def get_reply_keyboard(menu_type: MenuType) -> ReplyKeyboardMarkup:
@@ -40,11 +104,14 @@ def get_reply_keyboard(menu_type: MenuType) -> ReplyKeyboardMarkup:
         keyboard_row = [KeyboardButton(text=button_text) for button_text in row]
         keyboard.append(keyboard_row)
     
+    # Determine if this menu should use one-time keyboard
+    one_time = menu_type in ONE_TIME_KEYBOARD_MENUS
+    
     # Create and return the reply keyboard markup
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
         resize_keyboard=True,
-        one_time_keyboard=False,  # Persistent buttons
+        one_time_keyboard=one_time,
         input_field_placeholder="Select an option"
     )
 
@@ -68,35 +135,59 @@ async def set_menu_state(update: Update, context: ContextTypes.DEFAULT_TYPE, men
         context: Context object for the update
         menu_type: The menu type to set for the user
     """
-    if update.effective_user:
-        user_id = update.effective_user.id
+    if not update.effective_user:
+        logger.warning("No user information available in update")
+        return
         
-        # Store in memory cache
-        user_menu_state[user_id] = menu_type
-        
-        # Also store in fallback storage
-        try:
-            db_fallback.store_menu_state(user_id, menu_type.value)
-        except Exception as e:
-            logger.warning(f"Failed to store menu state in fallback: {e}")
-        
-        # Get the menu configuration
-        menu_config = get_menu_config(menu_type)
-        
-        # Generate message text
-        message_text = f"{menu_config.title}\n\n{menu_config.help_text}"
-        
-        # Get the keyboard for the menu
-        reply_markup = get_reply_keyboard(menu_type)
-        
-        # Send the message with the keyboard
-        if update.effective_message:
-            await update.effective_message.reply_text(
-                text=message_text,
-                reply_markup=reply_markup
-            )
-        
-        logger.info(f"Set menu state for user {user_id} to {menu_type.value}")
+    user_id = update.effective_user.id
+    
+    # Store in memory cache
+    user_menu_state[user_id] = menu_type
+    
+    # Also store in fallback storage
+    try:
+        await db_fallback.store_menu_state_async(user_id, menu_type.value)
+        logger.debug(f"Stored menu state in fallback: {user_id} -> {menu_type.value}")
+    except Exception as e:
+        logger.warning(f"Failed to store menu state in fallback: {e}")
+    
+    # Get the menu configuration
+    menu_config = get_menu_config(menu_type)
+    
+    # Generate message text
+    message_text = f"{menu_config.title}\n\n{menu_config.help_text}"
+    
+    # Get the keyboard for the menu
+    reply_markup = get_reply_keyboard(menu_type)
+    
+    # Send the message with the keyboard
+    if update.effective_message:
+        await update.effective_message.reply_text(
+            text=message_text,
+            reply_markup=reply_markup
+        )
+    
+    logger.info(f"Set menu state for user {user_id} to {menu_type.value}")
+
+
+async def log_menu_navigation(user_id: int, from_menu: str, to_menu: str) -> None:
+    """
+    Log menu navigation to the fallback storage.
+    
+    Args:
+        user_id: User ID
+        from_menu: Source menu
+        to_menu: Destination menu
+    """
+    try:
+        await db_fallback.log_user_activity_async(
+            user_id,
+            "menu_navigation",
+            {"from": from_menu, "to": to_menu}
+        )
+        logger.debug(f"Logged menu navigation: {user_id} {from_menu} -> {to_menu}")
+    except Exception as e:
+        logger.warning(f"Failed to log menu navigation: {e}")
 
 
 async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -117,33 +208,22 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
     user_id = update.effective_user.id
     button_text = update.effective_message.text.strip()
     
-    # Handle back button
+    # Handle back button navigation
     if button_text.startswith("⬅️ Back to"):
         try:
             # Get current menu with fallback support
-            current_menu = get_current_menu(user_id)
+            current_menu = await get_current_menu(user_id)
             menu_config = get_menu_config(current_menu)
             
             if menu_config.parent_menu:
-                await set_menu_state(update, context, menu_config.parent_menu)
-                
-                # Log activity using fallback
-                db_fallback.log_user_activity(
-                    user_id, 
-                    "menu_navigation", 
-                    {"from": current_menu.value, "to": menu_config.parent_menu.value}
-                )
+                target_menu = menu_config.parent_menu
+                await set_menu_state(update, context, target_menu)
+                await log_menu_navigation(user_id, current_menu.value, target_menu.value)
                 return True
             else:
                 # Default to main menu if no parent is specified
                 await set_menu_state(update, context, MenuType.MAIN)
-                
-                # Log activity using fallback
-                db_fallback.log_user_activity(
-                    user_id, 
-                    "menu_navigation", 
-                    {"from": current_menu.value, "to": "MAIN"}
-                )
+                await log_menu_navigation(user_id, current_menu.value, "MAIN")
                 return True
         except Exception as e:
             logger.error(f"Error handling back button: {e}")
@@ -151,170 +231,68 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
             await set_menu_state(update, context, MenuType.MAIN)
             return True
     
-    # Handle main menu buttons
-    menu_mappings = {
-        "💰 Explore Pools": MenuType.EXPLORE,
-        "👤 My Account": MenuType.ACCOUNT,
-        "💹 Invest": MenuType.INVEST,
-        "ℹ️ Help": MenuType.HELP,
-    }
-    
-    if button_text in menu_mappings:
+    # Look up the button in our comprehensive mapping
+    if button_text in BUTTON_ACTIONS:
+        action_type, action_value = BUTTON_ACTIONS[button_text]
+        
         try:
-            target_menu = menu_mappings[button_text]
-            await set_menu_state(update, context, target_menu)
-            
-            # Log activity using fallback
-            db_fallback.log_user_activity(
-                user_id, 
-                "menu_navigation", 
-                {"button": button_text, "to": target_menu.value}
-            )
-            return True
+            if action_type == "menu":
+                # Action is to navigate to a menu
+                target_menu = action_value
+                current_menu = await get_current_menu(user_id)
+                await set_menu_state(update, context, target_menu)
+                await log_menu_navigation(user_id, current_menu.value, target_menu.value)
+                return True
+                
+            elif action_type == "command":
+                # Action is to execute a command
+                if update.effective_chat:
+                    # Send the command as a regular message
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text=action_value
+                    )
+                    logger.info(f"Executed button command: {action_value}")
+                    return True
+                    
+            elif action_type == "message":
+                # Action is to send a message
+                if update.effective_chat:
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text=action_value
+                    )
+                    logger.info(f"Sent message from button: {button_text}")
+                    return True
+                    
+            elif action_type == "function":
+                # For future use - would call a specific handler function
+                # This would require registering handler functions
+                logger.warning(f"Function action type not implemented yet: {button_text}")
+                return False
+                
+            elif action_type == "special":
+                # Special actions like back navigation
+                if action_value == "back_to_main":
+                    current_menu = await get_current_menu(user_id)
+                    await set_menu_state(update, context, MenuType.MAIN)
+                    await log_menu_navigation(user_id, current_menu.value, "MAIN")
+                    return True
+                    
         except Exception as e:
-            logger.error(f"Error handling main menu button: {e}")
+            logger.error(f"Error handling button '{button_text}': {e}")
             # Try to go back to main menu in case of error
             await set_menu_state(update, context, MenuType.MAIN)
             return True
-    
-    # Handle explore menu buttons
-    explore_mappings = {
-        "📊 Pool Information": MenuType.POOL_INFO,
-        "🔮 Simulate Investment": MenuType.SIMULATE,
-        "❓ FAQ": MenuType.FAQ,
-    }
-    
-    if button_text in explore_mappings:
-        await set_menu_state(update, context, explore_mappings[button_text])
-        return True
+    else:
+        # No matching action found for this button text
+        logger.warning(f"No action defined for button text: '{button_text}'")
         
-    # Call the appropriate command based on the button text
-    button_commands = {
-        "📊 Pool Information": "/info",
-        "📈 High APR Pools": "/info high_apr",
-        "💵 Stable Pools": "/info stable",
-        "📊 All Pools": "/info all",
-        "🔍 Search Pool": "/search",
-        "🔮 Simulate Investment": "/simulate",
-        "💡 About Liquidity Pools": "/faq liquidity",
-        "💱 About APR": "/faq apr",
-        "⚠️ About Impermanent Loss": "/faq impermanent",
-        "💸 About DeFi": "/faq defi",
-        "🔑 About Wallets": "/faq wallets",
-        "📚 Commands": "/help",
-        "📱 Contact": "/contact",
-        "🔗 Links": "/social",
-        "🧠 Smart Invest": "/invest smart",
-        "⭐ Top Pools": "/info top",
-        "💼 My Investments": "/status",
-        "🔔 Subscriptions": "/subscribe",
-        "👤 Profile Settings": "/profile",
-        "💳 Wallet Settings": "/wallet"
-    }
-    
-    if button_text in button_commands:
-        if update.effective_chat:
-            cmd = button_commands[button_text]
-            logger.info(f"Executing button command: {cmd}")
-            # This is the key fix - create a proper command entities structure
-            # This makes Telegram process the text as an actual command
-            message = update.message
-            message._text = cmd
-            message._entities = [{'type': 'bot_command', 'offset': 0, 
-                               'length': cmd.find(' ') if ' ' in cmd else len(cmd)}]
-            
-            # Process the update as a command
-            await context.dispatcher.process_update(update)
-            return True
-    
-    # Handle pool info menu buttons
-    if button_text == "📈 High APR Pools":
-        if update.effective_chat:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="/info high_apr"
-            )
-            return True
-    elif button_text == "💵 Stable Pools":
-        if update.effective_chat:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="/info stable"
-            )
-            return True
-    elif button_text == "📊 All Pools":
-        if update.effective_chat:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="/info all"
-            )
-            return True
-    elif button_text == "🔍 Search Pool":
-        if update.effective_chat:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="Please enter a token pair to search for (e.g., SOL-USDC)"
-            )
-            return True
-    
-    # Handle account menu buttons
-    account_mappings = {
-        "👛 Wallet": MenuType.WALLET,
-        "📋 Profile": MenuType.PROFILE,
-        "🔔 Subscriptions": MenuType.SUBSCRIBE,
-    }
-    
-    if button_text in account_mappings:
-        await set_menu_state(update, context, account_mappings[button_text])
-        return True
-        
-    # Handle invest menu buttons
-    invest_mappings = {
-        "🧠 Smart Invest": MenuType.INVEST,  # Will need its own command handler
-        "⭐ Top Pools": MenuType.POOL_INFO,
-        "💼 My Investments": MenuType.INVEST,  # Will need its own command handler
-    }
-    
-    if button_text in invest_mappings:
-        await set_menu_state(update, context, invest_mappings[button_text])
-        return True
-        
-    # Handle simulation menu buttons
-    if button_text == "💲 Quick Simulate":
-        if update.effective_chat:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="/simulate 1000"
-            )
-            return True
-    elif button_text == "📊 Custom Simulation":
-        if update.effective_chat:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="Please enter your custom investment amount using /simulate [amount].\nFor example: /simulate 5000"
-            )
-            return True
-    elif button_text == "📑 Simulation History":
-        # Will implement this function later - for now just stay in the current menu
-        await set_menu_state(update, context, MenuType.SIMULATE)
-        return True
-        
-    # Handle help menu buttons
-    help_mappings = {
-        "📚 Commands": MenuType.HELP,
-        "📱 Contact": MenuType.HELP,
-        "🔗 Links": MenuType.HELP,
-    }
-    
-    if button_text in help_mappings:
-        await set_menu_state(update, context, help_mappings[button_text])
-        return True
-    
     # If we get here, the message wasn't a menu navigation command
     return False
 
 
-def get_current_menu(user_id: int) -> MenuType:
+async def get_current_menu(user_id: int) -> MenuType:
     """
     Get the current menu state for a user.
     
@@ -332,7 +310,7 @@ def get_current_menu(user_id: int) -> MenuType:
     
     # Then try the fallback storage
     try:
-        menu_str = db_fallback.get_menu_state(user_id)
+        menu_str = await db_fallback.get_menu_state_async(user_id)
         if menu_str:
             try:
                 # Convert string back to enum
@@ -342,11 +320,20 @@ def get_current_menu(user_id: int) -> MenuType:
     except Exception as e:
         logger.warning(f"Error retrieving menu state from fallback: {e}")
     
-    # Default to MAIN menu
-    return MenuType.MAIN
+    # Default to MAIN menu and cache it
+    default_menu = MenuType.MAIN
+    user_menu_state[user_id] = default_menu
+    
+    # Try to store the default in the database too
+    try:
+        await db_fallback.store_menu_state_async(user_id, default_menu.value)
+    except Exception as e:
+        logger.debug(f"Failed to store default menu state: {e}")
+        
+    return default_menu
 
 
-def reset_menu_state(user_id: int) -> None:
+async def reset_menu_state(user_id: int) -> None:
     """
     Reset a user's menu state.
     
@@ -359,18 +346,13 @@ def reset_menu_state(user_id: int) -> None:
     
     # Store main menu in fallback system
     try:
-        db_fallback.store_menu_state(user_id, MenuType.MAIN.value)
+        await db_fallback.store_menu_state_async(user_id, MenuType.MAIN.value)
         # Log the reset action
-        db_fallback.log_user_activity(
+        await db_fallback.log_user_activity_async(
             user_id, 
             "menu_reset", 
             {"new_menu": MenuType.MAIN.value}
         )
+        logger.info(f"Reset menu state for user {user_id}")
     except Exception as e:
         logger.warning(f"Failed to reset menu state in fallback system: {e}")
-    
-    # Also store default state in fallback storage
-    try:
-        db_fallback.store_menu_state(user_id, MenuType.MAIN.value)
-    except Exception as e:
-        logger.warning(f"Failed to reset menu state in fallback: {e}")

@@ -36,6 +36,16 @@ def store_menu_state(user_id: int, menu_type: str) -> None:
     }
     logger.debug(f"Stored menu state {menu_type} for user {user_id} in fallback storage")
 
+async def store_menu_state_async(user_id: int, menu_type: str) -> None:
+    """
+    Async version of store_menu_state.
+    
+    Args:
+        user_id: Telegram user ID
+        menu_type: Current menu type the user is in
+    """
+    store_menu_state(user_id, menu_type)
+
 def get_menu_state(user_id: int) -> Optional[str]:
     """
     Get a user's menu state from memory when database is unavailable.
@@ -50,6 +60,18 @@ def get_menu_state(user_id: int) -> Optional[str]:
     if user_state:
         return user_state.get('menu_type')
     return None
+
+async def get_menu_state_async(user_id: int) -> Optional[str]:
+    """
+    Async version of get_menu_state.
+    
+    Args:
+        user_id: Telegram user ID
+        
+    Returns:
+        Menu type as a string or None if not found
+    """
+    return get_menu_state(user_id)
 
 def log_user_activity(user_id: int, activity_type: str, metadata: Optional[Dict[str, Any]] = None) -> None:
     """
@@ -73,6 +95,17 @@ def log_user_activity(user_id: int, activity_type: str, metadata: Optional[Dict[
         
     logger.debug(f"Logged activity {activity_type} for user {user_id} in fallback storage")
 
+async def log_user_activity_async(user_id: int, activity_type: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    """
+    Async version of log_user_activity.
+    
+    Args:
+        user_id: Telegram user ID
+        activity_type: Type of activity being logged
+        metadata: Optional additional data about the activity
+    """
+    log_user_activity(user_id, activity_type, metadata)
+
 def store_session_data(session_id: str, data: Dict[str, Any]) -> None:
     """
     Store session data in memory when database is unavailable.
@@ -86,6 +119,16 @@ def store_session_data(session_id: str, data: Dict[str, Any]) -> None:
         'timestamp': time.time()
     }
     logger.debug(f"Stored session data for {session_id} in fallback storage")
+
+async def store_session_data_async(session_id: str, data: Dict[str, Any]) -> None:
+    """
+    Async version of store_session_data.
+    
+    Args:
+        session_id: Unique session identifier
+        data: Data to store for the session
+    """
+    store_session_data(session_id, data)
 
 def get_session_data(session_id: str) -> Optional[Dict[str, Any]]:
     """
@@ -101,6 +144,18 @@ def get_session_data(session_id: str) -> Optional[Dict[str, Any]]:
     if session:
         return session.get('data')
     return None
+
+async def get_session_data_async(session_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Async version of get_session_data.
+    
+    Args:
+        session_id: Unique session identifier
+        
+    Returns:
+        Session data dictionary or None if not found
+    """
+    return get_session_data(session_id)
 
 def clear_old_data() -> None:
     """
@@ -135,3 +190,9 @@ def clear_old_data() -> None:
         user_activity_log.extend(sorted_log[-5000:])  # Keep newest 5000 entries
     
     logger.debug(f"Cleaned up {len(expired_users)} user states and {len(expired_sessions)} sessions from fallback storage")
+
+async def clear_old_data_async() -> None:
+    """
+    Async version of clear_old_data.
+    """
+    clear_old_data()
