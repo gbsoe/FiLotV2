@@ -23,7 +23,7 @@ from question_detector import get_predefined_response, is_question
 from raydium_client import get_client
 from utils import format_pool_info, format_simulation_results, format_daily_update
 from menus import MenuType, get_menu_config
-from keyboard_utils import get_reply_keyboard, set_menu_state, handle_menu_navigation
+from keyboard_utils import get_reply_keyboard, set_menu_state
 from callback_handler import handle_callback_query
 from anti_loop import record_user_message, is_potential_loop, record_button_press, is_button_rate_limited
 from wallet_utils import connect_wallet, check_wallet_balance, calculate_deposit_strategy, get_wallet_balances

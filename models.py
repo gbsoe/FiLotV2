@@ -237,3 +237,21 @@ class SuspiciousURL(db.Model):
     
     def __repr__(self):
         return f"<SuspiciousURL id={self.id}, url={self.url}, category={self.category}>"
+
+class MoodEntry(db.Model):
+    """MoodEntry model for tracking user emotional states related to investments."""
+    __tablename__ = "mood_entries"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    mood = Column(String(20), nullable=False)  # very_happy, happy, neutral, sad, anxious, angry, confused
+    mood_emoji = Column(String(10), nullable=False)  # The emoji representation
+    context = Column(String(50), nullable=False)  # before_investment, after_investment, market_up, etc.
+    notes = Column(Text, nullable=True)  # Optional user notes
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", backref="mood_entries")
+    
+    def __repr__(self):
+        return f"<MoodEntry id={self.id}, user_id={self.user_id}, mood={self.mood}, context={self.context}>"

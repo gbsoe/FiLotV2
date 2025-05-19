@@ -18,7 +18,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from models import (
     User, UserQuery, Pool, BotStatistics, UserActivityLog,
-    SystemBackup, ErrorLog, SuspiciousURL
+    SystemBackup, ErrorLog, SuspiciousURL, MoodEntry
 )
 from app import db
 

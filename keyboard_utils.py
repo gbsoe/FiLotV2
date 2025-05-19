@@ -6,10 +6,11 @@ Keyboard utilities for FiLot Telegram bot
 Handles the creation and management of keyboard buttons
 """
 
-from typing import List, Dict, Any, Optional, Tuple, Callable, Awaitable, Union
+from typing import List, Dict, Any, Optional, Tuple
 import logging
 
 from telegram import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, Update
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 
 from menus import MenuType, get_menu_config
@@ -21,62 +22,6 @@ logger = logging.getLogger(__name__)
 # Cache of user's current menu state
 user_menu_state: Dict[int, MenuType] = {}
 
-# Handler type definition
-CommandHandler = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
-
-# Comprehensive button mapping
-# Format: {button_text: (action_type, action_value)}
-# action_type can be: "menu", "command", "message", "function"
-BUTTON_ACTIONS = {
-    # Main menu buttons
-    "💰 Explore Pools": ("menu", MenuType.EXPLORE),
-    "👤 My Account": ("menu", MenuType.ACCOUNT),
-    "💹 Invest": ("menu", MenuType.INVEST),
-    "ℹ️ Help": ("menu", MenuType.HELP),
-    
-    # Explore menu buttons
-    "📊 Pool Information": ("menu", MenuType.POOL_INFO),
-    "📈 High APR Pools": ("command", "/info high_apr"),
-    "💵 Stable Pools": ("command", "/info stable"),
-    "📊 All Pools": ("command", "/info all"),
-    "🔍 Search Pool": ("message", "Please enter a token pair to search for (e.g., SOL-USDC)"),
-    "🔮 Simulate Investment": ("menu", MenuType.SIMULATE),
-    
-    # Account menu buttons
-    "👛 Wallet": ("menu", MenuType.WALLET),
-    "📋 Profile": ("menu", MenuType.PROFILE),
-    "🔔 Subscriptions": ("menu", MenuType.SUBSCRIBE),
-    
-    # Invest menu buttons
-    "🧠 Smart Invest": ("command", "/invest smart"),
-    "⭐ Top Pools": ("command", "/info top"),
-    "💼 My Investments": ("command", "/status"),
-    
-    # Simulation menu buttons
-    "💲 Quick Simulate": ("command", "/simulate 1000"),
-    "📊 Custom Simulation": ("message", "Please enter your custom investment amount using /simulate [amount].\nFor example: /simulate 5000"),
-    "📑 Simulation History": ("menu", MenuType.SIMULATE),  # Placeholder until implemented
-    
-    # Help menu buttons
-    "📚 Commands": ("command", "/help"),
-    "📱 Contact": ("command", "/contact"),
-    "🔗 Links": ("command", "/social"),
-    
-    # FAQ menu buttons
-    "💡 About Liquidity Pools": ("command", "/faq liquidity"),
-    "💱 About APR": ("command", "/faq apr"),
-    "⚠️ About Impermanent Loss": ("command", "/faq impermanent"),
-    "💸 About DeFi": ("command", "/faq defi"),
-    "🔑 About Wallets": ("command", "/faq wallets"),
-    
-    # Wallet and profile buttons
-    "💳 Wallet Settings": ("command", "/wallet"),
-    "👤 Profile Settings": ("command", "/profile"),
-    
-    # Back buttons (will be handled separately)
-    "⬅️ Back to Main Menu": ("special", "back_to_main"),
-}
-
 # Determine which menus should use one-time keyboard
 ONE_TIME_KEYBOARD_MENUS = {
     MenuType.SIMULATE,
@@ -85,6 +30,21 @@ ONE_TIME_KEYBOARD_MENUS = {
     MenuType.FAQ,
 }
 
+# Main menu buttons with standardized callback_data values
+MAIN_MENU_BUTTONS = [
+    [KeyboardButton("💰 Invest")],
+    [KeyboardButton("🧭 Explore Pools")],
+    [KeyboardButton("👤 My Account")],
+    [KeyboardButton("ℹ️ Help")]
+]
+
+# Main menu inline keyboard buttons with standardized callback_data values
+MAIN_MENU_INLINE_BUTTONS = [
+    [InlineKeyboardButton("💰 Invest", callback_data="invest")],
+    [InlineKeyboardButton("🧭 Explore Pools", callback_data="explore_pools")],
+    [InlineKeyboardButton("👤 My Account", callback_data="account")],
+    [InlineKeyboardButton("ℹ️ Help", callback_data="help")]
+]
 
 def get_reply_keyboard(menu_type: MenuType) -> ReplyKeyboardMarkup:
     """
@@ -115,6 +75,14 @@ def get_reply_keyboard(menu_type: MenuType) -> ReplyKeyboardMarkup:
         input_field_placeholder="Select an option"
     )
 
+def get_inline_keyboard() -> InlineKeyboardMarkup:
+    """
+    Generate an InlineKeyboardMarkup for main menu actions.
+    
+    Returns:
+        InlineKeyboardMarkup with the main menu buttons
+    """
+    return InlineKeyboardMarkup(MAIN_MENU_INLINE_BUTTONS)
 
 def remove_keyboard() -> ReplyKeyboardRemove:
     """
@@ -124,7 +92,6 @@ def remove_keyboard() -> ReplyKeyboardRemove:
         ReplyKeyboardRemove object to remove the current keyboard
     """
     return ReplyKeyboardRemove()
-
 
 async def set_menu_state(update: Update, context: ContextTypes.DEFAULT_TYPE, menu_type: MenuType) -> None:
     """
@@ -169,7 +136,6 @@ async def set_menu_state(update: Update, context: ContextTypes.DEFAULT_TYPE, men
     
     logger.info(f"Set menu state for user {user_id} to {menu_type.value}")
 
-
 async def log_menu_navigation(user_id: int, from_menu: str, to_menu: str) -> None:
     """
     Log menu navigation to the fallback storage.
@@ -188,109 +154,6 @@ async def log_menu_navigation(user_id: int, from_menu: str, to_menu: str) -> Non
         logger.debug(f"Logged menu navigation: {user_id} {from_menu} -> {to_menu}")
     except Exception as e:
         logger.warning(f"Failed to log menu navigation: {e}")
-
-
-async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """
-    Handle navigation between menus based on button presses.
-    
-    Args:
-        update: Telegram update object
-        context: Context object for the update
-        
-    Returns:
-        True if the message was a menu navigation command and was handled,
-        False otherwise
-    """
-    if not update.effective_message or not update.effective_message.text or not update.effective_user:
-        return False
-        
-    user_id = update.effective_user.id
-    button_text = update.effective_message.text.strip()
-    
-    # Handle back button navigation
-    if button_text.startswith("⬅️ Back to"):
-        try:
-            # Get current menu with fallback support
-            current_menu = await get_current_menu(user_id)
-            menu_config = get_menu_config(current_menu)
-            
-            if menu_config.parent_menu:
-                target_menu = menu_config.parent_menu
-                await set_menu_state(update, context, target_menu)
-                await log_menu_navigation(user_id, current_menu.value, target_menu.value)
-                return True
-            else:
-                # Default to main menu if no parent is specified
-                await set_menu_state(update, context, MenuType.MAIN)
-                await log_menu_navigation(user_id, current_menu.value, "MAIN")
-                return True
-        except Exception as e:
-            logger.error(f"Error handling back button: {e}")
-            # Default to main menu in case of error
-            await set_menu_state(update, context, MenuType.MAIN)
-            return True
-    
-    # Look up the button in our comprehensive mapping
-    if button_text in BUTTON_ACTIONS:
-        action_type, action_value = BUTTON_ACTIONS[button_text]
-        
-        try:
-            if action_type == "menu":
-                # Action is to navigate to a menu
-                target_menu = action_value
-                current_menu = await get_current_menu(user_id)
-                await set_menu_state(update, context, target_menu)
-                await log_menu_navigation(user_id, current_menu.value, target_menu.value)
-                return True
-                
-            elif action_type == "command":
-                # Action is to execute a command
-                if update.effective_chat:
-                    # Send the command as a regular message
-                    await context.bot.send_message(
-                        chat_id=update.effective_chat.id,
-                        text=action_value
-                    )
-                    logger.info(f"Executed button command: {action_value}")
-                    return True
-                    
-            elif action_type == "message":
-                # Action is to send a message
-                if update.effective_chat:
-                    await context.bot.send_message(
-                        chat_id=update.effective_chat.id,
-                        text=action_value
-                    )
-                    logger.info(f"Sent message from button: {button_text}")
-                    return True
-                    
-            elif action_type == "function":
-                # For future use - would call a specific handler function
-                # This would require registering handler functions
-                logger.warning(f"Function action type not implemented yet: {button_text}")
-                return False
-                
-            elif action_type == "special":
-                # Special actions like back navigation
-                if action_value == "back_to_main":
-                    current_menu = await get_current_menu(user_id)
-                    await set_menu_state(update, context, MenuType.MAIN)
-                    await log_menu_navigation(user_id, current_menu.value, "MAIN")
-                    return True
-                    
-        except Exception as e:
-            logger.error(f"Error handling button '{button_text}': {e}")
-            # Try to go back to main menu in case of error
-            await set_menu_state(update, context, MenuType.MAIN)
-            return True
-    else:
-        # No matching action found for this button text
-        logger.warning(f"No action defined for button text: '{button_text}'")
-        
-    # If we get here, the message wasn't a menu navigation command
-    return False
-
 
 async def get_current_menu(user_id: int) -> MenuType:
     """
@@ -331,7 +194,6 @@ async def get_current_menu(user_id: int) -> MenuType:
         logger.debug(f"Failed to store default menu state: {e}")
         
     return default_menu
-
 
 async def reset_menu_state(user_id: int) -> None:
     """
