@@ -6,18 +6,19 @@ import math
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime, timedelta
 
-def format_pool_info(pools: List[Dict[str, Any]], stable_pools: Optional[List[Dict[str, Any]]] = None) -> str:
+def format_pool_info(pools: List[Dict[str, Any]], stable_pools: Optional[List[Dict[str, Any]]] = None, show_title: Optional[str] = None) -> str:
     """
     Format pool information for display in Telegram messages.
 
     Args:
         pools: List of pool dictionaries from API or response_data
         stable_pools: List of stable pool dictionaries (optional)
+        show_title: Optional custom title for the displayed pools
 
     Returns:
         Formatted string
     """
-    if not pools:
+    if not pools and not stable_pools:
         return "No pools available at the moment. Please try again later."
     
     # Helper function to safely get dictionary values
@@ -99,11 +100,15 @@ def format_pool_info(pools: List[Dict[str, Any]], stable_pools: Optional[List[Di
         # Fallback if sorting fails - just use the provided stable pools
         pass
 
-    # Header
-    result = "📈 Latest Crypto Investment Update:\n\n"
+    # Header with custom title if provided
+    if show_title:
+        result = f"📈 {show_title}:\n\n"
+    else:
+        result = "📈 Latest Crypto Investment Update:\n\n"
 
-    # Best Performing Investments Today section
-    result += "Best Performing Investments Today:\n"
+    # Best Performing Investments section (only if we have regular pools)
+    if pools:
+        result += "Best Performing Investments Today:\n"
     for pool in top_pools:
         try:
             token_a = get_value(pool, 'token_a_symbol')
@@ -133,9 +138,15 @@ def format_pool_info(pools: List[Dict[str, Any]], stable_pools: Optional[List[Di
             # Skip this pool if formatting fails
             continue
 
-    # Top Stable Investments section
-    result += "Top Stable Investments (e.g., SOL-USDC / SOL-USDT):\n"
+    # Top Stable Investments section (only if stable pools are available)
     if stable_pools:
+        if pools:  # Only add section header if we have both pool types
+            result += "\n\nTop Stable Investments (e.g., SOL-USDC / SOL-USDT):\n"
+        else:  # If we're only showing stable pools, this is the primary section
+            if show_title:  # Title already set above
+                pass
+            else:
+                result += "Top Stable Investments (e.g., SOL-USDC / SOL-USDT):\n"
         for pool in stable_pools:
             try:
                 token_a = get_value(pool, 'token_a_symbol')
@@ -167,7 +178,14 @@ def format_pool_info(pools: List[Dict[str, Any]], stable_pools: Optional[List[Di
     else:
         result += "No stable pool data available at the moment.\n\n"
 
-    result += "\nWant to see your potential earnings? Try /simulate amount (default is $1000)."
+    # Add footer with appropriate guidance based on what was shown
+    if pools:
+        result += "\n\nWant to see your potential earnings? Use the '🔮 Simulate Investment' button or type /simulate [amount]."
+    else:
+        result += "\n\nExplore more options using the buttons below or return to the main menu."
+        
+    # Add a reminder about the One-Command interface
+    result += "\n\nUse the persistent buttons for easy navigation through all features."
 
     return result
 
@@ -270,8 +288,10 @@ def format_simulation_results(pools: List[Dict[str, Any]], amount: float) -> str
             # Skip this pool if calculation fails
             continue
 
-    # Add disclaimer
-    result += "Disclaimer: The numbers above are estimations and actual earnings may vary."
+    # Add disclaimer and helpful guidance
+    result += "Disclaimer: The numbers above are estimations and actual earnings may vary.\n\n"
+    result += "Want to compare different amounts? Use '/simulate [amount]' with your preferred investment amount.\n\n"
+    result += "Use the buttons below to explore more options or continue your investment journey."
 
     return result
 

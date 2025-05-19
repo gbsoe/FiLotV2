@@ -12,7 +12,7 @@ import qrcode
 from typing import Dict, List, Any, Optional, Union, Tuple
 import traceback
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes, Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from dotenv import load_dotenv
 
@@ -22,6 +22,10 @@ from models import User, Pool, UserQuery, db
 from question_detector import get_predefined_response, is_question
 from raydium_client import get_client
 from utils import format_pool_info, format_simulation_results, format_daily_update
+from menus import MenuType, get_menu_config
+from keyboard_utils import get_reply_keyboard, set_menu_state, handle_menu_navigation
+from callback_handler import handle_callback_query
+from anti_loop import record_user_message, is_potential_loop, record_button_press, is_button_rate_limited
 from wallet_utils import connect_wallet, check_wallet_balance, calculate_deposit_strategy, get_wallet_balances
 from walletconnect_utils import (
     create_walletconnect_session, 
@@ -211,14 +215,19 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             f"👋 Welcome to FiLot, {user.first_name}!\n\n"
             "I'm your AI-powered investment assistant for cryptocurrency liquidity pools. "
             "With real-time analytics and personalized insights, I'll help you make informed investment decisions.\n\n"
-            "🔹 Use /info to see top-performing liquidity pools\n"
-            "🔹 Use /simulate [amount] to calculate potential earnings\n"
-            "🔹 Use /subscribe to receive daily updates\n"
-            "🔹 Use /wallet to manage your crypto wallet\n"
-            "🔹 Use /walletconnect to connect with QR code (NEW!)\n"
-            "🔹 Use /help to see all available commands\n\n"
-            "You can also ask me any questions about FiLot, LA! Token, or crypto investing in general."
+            "I've just set up a convenient *One-Command interface* with persistent navigation buttons "
+            "at the bottom of your screen for easier interaction.\n\n"
+            "Simply tap on any button to navigate through different sections "
+            "or use the following commands directly if you prefer:\n\n"
+            "🔹 /info - See top-performing liquidity pools\n"
+            "🔹 /simulate [amount] - Calculate potential earnings\n"
+            "🔹 /wallet - Manage your crypto wallet\n"
+            "🔹 /help - See all available commands\n\n"
+            "You can also ask me any questions about crypto pools, APR, or investment strategies!"
         )
+        
+        # Set up the main menu with persistent buttons
+        await set_menu_state(update, context, MenuType.MAIN)
     except Exception as e:
         logger.error(f"Error in start command: {e}")
         await update.message.reply_text(
@@ -226,7 +235,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a help message when the command /help is issued."""
+    """Send a help message when the command /help is issued and show the help menu."""
     try:
         from app import app
         with app.app_context():
@@ -234,7 +243,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             db_utils.log_user_activity(user.id, "help_command")
         
         await update.message.reply_markdown(
-            "🤖 *FiLot Bot Commands*\n\n"
+            "🤖 *FiLot Bot - Help Guide*\n\n"
+            "I support both persistent button navigation and traditional commands.\n\n"
+            "*📱 Button Navigation:*\n"
+            "Use the buttons at the bottom of your screen to navigate through different sections.\n\n"
+            "*⌨️ Available Commands:*\n"
             "• /start - Start the bot and get a welcome message\n"
             "• /info - View top-performing liquidity pools\n"
             "• /simulate [amount] - Calculate potential earnings\n"
@@ -245,11 +258,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "• /walletconnect - Connect wallet using QR code\n"
             "• /verify [code] - Verify your account\n" 
             "• /profile - Set your investment preferences\n"
-            "• /faq - Frequently asked questions (NEW!)\n"
-            "• /social - Our social media links (NEW!)\n"
+            "• /faq - Frequently asked questions\n"
+            "• /social - Our social media links\n"
             "• /help - Show this help message\n\n"
             "You can also ask me questions about FiLot, LA! Token, or DeFi concepts."
         )
+        
+        # Set up the help menu with persistent buttons
+        await set_menu_state(update, context, MenuType.HELP)
     except Exception as e:
         logger.error(f"Error in help command: {e}")
         await update.message.reply_text(
@@ -289,22 +305,49 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         # Get predefined pool data directly as dictionaries
         predefined_data = get_predefined_pool_data()
         
-        # Process top performing pools and stable pools from the predefined data
-        # These should be 2 best performance pools and 3 stable pools
-        top_pools = predefined_data.get('bestPerformance', [])  # Get 2 best performance pools
-        stable_pools = predefined_data.get('topStable', [])    # Get all 3 stable pools
+        # Check if a specific pool type was requested via button press or command args
+        pool_type = None
+        if context.args and len(context.args) > 0:
+            pool_type = context.args[0].lower()
+        elif update.message and update.message.text:
+            text = update.message.text.lower()
+            # Handle button presses with more precise matching
+            if "high apr pools" in text.lower() or "📈 high apr pools" in text.lower():
+                pool_type = "high_apr"
+            elif "stable pools" in text.lower() or "💵 stable pools" in text.lower():
+                pool_type = "stable"
+            # Also check for partial matches (for better UX)
+            elif any(term in text.lower() for term in ["high apr", "top apr", "best apr", "📈"]):
+                pool_type = "high_apr"
+            elif any(term in text.lower() for term in ["stable", "stablecoin", "usdc", "usdt", "💵"]):
+                pool_type = "stable"
         
-        if not top_pools:
+        # Process top performing pools and stable pools from the predefined data
+        top_pools = predefined_data.get('bestPerformance', [])  # Get best performance pools
+        stable_pools = predefined_data.get('topStable', [])    # Get stable pools
+        
+        if not top_pools and not stable_pools:
             await message.reply_text(
                 "Sorry, I couldn't retrieve pool data at the moment. Please try again later."
             )
             return
-            
-        formatted_info = format_pool_info(top_pools, stable_pools)
+        
+        # Determine which pools to show based on the request
+        if pool_type == "high_apr":
+            formatted_info = format_pool_info(top_pools, [], show_title="High APR Pools")
+        elif pool_type == "stable":
+            formatted_info = format_pool_info([], stable_pools, show_title="Stable Pools")
+        else:
+            # Default: show both types
+            formatted_info = format_pool_info(top_pools, stable_pools)
         
         # Use regular reply_text to avoid markdown formatting issues
         await message.reply_text(formatted_info)
-        logger.info("Sent pool info response")
+        logger.info(f"Sent pool info response for type: {pool_type or 'all'}")
+        
+        # Show the pool info menu with persistent buttons
+        if not is_callback:
+            await set_menu_state(update, context, MenuType.POOL_INFO)
     except Exception as e:
         logger.error(f"Error in info command: {e}", exc_info=True)
         
@@ -338,19 +381,35 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         # Set default amount to 1000 if not provided
         amount = 1000.0
         
-        # Check if amount is provided and parse it
-        if context.args and context.args[0]:
-            try:
-                amount = float(context.args[0])
-                if amount <= 0:
-                    raise ValueError("Amount must be positive")
-            except ValueError:
+        # Handle button presses as well as direct commands
+        if update.message and update.message.text:
+            text = update.message.text
+            
+            # Check for quick simulate button
+            if "💲 quick simulate" in text.lower():
+                # Default amount is already set to $1000
+                pass
+            # Check for custom amounts from text (both commands and button presses)
+            elif "custom" in text.lower() or "simulation" in text.lower():
+                # Keep default for now, will prompt user to enter amount
                 await update.message.reply_text(
-                    "Please provide a valid positive number. Example: /simulate 1000"
+                    "Please enter an investment amount using '/simulate [amount]'.\nFor example: /simulate 5000"
                 )
                 return
-            
-        await update.message.reply_text("Calculating potential returns...")
+            # Parse command arguments if present
+            elif context.args and context.args[0]:
+                try:
+                    amount = float(context.args[0])
+                    if amount <= 0:
+                        raise ValueError("Amount must be positive")
+                except ValueError:
+                    await update.message.reply_text(
+                        "Please provide a valid positive number. Example: /simulate 1000"
+                    )
+                    return
+        
+        # Tell the user we're calculating
+        await update.message.reply_text(f"Calculating potential returns for a ${amount:,.2f} investment...")
         
         # Import at function level to avoid circular imports
         from response_data import get_pool_data as get_predefined_pool_data
@@ -381,6 +440,9 @@ async def simulate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         # Use regular reply_text to avoid markdown formatting issues
         await update.message.reply_text(formatted_simulation, reply_markup=reply_markup)
         logger.info(f"Sent simulation response for amount ${amount:.2f}")
+        
+        # Set up the simulate menu with persistent buttons
+        await set_menu_state(update, context, MenuType.SIMULATE)
     except Exception as e:
         logger.error(f"Error in simulate command: {e}", exc_info=True)
         await update.message.reply_text(
@@ -641,6 +703,9 @@ async def wallet_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 "/wallet [your_address]",
                 reply_markup=reply_markup
             )
+            
+            # Set up the wallet menu with persistent buttons
+            await set_menu_state(update, context, MenuType.WALLET)
     except Exception as e:
         logger.error(f"Error in wallet command: {e}", exc_info=True)
         await update.message.reply_text(
@@ -684,6 +749,8 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         # If we have profile text ready, send it and return
         if profile_text:
             await update.message.reply_markdown(profile_text)
+            # Set up the profile menu with persistent buttons
+            await set_menu_state(update, context, MenuType.PROFILE)
             return
             
         # Process command parameters
@@ -797,6 +864,9 @@ Use /help to see all available commands!
         # Send the FAQ message
         await update.message.reply_markdown(faq_text)
         
+        # Set up the FAQ menu with persistent buttons
+        await set_menu_state(update, context, MenuType.FAQ)
+        
         logger.info(f"Sent FAQ to user {user.id}")
         
     except Exception as e:
@@ -849,6 +919,9 @@ Follow us for the latest news and launch announcements!
             reply_markup=InlineKeyboardMarkup(keyboard),
             disable_web_page_preview=True  # Disable preview to avoid showing Twitter/IG previews
         )
+        
+        # Show the main menu with persistent buttons after social links
+        await set_menu_state(update, context, MenuType.MAIN)
         
         logger.info(f"Sent social media links to user {user.id}")
         
@@ -1040,6 +1113,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     Handle user messages that are not commands.
     Intelligently detects questions and provides predefined answers or 
     routes to AI for specialized financial advice.
+    Now also handles menu navigation using buttons.
     """
     try:
         user = update.effective_user
@@ -1047,6 +1121,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         # Log the user's message
         logger.info(f"Received message from user {user.id}: {message_text}")
+        
+        # Record message for anti-loop protection
+        record_user_message(user.id, message_text)
+        
+        # Check if this is a menu navigation button press
+        menu_handled = await handle_menu_navigation(update, context)
+        if menu_handled:
+            # Record button press for rate limiting
+            record_button_press(user.id, message_text)
+            logger.info(f"User {user.id} navigated using menu button: {message_text}")
+            # Message was handled by menu navigation, no need to process further
+            return
+            
+        # Check if this is a potential menu button but not properly handled
+        current_menu = get_current_menu(user.id)
+        if current_menu and message_text.strip() in ["Back", "Menu", "Main Menu"]:
+            # Go back to main menu
+            await set_menu_state(update, context, MenuType.MAIN)
+            logger.info(f"User {user.id} returned to main menu with text: {message_text}")
+            return
         
         # We'll wrap all database operations in an app context
         from app import app
