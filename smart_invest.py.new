@@ -67,15 +67,11 @@ async def start_smart_invest(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         
         # Welcome message with proper escaped markdown
-        welcome_text = (
+        await update.effective_message.reply_text(
             "🤖 *Smart Investment Advisor* 🤖\n\n"
             "I'll use advanced AI to recommend the best liquidity pools for your investment\\.\n\n"
             "Let's start with how much you'd like to invest \\(in USD\\)\\.\n"
-            "Example: `100` for $100"
-        )
-        
-        await update.effective_message.reply_text(
-            welcome_text,
+            "Example: `100` for $100",
             parse_mode="MarkdownV2"
         )
         
@@ -133,10 +129,9 @@ async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             amount_str = f"${format_number(amount)}"
             formatted_amount = escape_markdown(amount_str)
             
-            message_text = f"Investment amount: *{formatted_amount}*\n\nPlease select your risk profile:"
-            
             await update.effective_message.reply_text(
-                message_text,
+                f"Investment amount: *{formatted_amount}*\n\n"
+                f"Please select your risk profile:",
                 reply_markup=reply_markup,
                 parse_mode="MarkdownV2"
             )
@@ -144,13 +139,9 @@ async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             return RISK_PROFILE
             
         except ValueError:
-            invalid_message = (
-                "Please enter a valid number for the investment amount\\.\n"
-                "Example: `100` for $100"
-            )
-            
             await update.effective_message.reply_text(
-                invalid_message,
+                "Please enter a valid number for the investment amount\\.\n"
+                "Example: `100` for $100",
                 parse_mode="MarkdownV2"
             )
             return AMOUNT
@@ -204,14 +195,10 @@ async def handle_risk_profile(update: Update, context: ContextTypes.DEFAULT_TYPE
         amount_str = f"${format_number(amount)}"
         formatted_amount = escape_markdown(amount_str)
         
-        message_text = (
+        await query.edit_message_text(
             f"Investment amount: *{formatted_amount}*\n"
             f"Risk profile: *{risk_profile_display}*\n\n"
-            f"Select a preferred token \\(optional\\):"
-        )
-        
-        await query.edit_message_text(
-            message_text,
+            f"Select a preferred token \\(optional\\):",
             reply_markup=reply_markup,
             parse_mode="MarkdownV2"
         )
@@ -269,16 +256,12 @@ async def handle_token_preference(update: Update, context: ContextTypes.DEFAULT_
         escaped_risk_profile = escape_markdown(risk_profile_display)
         escaped_token_display = escape_markdown(token_display)
         
-        message_text = (
+        await query.edit_message_text(
             f"📊 *Smart Investment Details* 📊\n\n"
             f"Amount: *{formatted_amount}*\n"
             f"Risk profile: *{escaped_risk_profile}*\n"
             f"Token preference: *{escaped_token_display}*\n\n"
-            f"Ready to see AI\\-powered investment recommendations?"
-        )
-        
-        await query.edit_message_text(
-            message_text,
+            f"Ready to see AI\\-powered investment recommendations?",
             reply_markup=reply_markup,
             parse_mode="MarkdownV2"
         )
@@ -314,14 +297,10 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
             return ConversationHandler.END
             
         # Show loading message
-        loading_text = (
+        await query.edit_message_text(
             "🔍 *Analyzing investment opportunities\\.\\.\\.*\n\n"
             "Our AI is crunching the numbers to find the best pools for your investment\\. "
-            "This may take a few moments\\."
-        )
-        
-        await query.edit_message_text(
-            loading_text,
+            "This may take a few moments\\.",
             parse_mode="MarkdownV2"
         )
         
@@ -348,23 +327,19 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
             
             # Check if we have suggestions
             if not recommendations.get("suggestions") or len(recommendations["suggestions"]) == 0:
-                no_results_text = (
-                    "Sorry, I couldn't find any suitable investment opportunities matching your criteria\\. "
-                    "Please try again with different parameters\\."
-                )
-                
                 await query.edit_message_text(
-                    no_results_text,
+                    "Sorry, I couldn't find any suitable investment opportunities matching your criteria\\. "
+                    "Please try again with different parameters\\.",
                     parse_mode="MarkdownV2"
                 )
                 return ConversationHandler.END
                 
             # Format the recommendations
-            message = "🤖 *AI\\-Powered Investment Recommendations* 🤖\n\n"
+            message = f"🤖 *AI\\-Powered Investment Recommendations* 🤖\n\n"
             
             # Add explanation
             explanation = recommendations.get('explanation', 'Based on your preferences, here are my recommendations:')
-            message += escape_markdown(explanation) + "\n\n"
+            message += f"{escape_markdown(explanation)}\n\n"
             
             # Add each suggestion
             for i, pool in enumerate(recommendations["suggestions"], 1):
@@ -378,19 +353,16 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                 apr_str = f"{apr:.2f}%"
                 tvl_str = f"${format_number(tvl)}"
                 
-                pool_info = (
+                message += (
                     f"*{i}\\. {escape_markdown(pair)}*\n"
                     f"• APR: {escape_markdown(apr_str)}\n"
                     f"• TVL: {escape_markdown(tvl_str)}\n"
                     f"• AI Confidence: {escape_markdown(confidence_display)}\n"
                 )
                 
-                message += pool_info
-                
                 # Add reasons if available
                 if pool.get("reasons") and len(pool["reasons"]) > 0:
-                    reasons_list = [escape_markdown(reason) for reason in pool["reasons"]]
-                    escaped_reasons = ", ".join(reasons_list)
+                    escaped_reasons = ", ".join([escape_markdown(reason) for reason in pool["reasons"]])
                     message += f"• Reasons: {escaped_reasons}\n"
                     
                 message += "\n"
@@ -457,11 +429,8 @@ async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             user_id = update.effective_user.id
             
             # Get first recommended pool for simple feedback
-            recs = context.user_data.get("recommendations", {})
-            suggestions = recs.get("suggestions", [])
-            
-            if suggestions and len(suggestions) > 0:
-                top_pool = suggestions[0]
+            if context.user_data.get("recommendations") and context.user_data["recommendations"].get("suggestions"):
+                top_pool = context.user_data["recommendations"]["suggestions"][0]
                 if "pool_id" in top_pool:
                     try:
                         # Record a high rating (4/5) for helpful feedback
@@ -473,13 +442,9 @@ async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     except Exception as feedback_error:
                         logger.error(f"Error recording positive feedback: {feedback_error}")
             
-            positive_text = (
-                "Thank you for your feedback\\! I'm glad the recommendations were helpful\\.\n\n"
-                "You can use /smart\\_invest anytime to get more AI\\-powered recommendations\\."
-            )
-            
             await query.edit_message_text(
-                positive_text,
+                "Thank you for your feedback\\! I'm glad the recommendations were helpful\\.\n\n"
+                "You can use /smart\\_invest anytime to get more AI\\-powered recommendations\\.",
                 parse_mode="MarkdownV2"
             )
             
@@ -488,11 +453,8 @@ async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             user_id = update.effective_user.id
             
             # Get first recommended pool for simple feedback
-            recs = context.user_data.get("recommendations", {})
-            suggestions = recs.get("suggestions", [])
-            
-            if suggestions and len(suggestions) > 0:
-                top_pool = suggestions[0]
+            if context.user_data.get("recommendations") and context.user_data["recommendations"].get("suggestions"):
+                top_pool = context.user_data["recommendations"]["suggestions"][0]
                 if "pool_id" in top_pool:
                     try:
                         # Record a low rating (2/5) for unhelpful feedback
@@ -504,35 +466,23 @@ async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     except Exception as feedback_error:
                         logger.error(f"Error recording negative feedback: {feedback_error}")
             
-            negative_text = (
-                "I appreciate your feedback\\. I'll use it to improve future recommendations\\.\n\n"
-                "You can use /smart\\_invest anytime to try again with different parameters\\."
-            )
-            
             await query.edit_message_text(
-                negative_text,
+                "I appreciate your feedback\\. I'll use it to improve future recommendations\\.\n\n"
+                "You can use /smart\\_invest anytime to try again with different parameters\\.",
                 parse_mode="MarkdownV2"
             )
             
         elif feedback == "try_again":
-            retry_text = (
-                "Sure, let's try again with different parameters\\.\n\n"
-                "Please use /smart\\_invest to start a new recommendation session\\."
-            )
-            
             await query.edit_message_text(
-                retry_text,
+                "Sure, let's try again with different parameters\\.\n\n"
+                "Please use /smart\\_invest to start a new recommendation session\\.",
                 parse_mode="MarkdownV2"
             )
             
         else:
-            default_text = (
-                "Thank you for using the Smart Investment Advisor\\.\n\n"
-                "You can use /smart\\_invest anytime to get more AI\\-powered recommendations\\."
-            )
-            
             await query.edit_message_text(
-                default_text,
+                "Thank you for using the Smart Investment Advisor\\.\n\n"
+                "You can use /smart\\_invest anytime to get more AI\\-powered recommendations\\.",
                 parse_mode="MarkdownV2"
             )
             
@@ -553,12 +503,8 @@ async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Cancel the conversation."""
-    cancel_text = (
-        "Smart investment process cancelled\\. Feel free to start again when you're ready\\."
-    )
-    
     await update.effective_message.reply_text(
-        cancel_text,
+        "Smart investment process cancelled\\. Feel free to start again when you're ready\\.",
         parse_mode="MarkdownV2"
     )
     return ConversationHandler.END
