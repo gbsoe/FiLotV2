@@ -13,6 +13,7 @@ import asyncio
 import traceback
 import threading
 import time
+import numpy as np
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -47,8 +48,30 @@ from bot import (
 # Import interactive menu functionality
 from interactive_menu import interactive_menu_command, interactive_callback
 
+# Import smart investment functionality
+from smart_invest import get_smart_invest_conversation_handler, start_smart_invest, smart_invest_command
+
 # Import button response handlers 
 from button_responses import show_interactive_menu, handle_button_callback
+
+# Define smart investment handler
+async def smart_invest_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler for the /smart_invest command using RL investment advisor"""
+    try:
+        if update.message:
+            await update.message.reply_text(
+                "🤖 *Starting AI-Powered Investment Advisor* 🤖\n\n"
+                "I'll help you find the best liquidity pools for your investment using Reinforcement Learning technology.",
+                parse_mode="Markdown"
+            )
+            
+            # Start the smart invest process
+            await start_smart_invest(update, context)
+    except Exception as e:
+        logger.error(f"Error handling smart invest command: {e}")
+        logger.error(traceback.format_exc())
+        if update.message:
+            await update.message.reply_text("Sorry, an error occurred starting the smart investment advisor. Please try again later.")
 
 # Import agentic investment flow
 from invest_flow import (
@@ -200,7 +223,8 @@ def run_telegram_bot():
             "profile": profile_command,
             "faq": faq_command,
             "social": social_command,
-            "interactive": interactive_menu_command  # New interactive menu with functional buttons and database operations
+            "interactive": interactive_menu_command,  # New interactive menu with functional buttons and database operations
+            "smart_invest": smart_invest_command  # AI-powered investment recommendations with RL
         }
 
         # Function to handle a specific update by determining its type and routing to appropriate handler

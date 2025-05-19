@@ -18,6 +18,8 @@ from app import app
 from models import db, User, Pool, UserActivityLog
 import solpool_api_client as solpool_api
 import filotsense_api_client as sentiment_api
+from smart_invest import start_smart_invest
+from rl_investment_advisor import get_smart_investment_recommendation
 
 # Configure logging
 logging.basicConfig(
@@ -787,6 +789,63 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
             
             return True
             
+        elif query.data == "smart_invest":
+            # Handle RL-powered Smart Invest button
+            try:
+                # Create a welcoming message about the AI-powered investment advisor
+                message = (
+                    "*🧠 Smart Investment Advisor*\n\n"
+                    "Welcome to our AI-powered investment recommendation system!\n\n"
+                    "This feature uses Reinforcement Learning technology to analyze:\n"
+                    "• Current market conditions\n"
+                    "• Pool performance metrics\n"
+                    "• Risk-adjusted returns\n"
+                    "• Market sentiment\n\n"
+                    "I'll guide you through a few questions to provide personalized investment recommendations."
+                )
+                
+                # Display initial message
+                await query.edit_message_text(
+                    message,
+                    parse_mode="Markdown",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🚀 Start Smart Investing", callback_data="start_smart_invest")],
+                        [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]
+                    ])
+                )
+            except Exception as e:
+                logger.error(f"Error initiating smart invest: {e}")
+                await query.edit_message_text(
+                    "*Smart Investment Advisor*\n\n"
+                    "Sorry, there was an error starting the investment advisor. Please try again later.",
+                    parse_mode="Markdown",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]
+                    ])
+                )
+            return True
+            
+        elif query.data == "start_smart_invest":
+            # Start the smart investment flow by calling the appropriate handler
+            try:
+                # Get a reference to the current update and context
+                from telegram import Update
+                
+                # Launch the smart invest conversation flow
+                await start_smart_invest(update, context)
+                return True
+            except Exception as e:
+                logger.error(f"Error starting smart investment flow: {e}")
+                await query.edit_message_text(
+                    "*Smart Investment Error*\n\n"
+                    "Sorry, there was an error starting the smart investment process. Please try again later.",
+                    parse_mode="Markdown",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]
+                    ])
+                )
+                return True
+                
         elif query.data == "sentiment":
             # Show overall market sentiment data
             try:
