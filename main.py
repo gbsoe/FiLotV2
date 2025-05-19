@@ -3,6 +3,7 @@
 
 """
 Main entry point for the Telegram bot and Flask web application
+Now with agentic investment advisor and one-command UX
 """
 
 import os
@@ -13,7 +14,7 @@ import traceback
 import threading
 import time
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -48,6 +49,15 @@ from interactive_menu import interactive_menu_command, interactive_callback
 
 # Import button response handlers 
 from button_responses import show_interactive_menu, handle_button_callback
+
+# Import agentic investment flow
+from invest_flow import (
+    MAIN_KEYBOARD,
+    start_invest_flow,
+    handle_invest_message,
+    handle_invest_callback,
+    check_active_investments
+)
 
 # Import Flask app for the web interface
 from app import app
@@ -833,6 +843,79 @@ def run_telegram_bot():
                     logger.info("Handling regular message")
                     chat_id = update_obj.message.chat_id
                     message_text = update_obj.message.text
+                    
+                    # Check for persistent keyboard button presses from One-Command interface
+                    if message_text == "💰 Invest":
+                        # Handle investment flow
+                        logger.info("Detected 'Invest' button press, starting investment flow")
+                        try:
+                            # Create context for async handlers
+                            context = SimpleContext()
+                            
+                            # Import and call the invest flow starter
+                            from invest_flow import start_invest_flow
+                            
+                            # Create and manage our own event loop
+                            import asyncio
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            
+                            # Start the investment flow
+                            loop.run_until_complete(start_invest_flow(update_obj, context))
+                            return
+                        except Exception as e:
+                            logger.error(f"Error handling invest button: {e}")
+                            logger.error(traceback.format_exc())
+                            send_response(chat_id, "Sorry, an error occurred starting the investment flow. Please try again.")
+                            return
+                            
+                    elif message_text == "🔍 Explore":
+                        # Show the explore menu with pool data
+                        logger.info("Detected 'Explore' button press, showing interactive menu")
+                        try:
+                            # Create context for async handlers
+                            context = SimpleContext()
+                            
+                            # Import and call the interactive menu
+                            from button_responses import show_interactive_menu
+                            
+                            # Create and manage our own event loop
+                            import asyncio
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            
+                            # Show the interactive menu
+                            loop.run_until_complete(show_interactive_menu(update_obj, context))
+                            return
+                        except Exception as e:
+                            logger.error(f"Error handling explore button: {e}")
+                            logger.error(traceback.format_exc())
+                            send_response(chat_id, "Sorry, an error occurred showing the pool data. Please try again.")
+                            return
+                            
+                    elif message_text == "👤 Account":
+                        # Show the account profile
+                        logger.info("Detected 'Account' button press, showing user profile")
+                        try:
+                            # Create context for async handlers
+                            context = SimpleContext()
+                            
+                            # Import profile command
+                            from bot import profile_command
+                            
+                            # Create and manage our own event loop
+                            import asyncio
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            
+                            # Show user profile
+                            loop.run_until_complete(profile_command(update_obj, context))
+                            return
+                        except Exception as e:
+                            logger.error(f"Error handling account button: {e}")
+                            logger.error(traceback.format_exc())
+                            send_response(chat_id, "Sorry, an error occurred accessing your account. Please try again.")
+                            return
 
                     # For question detection and predefined answers
                     with app.app_context():

@@ -210,20 +210,23 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             db_utils.log_user_activity(user.id, "start_command")
             logger.info(f"Activity logged for user {user.id}")
         
+        # Import the main keyboard from invest_flow
+        from invest_flow import MAIN_KEYBOARD
+        
         logger.info(f"Sending welcome message to user {user.id}")
         await update.message.reply_markdown(
             f"👋 Welcome to FiLot, {user.first_name}!\n\n"
-            "I'm your AI-powered investment assistant for cryptocurrency liquidity pools. "
-            "With real-time analytics and personalized insights, I'll help you make informed investment decisions.\n\n"
+            "I'm your agentic investment advisor for cryptocurrency liquidity pools. "
+            "With real-time analytics, market sentiment analysis, and personalized insights, "
+            "I'll help you make informed investment decisions.\n\n"
             "I've just set up a convenient *One-Command interface* with persistent navigation buttons "
             "at the bottom of your screen for easier interaction.\n\n"
-            "Simply tap on any button to navigate through different sections "
-            "or use the following commands directly if you prefer:\n\n"
-            "🔹 /info - See top-performing liquidity pools\n"
-            "🔹 /simulate [amount] - Calculate potential earnings\n"
-            "🔹 /wallet - Manage your crypto wallet\n"
-            "🔹 /help - See all available commands\n\n"
-            "You can also ask me any questions about crypto pools, APR, or investment strategies!"
+            "🔸 *💰 Invest* - Get personalized investment recommendations\n"
+            "🔸 *🔍 Explore* - View pool data and market sentiment\n"
+            "🔸 *👤 Account* - Track your investments and wallet\n\n"
+            "Simply tap on any button to get started!\n\n"
+            "You can also ask me any questions about crypto pools, APR, or investment strategies!",
+            reply_markup=MAIN_KEYBOARD
         )
         
         # Set up the main menu with persistent buttons

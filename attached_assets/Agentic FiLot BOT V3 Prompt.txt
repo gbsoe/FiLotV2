@@ -1,0 +1,201 @@
+Develop a simplified, One-Command UX using buttons to trigger the /invest flow. The goal is to implement persistent buttons, inline actions, and ensure the bot is highly accessible, reducing the need for users to type commands.
+
+
+---
+
+SYSTEM CONTEXT
+You are an AI assistant working on the FiLot Telegram Bot (Python 3.11+, python-telegram-bot, Flask backend, PostgreSQL) hosted on Replit. The bot currently has multiple slash commands (e.g. /invest, /explore, /account). We now want to simplify the user experience (UX) to a one-command flow for investment actions, accessible through buttons and natural language processing.
+
+
+---
+
+OBJECTIVE
+
+Simplify bot UX with just three main commands: /invest, /explore, /account.
+
+Implement a persistent reply keyboard with buttons that trigger investment actions.
+
+When the user taps “💰 Invest”, it should initiate the entire investment process with a natural conversation flow: amount → profile → confirmation → execution.
+
+Add inline buttons for quick access at any point in the conversation flow (e.g., to re-trigger the investment flow).
+
+Remove the need for users to memorize slash commands or manually type them.
+
+
+
+---
+
+TASKS & DELIVERABLES
+
+1. Add Persistent Reply Keyboard for Navigation
+
+On /start and /help, the bot should send a message with the following reply keyboard:
+
+“💰 Invest” → triggers the investment flow.
+
+“🔍 Explore” → triggers /explore menu.
+
+“👤 Account” → triggers /account menu.
+
+
+
+Code Example:
+
+from telegram import ReplyKeyboardMarkup
+
+MAIN_KEYBOARD = ReplyKeyboardMarkup(
+    [["💰 Invest"], ["🔍 Explore", "👤 Account"]],
+    resize_keyboard=True,
+    one_time_keyboard=False
+)
+
+@dp.message_handler(commands=['start', 'help'])
+async def on_start(message):
+    await message.reply(
+        "Welcome to FiLot! Tap a button below to get started:",
+        reply_markup=MAIN_KEYBOARD
+    )
+
+
+2. Implement /invest Flow with Slot-Filling
+
+After the user taps “💰 Invest”, ask for the investment amount:
+
+Bot: "How much would you like to invest?"
+
+User: Responds with an amount (e.g., "100").
+
+
+Ask the user to choose their profile:
+
+Bot: "High-risk or stable?"
+
+User: Responds with "High-risk" or "Stable".
+
+
+Show the top 2 recommended pools based on the chosen profile, with inline buttons for confirmation:
+
+Bot: "You can invest in Pool A with 20% APR or Pool B with 15% APR. Choose A or B."
+
+
+
+Code Example:
+
+@dp.message_handler(lambda message: message.text.lower() == "💰 invest")
+async def on_invest(message: Message):
+    # Ask for amount
+    await message.reply("How much would you like to invest?")
+    # Transition to waiting for amount input
+    state = "awaiting_amount"
+
+
+3. Inline Buttons for Quick Access
+
+For any command or screen (e.g., after showing positions), always include an inline button to re-trigger the investment flow.
+
+Inline Button Example: “💰 Invest” to restart the process.
+
+
+Code Example:
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+INVEST_INLINE = InlineKeyboardMarkup(
+    [[InlineKeyboardButton("💰 Invest", callback_data="start_invest")]]
+)
+
+@dp.callback_query_handler(lambda c: c.data == "start_invest")
+async def on_invest_button(cb):
+    # Start investment flow again
+    await on_invest(cb.message)
+
+
+4. Natural Language Understanding for Flexible Inputs
+
+Implement intent detection to recognize natural language investment-related queries:
+
+User: “I want to invest 500 in high-risk” → automatically treated as /invest high-risk 500.
+
+User: “How are my positions doing?” → bot responds with active positions.
+
+
+
+Code Example:
+
+@dp.message_handler(func=lambda message: 'invest' in message.text.lower())
+async def on_invest_nlp(message: Message):
+    amount = extract_amount(message.text)  # Implement amount extraction logic
+    profile = detect_profile(message.text)  # Implement profile detection logic
+    await on_invest_with_amount_and_profile(message, amount, profile)
+
+
+5. Database Integration for Storing Positions and Context
+
+Store each user's context (profile, amount, selected pool) in a session (Redis or in-memory).
+
+Use the session data to show the last selected pool and ensure users can restart the flow from where they left off.
+
+
+Code Example:
+
+def store_user_context(user_id, context_data):
+    # Store context data (profile, amount, pool)
+    pass
+
+
+6. Monitoring and Exit
+
+Implement a Monitoring Agent that watches for potential impermanent loss (IL) or drop in APR.
+
+If conditions indicate risk (e.g., APR dropping or sentiment declining), the bot should offer the user an Exit button to withdraw from the pool.
+
+
+Code Example:
+
+@dp.message_handler(func=lambda message: 'exit' in message.text.lower())
+async def on_exit(message: Message):
+    # Process to withdraw from the selected pool
+    await message.reply("Exiting your investment.")
+
+
+7. Testing & Documentation
+
+Ensure that the following tests are written:
+
+Slot-filling dialogue tests (amount, profile, confirmation).
+
+Button handling tests for inline buttons.
+
+Intent detection for natural language inputs.
+
+
+Update README.md to reflect the new commands, workflows, and the “one-command” flow.
+
+
+
+
+
+---
+
+INSTRUCTIONS FOR REPLIT AI AGENT
+
+Modify bot.py to implement the persistent keyboard with buttons for Invest, Explore, and Account.
+
+Implement the on_invest flow with slot-filling and automatic fallback to button presses.
+
+Add logic to trigger investment or show positions based on natural language input.
+
+Ensure inline buttons are added throughout to restart the investment flow.
+
+Store and retrieve user context, so they can pick up where they left off.
+
+Create tests for each component (button handling, conversation flows, error handling).
+
+Provide clear documentation on setting up, using, and testing the new flow.
+
+
+
+---
+
+End Result
+This plan will turn your FiLot Telegram bot into a one-command UX, with users only needing to tap “💰 Invest” to initiate everything from amount input to execution. The bot will intelligently guide users through a frictionless experience, whether they type naturally or press buttons.
