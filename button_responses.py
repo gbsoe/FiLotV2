@@ -16,6 +16,7 @@ from telegram.ext import ContextTypes
 
 from app import app
 from models import db, User, Pool, UserActivityLog
+import solpool_api_client as solpool_api
 
 # Configure logging
 logging.basicConfig(
@@ -28,35 +29,83 @@ logger = logging.getLogger(__name__)
 async def show_interactive_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Show the main interactive menu with buttons that perform real database operations
+    and connect to the SolPool Insight API
     """
     try:
         user = update.effective_user
+        if not user:
+            logger.warning("No user information available in update")
+            return
+            
         logger.info(f"User {user.id} requested interactive menu")
         
-        # Define inline keyboard with buttons that perform real database operations
+        # Define inline keyboard with buttons that perform real operations
         keyboard = [
             [InlineKeyboardButton("📊 View Pool Data", callback_data="pools")],
             [InlineKeyboardButton("📈 View High APR Pools", callback_data="high_apr")],
+            [InlineKeyboardButton("🔮 View AI Predictions", callback_data="predictions")],
             [InlineKeyboardButton("👤 My Profile", callback_data="profile")],
             [InlineKeyboardButton("❓ FAQ / Help", callback_data="faq")]
         ]
         
+        # Check if SolPool API is available
+        is_api_available = solpool_api.api_health_check()
+        
+        if is_api_available:
+            message = (
+                f"*Welcome to FiLot Interactive Menu, {user.first_name}!*\n\n"
+                "These buttons now connect to the SolPool Insight API for real-time data!\n"
+                "Click any option to retrieve live data:"
+            )
+        else:
+            message = (
+                f"*Welcome to FiLot Interactive Menu, {user.first_name}!*\n\n"
+                "These buttons connect to our database for liquidity pool information.\n"
+                "Click any option to retrieve data:"
+            )
+        
         await update.message.reply_markdown(
-            f"*Welcome to FiLot Interactive Menu, {user.first_name}!*\n\n"
-            "These buttons perform real database operations.\n"
-            "Click any option to retrieve live data:",
+            message,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     except Exception as e:
         logger.error(f"Error in interactive menu command: {e}")
-        await update.message.reply_text(
-            "Sorry, an error occurred. Please try again later."
-        )
+        try:
+            if update.message:
+                await update.message.reply_text(
+                    "Sorry, an error occurred. Please try again later."
+                )
+        except Exception as inner_e:
+            logger.error(f"Error sending error message: {inner_e}")
 
 # Database operations
 def get_high_apr_pools(limit: int = 3) -> List[Dict[str, Any]]:
-    """Get high APR pools from database"""
+    """Get high APR pools from SolPool API with database fallback"""
     try:
+        # First try to get data from SolPool API
+        api_pools = solpool_api.get_high_apr_pools(limit)
+        
+        if api_pools and len(api_pools) > 0:
+            logger.info(f"Successfully retrieved {len(api_pools)} high APR pools from SolPool API")
+            
+            # Convert to our expected format
+            result = []
+            for pool in api_pools:
+                result.append({
+                    'id': pool.get('id', ''),
+                    'token_a': pool.get('token_a_symbol', ''),
+                    'token_b': pool.get('token_b_symbol', ''),
+                    'apr_24h': pool.get('apr_24h', 0),
+                    'tvl': pool.get('tvl', 0),
+                    'volume_24h': pool.get('volume_24h', 0),
+                    'fee': pool.get('fee', 0),
+                    'prediction_score': pool.get('prediction_score', 0),
+                    'data_source': 'SolPool API'
+                })
+            return result
+            
+        # If API fails, fall back to database
+        logger.warning("Failed to get high APR pools from API, falling back to database")
         with app.app_context():
             pools = Pool.query.order_by(Pool.apr_24h.desc()).limit(limit).all()
             
@@ -68,7 +117,9 @@ def get_high_apr_pools(limit: int = 3) -> List[Dict[str, Any]]:
                     'token_b': pool.token_b_symbol,
                     'apr_24h': pool.apr_24h or 0,
                     'tvl': pool.tvl or 0,
-                    'volume_24h': pool.volume_24h or 0
+                    'volume_24h': pool.volume_24h or 0,
+                    'fee': pool.fee or 0,
+                    'data_source': 'Database'
                 })
             
             return result
@@ -77,8 +128,32 @@ def get_high_apr_pools(limit: int = 3) -> List[Dict[str, Any]]:
         return []
 
 def get_pools(limit: int = 5) -> List[Dict[str, Any]]:
-    """Get pool data from database"""
+    """Get pool data from SolPool API with database fallback"""
     try:
+        # First try to get data from SolPool API
+        api_pools = solpool_api.get_pools(limit=limit)
+        
+        if api_pools and len(api_pools) > 0:
+            logger.info(f"Successfully retrieved {len(api_pools)} pools from SolPool API")
+            
+            # Convert to our expected format
+            result = []
+            for pool in api_pools:
+                result.append({
+                    'id': pool.get('id', ''),
+                    'token_a': pool.get('token_a_symbol', ''),
+                    'token_b': pool.get('token_b_symbol', ''),
+                    'apr_24h': pool.get('apr_24h', 0),
+                    'tvl': pool.get('tvl', 0),
+                    'volume_24h': pool.get('volume_24h', 0),
+                    'fee': pool.get('fee', 0),
+                    'dex': pool.get('dex', ''),
+                    'data_source': 'SolPool API'
+                })
+            return result
+            
+        # If API fails, fall back to database
+        logger.warning("Failed to get pools from API, falling back to database")
         with app.app_context():
             pools = Pool.query.limit(limit).all()
             
@@ -90,7 +165,9 @@ def get_pools(limit: int = 5) -> List[Dict[str, Any]]:
                     'token_b': pool.token_b_symbol,
                     'apr_24h': pool.apr_24h or 0,
                     'tvl': pool.tvl or 0,
-                    'volume_24h': pool.volume_24h or 0
+                    'volume_24h': pool.volume_24h or 0,
+                    'fee': pool.fee or 0,
+                    'data_source': 'Database'
                 })
             
             return result
@@ -184,13 +261,31 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
             if pools:
                 message = "*📊 Liquidity Pool Data*\n\n"
                 for i, pool in enumerate(pools, 1):
+                    fee_percentage = pool.get('fee', 0) * 100
+                    volume = pool.get('volume_24h', 0)
+                    
                     message += (
                         f"{i}. *{pool['token_a']}-{pool['token_b']}*\n"
                         f"   • APR: {pool['apr_24h']:.2f}%\n"
-                        f"   • TVL: ${pool['tvl']:,.2f}\n\n"
+                        f"   • TVL: ${pool['tvl']:,.2f}\n"
+                        f"   • Fee: {fee_percentage:.3f}%\n"
+                        f"   • 24h Volume: ${volume:,.2f}\n"
                     )
+                    
+                    if 'dex' in pool:
+                        message += f"   • DEX: {pool['dex']}\n"
+                    
+                    message += "\n"
                 
-                keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]]
+                # Add note about data source
+                if pools and 'data_source' in pools[0]:
+                    message += f"_Data source: {pools[0]['data_source']}_\n"
+                
+                keyboard = [
+                    [InlineKeyboardButton("🔍 Get Predictions", callback_data="predictions")],
+                    [InlineKeyboardButton("📈 Historical Data", callback_data="history")],
+                    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]
+                ]
                 
                 await query.edit_message_text(
                     message,
@@ -214,14 +309,34 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
             
             if high_apr_pools:
                 message = "*📈 Top High APR Pools*\n\n"
+                message += "These are the highest APR pools currently available on Raydium:\n\n"
+                
                 for i, pool in enumerate(high_apr_pools, 1):
+                    fee_percentage = pool.get('fee', 0) * 100
+                    volume = pool.get('volume_24h', 0)
+                    
                     message += (
                         f"{i}. *{pool['token_a']}-{pool['token_b']}*\n"
-                        f"   • APR: {pool['apr_24h']:.2f}%\n"
-                        f"   • TVL: ${pool['tvl']:,.2f}\n\n"
+                        f"   • APR: {pool['apr_24h']:.2f}% 🔥\n"
+                        f"   • TVL: ${pool['tvl']:,.2f}\n"
+                        f"   • Fee: {fee_percentage:.3f}%\n"
+                        f"   • 24h Volume: ${volume:,.2f}\n"
                     )
+                    
+                    # Add prediction score if available
+                    if 'prediction_score' in pool and pool['prediction_score'] > 0:
+                        message += f"   • Prediction Score: {pool['prediction_score']}/100\n"
+                        
+                    message += "\n"
                 
-                keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]]
+                # Add note about data source
+                if high_apr_pools and 'data_source' in high_apr_pools[0]:
+                    message += f"_Data source: {high_apr_pools[0]['data_source']}_\n"
+                
+                keyboard = [
+                    [InlineKeyboardButton("🔮 Simulate Investment", callback_data="simulate")],
+                    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]
+                ]
                 
                 await query.edit_message_text(
                     message,
@@ -237,6 +352,131 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
                         InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")
                     ]])
                 )
+            return True
+            
+        elif query.data == "predictions":
+            # Get prediction data from SolPool API
+            try:
+                # Try to get prediction data
+                predictions = solpool_api.get_predictions(min_score=70, limit=3)
+                
+                if predictions and len(predictions) > 0:
+                    message = "*🔮 Top Pool Predictions*\n\n"
+                    message += "AI-powered predictions for the best performing pools:\n\n"
+                    
+                    for i, pred in enumerate(predictions, 1):
+                        message += (
+                            f"{i}. *{pred.get('name', '')}*\n"
+                            f"   • Current APR: {pred.get('current_apr', 0):.2f}%\n"
+                            f"   • Predicted APR: {pred.get('predicted_apr_mid', 0):.2f}%\n"
+                            f"   • Confidence: {pred.get('prediction_score', 0)}/100\n"
+                            f"   • TVL: ${pred.get('current_tvl', 0):,.2f}\n"
+                        )
+                        
+                        # Add key factors if available
+                        factors = pred.get('key_factors', [])
+                        if factors and len(factors) > 0:
+                            message += "   • Key Factors:\n"
+                            for factor in factors[:2]:  # Limit to 2 factors for readability
+                                message += f"     - {factor}\n"
+                        
+                        message += "\n"
+                    
+                    message += "_Data source: SolPool Insight API_\n"
+                    
+                else:
+                    message = "*🔮 Pool Predictions*\n\n"
+                    message += "Currently unable to retrieve prediction data. Please try again later.\n"
+            
+            except Exception as e:
+                logger.error(f"Error getting predictions: {e}")
+                message = "*🔮 Pool Predictions*\n\n"
+                message += "Currently unable to retrieve prediction data. Please try again later.\n"
+            
+            keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]]
+            
+            await query.edit_message_text(
+                message,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+            return True
+            
+        elif query.data == "history":
+            # Show historical pool performance
+            try:
+                # First, get a top pool to analyze
+                pools = get_pools(1)
+                
+                if pools and len(pools) > 0:
+                    pool = pools[0]
+                    pool_id = pool.get('id', '')
+                    pool_name = f"{pool['token_a']}-{pool['token_b']}"
+                    
+                    # Try to get historical data for this pool
+                    history = []
+                    if pool_id:
+                        history = solpool_api.get_pool_history(pool_id, days=14, interval="day")
+                    
+                    message = f"*📈 Historical Performance: {pool_name}*\n\n"
+                    
+                    if history and len(history) > 0:
+                        # Calculate trends
+                        apr_values = [h.get('apr', 0) for h in history if 'apr' in h]
+                        tvl_values = [h.get('liquidity', 0) for h in history if 'liquidity' in h]
+                        volume_values = [h.get('volume', 0) for h in history if 'volume' in h]
+                        
+                        if apr_values and len(apr_values) > 1:
+                            apr_change = ((apr_values[0] / apr_values[-1]) - 1) * 100 if apr_values[-1] else 0
+                            apr_trend = "↗️" if apr_change > 0 else "↘️" if apr_change < 0 else "➡️"
+                            message += f"*APR Trend (14 days):* {apr_trend} {abs(apr_change):.2f}%\n"
+                        
+                        if tvl_values and len(tvl_values) > 1:
+                            tvl_change = ((tvl_values[0] / tvl_values[-1]) - 1) * 100 if tvl_values[-1] else 0
+                            tvl_trend = "↗️" if tvl_change > 0 else "↘️" if tvl_change < 0 else "➡️"
+                            message += f"*TVL Trend (14 days):* {tvl_trend} {abs(tvl_change):.2f}%\n"
+                        
+                        if volume_values and len(volume_values) > 1:
+                            vol_change = ((volume_values[0] / volume_values[-1]) - 1) * 100 if volume_values[-1] else 0
+                            vol_trend = "↗️" if vol_change > 0 else "↘️" if vol_change < 0 else "➡️"
+                            message += f"*Volume Trend (14 days):* {vol_trend} {abs(vol_change):.2f}%\n\n"
+                        
+                        # Include some daily data points
+                        message += "*Recent Daily Performance:*\n"
+                        for i, day_data in enumerate(history[:5]):  # Show only the most recent 5 days
+                            date = day_data.get('timestamp', '').split('T')[0] if 'timestamp' in day_data else f"Day {i+1}"
+                            apr = day_data.get('apr', 0)
+                            liquidity = day_data.get('liquidity', 0)
+                            
+                            message += f"• {date}: APR {apr:.2f}%, TVL ${liquidity:,.2f}\n"
+                        
+                        message += "\n_Data source: SolPool Insight API_"
+                    else:
+                        message += "Historical performance data is not available for this pool at the moment.\n\n"
+                        message += "You can still view current data and predictions."
+                else:
+                    message = "*📈 Historical Performance*\n\n"
+                    message += "Unable to retrieve pool data for historical analysis.\n"
+                    message += "Please try again later."
+                
+                keyboard = [
+                    [InlineKeyboardButton("🔍 View More Pools", callback_data="pools")],
+                    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]
+                ]
+                
+            except Exception as e:
+                logger.error(f"Error retrieving historical data: {e}")
+                message = "*📈 Historical Performance*\n\n"
+                message += "Sorry, we encountered an error while retrieving historical data.\n"
+                message += "Please try again later."
+                
+                keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]]
+            
+            await query.edit_message_text(
+                message,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
             return True
         
         elif query.data == "profile":
@@ -303,18 +543,117 @@ async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_T
             )
             return True
         
+        elif query.data == "simulate":
+            # Simulate investment returns for a user
+            try:
+                # Get high APR pools for simulation
+                high_apr_pools = get_high_apr_pools(1)  # Just get the top pool
+                
+                if high_apr_pools and len(high_apr_pools) > 0:
+                    pool = high_apr_pools[0]
+                    
+                    # Get user profile for risk assessment
+                    profile = get_user_profile(user_id)
+                    risk_profile = profile.get('risk_profile', 'moderate') if profile else 'moderate'
+                    
+                    # Set sample investment amount based on risk profile
+                    if risk_profile == 'conservative':
+                        investment_amount = 1000
+                        timeframe = 30  # 1 month
+                    elif risk_profile == 'aggressive':
+                        investment_amount = 5000
+                        timeframe = 365  # 1 year
+                    else:  # moderate
+                        investment_amount = 2500
+                        timeframe = 180  # 6 months
+                    
+                    # Calculate investment returns
+                    apr = pool['apr_24h']
+                    daily_rate = apr / 365 / 100
+                    
+                    # Calculate expected return for the timeframe
+                    expected_return = investment_amount * (1 + daily_rate) ** timeframe
+                    profit = expected_return - investment_amount
+                    profit_percentage = (profit / investment_amount) * 100
+                    
+                    # Add some variability based on the prediction score if available
+                    prediction_score = pool.get('prediction_score', 75)
+                    confidence_factor = prediction_score / 100
+                    
+                    # Calculate low and high range estimates
+                    optimistic_return = expected_return * (1 + (1 - confidence_factor) * 0.2)
+                    pessimistic_return = expected_return * (1 - (1 - confidence_factor) * 0.3)
+                    
+                    # Format the message
+                    message = (
+                        f"*🔮 Investment Simulation for {pool['token_a']}-{pool['token_b']}*\n\n"
+                        f"Based on your {risk_profile} risk profile, here's a simulation:\n\n"
+                        f"• Initial Investment: ${investment_amount:,.2f}\n"
+                        f"• Current APR: {apr:.2f}%\n"
+                        f"• Timeframe: {timeframe} days\n\n"
+                        f"*Expected Returns:*\n"
+                        f"• Final Balance: ${expected_return:,.2f}\n"
+                        f"• Profit: ${profit:,.2f} ({profit_percentage:.2f}%)\n\n"
+                    )
+                    
+                    # Add range if prediction score is available
+                    if 'prediction_score' in pool:
+                        message += (
+                            f"*Prediction Range (Confidence: {prediction_score}/100):*\n"
+                            f"• Conservative Estimate: ${pessimistic_return:,.2f}\n"
+                            f"• Optimistic Estimate: ${optimistic_return:,.2f}\n\n"
+                        )
+                    
+                    message += (
+                        "_This is a simulation based on current rates. "
+                        "Actual returns may vary due to market conditions._\n\n"
+                        "_Data source: " + (pool.get('data_source', 'SolPool API')) + "_"
+                    )
+                    
+                    keyboard = [
+                        [InlineKeyboardButton("📊 View All Pools", callback_data="pools")],
+                        [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]
+                    ]
+                    
+                else:
+                    message = (
+                        "*🔮 Investment Simulation*\n\n"
+                        "Sorry, we couldn't retrieve pool data for simulation. "
+                        "Please try again later."
+                    )
+                    
+                    keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]]
+            
+            except Exception as e:
+                logger.error(f"Error in investment simulation: {e}")
+                message = (
+                    "*🔮 Investment Simulation*\n\n"
+                    "Sorry, we encountered an error while running the simulation. "
+                    "Please try again later."
+                )
+                
+                keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back")]]
+            
+            await query.edit_message_text(
+                message,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+            return True
+            
         elif query.data == "back":
             # Back to main menu
             keyboard = [
                 [InlineKeyboardButton("📊 View Pool Data", callback_data="pools")],
                 [InlineKeyboardButton("📈 View High APR Pools", callback_data="high_apr")],
+                [InlineKeyboardButton("🔮 View AI Predictions", callback_data="predictions")],
                 [InlineKeyboardButton("👤 My Profile", callback_data="profile")],
                 [InlineKeyboardButton("❓ FAQ / Help", callback_data="faq")]
             ]
             
             await query.edit_message_text(
                 "*FiLot Interactive Menu*\n\n"
-                "These buttons perform real database operations.\n"
+                "These buttons now connect to the SolPool Insight API for real-time data!\n"
                 "Click any option to retrieve live data:",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"

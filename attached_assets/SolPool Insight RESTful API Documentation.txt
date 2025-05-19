@@ -1,0 +1,532 @@
+"
+API Documentation
+Complete reference for the SolPool Insight RESTful API
+Our API provides programmatic access to all the data and insights available in SolPool Insight. You can use it to integrate Solana liquidity pool data, analytics, and AI-powered predictions into your own applications, dashboards, or trading systems.
+
+
+Overview
+
+
+Authentication
+
+
+Response Format
+
+Base URL
+https://filotanalytics.replit.app/API
+
+Features
+Real-time liquidity pool data
+Comprehensive pool filtering
+Historical performance metrics
+Token-specific analytics
+ML-based performance predictions
+Risk assessment metrics
+Market-wide statistics
+DEX-specific analytics
+API Endpoints
+Filter Endpoints
+Search endpoints
+
+
+GET /pools
+Get all pools with optional filtering
+
+Parameters
+Parameter	Type	Description	Default	Example
+dex	string	Filter by DEX name	null	Raydium
+category	string	Filter by pool category	null	Meme
+min_tvl	number	Minimum TVL threshold	0	1000000
+max_tvl	number	Maximum TVL threshold	null	50000000
+min_apr	number	Minimum APR threshold (percentage)	0	10
+max_apr	number	Maximum APR threshold (percentage)	null	50
+min_volume	number	Minimum 24h volume	0	100000
+token	string	Filter pools containing this token	null	SOL
+limit	integer	Maximum number of results	100	50
+offset	integer	Number of results to skip (for pagination)	0	100
+sort_by	string	Field to sort by	liquidity	apr
+sort_dir	string	Sort direction ('asc' or 'desc')	desc	asc
+min_prediction	number	Minimum prediction score (0-100)	0	80
+trend	string	Filter by trend direction ('increasing', 'decreasing', 'stable')	null	increasing
+trend_field	string	Field to apply trend filter to ('apr', 'tvl')	apr	tvl
+trend_days	integer	Number of days for trend calculation	7	30
+trend_threshold	number	Minimum change percentage for trend filtering	1	5
+Example Request
+curl -X GET "https://filotanalytics.replit.app/API/pools?dex=Raydium&min_tvl=1000000&min_apr=10" \
+  -H "X-API-Key: your_api_key"
+
+Example Response
+{
+  "status": "success",
+  "count": 25,
+  "data": [
+    {
+      "id": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+      "name": "SOL/USDC",
+      "dex": "Raydium",
+      "category": "Major",
+      "token1_symbol": "SOL",
+      "token2_symbol": "USDC",
+      "token1_address": "So11111111111111111111111111111111111111112",
+      "token2_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "liquidity": 24532890.45,
+      "volume_24h": 8763021.32,
+      "apr": 12.87,
+      "volatility": 0.05,
+      "fee": 0.0025,
+      "version": "v4",
+      "apr_change_24h": 0.42,
+      "apr_change_7d": 1.2,
+      "apr_change_30d": -2.1,
+      "tvl_change_24h": 1.1,
+      "tvl_change_7d": 3.5,
+      "tvl_change_30d": -2.1,
+      "prediction_score": 85
+    },
+    // More pools...
+  ]
+}
+
+GET /pools/{pool_id}
+Get details for a specific pool
+
+Parameters
+Parameter	Type	Description	Default	Example
+pool_id	string	The unique identifier of the pool	-	58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2
+Example Request
+curl -X GET "https://filotanalytics.replit.app/API/pools/58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2" \
+  -H "X-API-Key: your_api_key"
+
+Example Response
+{
+  "status": "success",
+  "data": {
+    "id": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+    "name": "SOL/USDC",
+    "dex": "Raydium",
+    "category": "Major",
+    "token1_symbol": "SOL",
+    "token2_symbol": "USDC",
+    "token1_address": "So11111111111111111111111111111111111111112",
+    "token2_address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "liquidity": 24532890.45,
+    "volume_24h": 8763021.32,
+    "apr": 12.87,
+    "volatility": 0.05,
+    "fee": 0.0025,
+    "version": "v4",
+    "apr_change_24h": 0.42,
+    "apr_change_7d": 1.2,
+    "apr_change_30d": -2.1,
+    "tvl_change_24h": 1.1,
+    "tvl_change_7d": 3.5,
+    "tvl_change_30d": -2.1,
+    "prediction_score": 85,
+    "token1_price_usd": 103.45,
+    "token2_price_usd": 1.0,
+    "created_at": "2023-05-12T00:00:00Z",
+    "last_updated": "2025-04-24T12:34:56Z"
+  }
+}
+
+GET /pools/{pool_id}/history
+Get historical data for a specific pool
+
+Parameters
+Parameter	Type	Description	Default	Example
+pool_id	string	The unique identifier of the pool	-	58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2
+days	integer	Number of days of history to retrieve	30	60
+interval	string	Time interval ('hour', 'day', 'week')	day	hour
+metrics	string	Comma-separated list of metrics to include	all	apr,tvl
+Example Request
+curl -X GET "https://filotanalytics.replit.app/v1/pools/58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2/history?days=60&interval=day" \
+  -H "X-API-Key: your_api_key"
+
+Example Response
+{
+  "status": "success",
+  "pool_id": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+  "interval": "day",
+  "data": [
+    {
+      "timestamp": "2025-04-24T00:00:00Z",
+      "liquidity": 24532890.45,
+      "volume": 8763021.32,
+      "apr": 12.87,
+      "token1_price_usd": 103.45,
+      "token2_price_usd": 1.0
+    },
+    {
+      "timestamp": "2025-04-23T00:00:00Z",
+      "liquidity": 24287654.32,
+      "volume": 9123456.78,
+      "apr": 12.45,
+      "token1_price_usd": 101.78,
+      "token2_price_usd": 1.0
+    },
+    // More historical data points...
+  ]
+}
+
+GET /dexes/{dex_name}
+Get statistics for a specific DEX
+
+Parameters
+Parameter	Type	Description	Default	Example
+dex_name	string	The name of the DEX	-	Raydium
+Example Request
+curl -X GET "https://filotanalytics.replit.app/v1/dexes/Raydium" \
+  -H "X-API-Key: your_api_key"
+
+Example Response
+{
+  "status": "success",
+  "data": {
+    "name": "Raydium",
+    "pool_count": 245,
+    "total_liquidity": 1234567890.12,
+    "total_volume_24h": 345678901.23,
+    "average_apr": 14.5,
+    "highest_apr_pool": {
+      "id": "6UmmUiYoBjSrhakAobJw8BvkmJtDVxaeBtbt7rxWo1mg",
+      "name": "RAY/USDC",
+      "apr": 18.76
+    },
+    "top_pools_by_liquidity": [
+      {
+        "id": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+        "name": "SOL/USDC",
+        "liquidity": 24532890.45
+      },
+      // More pools...
+    ],
+    "categories": {
+      "Major": 45,
+      "Meme": 68,
+      "DeFi": 52,
+      "Gaming": 37,
+      "Stablecoin": 43
+    }
+  }
+}
+
+GET /categories/{category_name}
+Get statistics for a specific pool category
+
+Parameters
+Parameter	Type	Description	Default	Example
+category_name	string	The name of the category	-	Meme
+Example Request
+curl -X GET "https://filotanalytics.replit.app/v1/categories/Meme" \
+  -H "X-API-Key: your_api_key"
+
+Example Response
+{
+  "status": "success",
+  "data": {
+    "name": "Meme",
+    "pool_count": 68,
+    "total_liquidity": 234567890.12,
+    "total_volume_24h": 45678901.23,
+    "average_apr": 24.5,
+    "highest_apr_pool": {
+      "id": "P0pCaT5Ec0iNR3P0mEk0iN51T0kENpuPpY",
+      "name": "POPCAT/USDC",
+      "apr": 38.90
+    },
+    "top_pools_by_liquidity": [
+      {
+        "id": "M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K",
+        "name": "BONK/USDC",
+        "liquidity": 5432167.89
+      },
+      // More pools...
+    ],
+    "dexes": {
+      "Raydium": 35,
+      "Orca": 15,
+      "Jupiter": 12,
+      "Meteora": 6
+    }
+  }
+}
+
+GET /tokens/{token_symbol}/pools
+Get all pools containing a specific token
+
+Parameters
+Parameter	Type	Description	Default	Example
+token_symbol	string	The token symbol	-	BONK
+Example Request
+curl -X GET "https://filotanalytics.replit.app/v1/tokens/BONK/pools?min_liquidity=1000000" \
+  -H "X-API-Key: your_api_key"
+
+Example Response
+{
+  "status": "success",
+  "token": "BONK",
+  "token_address": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+  "count": 12,
+  "data": [
+    {
+      "id": "M2mx93ekt1fmXSVkTrUL9xVFHkmME8HTUi5Cyc5aF7K",
+      "name": "BONK/USDC",
+      "dex": "Meteora",
+      "category": "Meme",
+      "liquidity": 5432167.89,
+      "volume_24h": 1987654.32,
+      "apr": 25.67,
+      // Other pool details...
+    },
+    // More pools...
+  ]
+}
+
+GET /tokens/{token_symbol}
+Get information about a specific token
+
+Parameters
+Parameter	Type	Description	Default	Example
+token_symbol	string	The token symbol	-	BONK
+Example Request
+curl -X GET "https://filotanalytics.replit.app/v1/tokens/BONK" \
+  -H "X-API-Key: your_api_key"
+
+Example Response
+{
+  "status": "success",
+  "data": {
+    "symbol": "BONK",
+    "name": "Bonk",
+    "address": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+    "decimals": 5,
+    "current_price_usd": 0.00000234,
+    "market_cap": 1345678901,
+    "volume_24h": 234567890,
+    "price_change_24h": 5.67,
+    "price_change_7d": 12.34,
+    "pool_count": 12,
+    "total_liquidity": 12345678.90,
+    "highest_apr_pool": {
+      "id": "B0nkD2EW5B0nK1nG51mECoiNSolANaPooL5Us3",
+      "name": "BONK/SOL",
+      "apr": 28.90
+    }
+  }
+}
+
+GET /tokens/{token_symbol}/price-history
+Get historical price data for a specific token
+
+Parameters
+Parameter	Type	Description	Default	Example
+token_symbol	string	The token symbol	-	BONK
+days	integer	Number of days of history to retrieve	30	60
+interval	string	Time interval ('hour', 'day', 'week')	day	hour
+Example Request
+curl -X GET "https://filotanalytics.replit.app/v1/tokens/BONK/price-history?days=60&interval=day" \
+  -H "X-API-Key: your_api_key"
+
+Example Response
+{
+  "status": "success",
+  "token": "BONK",
+  "interval": "day",
+  "data": [
+    {
+      "timestamp": "2025-04-24T00:00:00Z",
+      "price_usd": 0.00000234,
+      "volume": 234567890,
+      "market_cap": 1345678901
+    },
+    {
+      "timestamp": "2025-04-23T00:00:00Z",
+      "price_usd": 0.00000225,
+      "volume": 212345678,
+      "market_cap": 1298765432
+    },
+    // More price data points...
+  ]
+}
+
+GET /predictions
+Get ML-based predictions for pools
+
+Parameters
+Parameter	Type	Description	Default	Example
+min_score	number	Minimum prediction score (0-100)	0	80
+category	string	Filter by pool category	null	Meme
+dex	string	Filter by DEX name	null	Raydium
+min_tvl	number	Minimum TVL threshold	0	1000000
+limit	integer	Maximum number of results	20	50
+offset	integer	Number of results to skip (for pagination)	0	20
+sort_by	string	Field to sort predictions by	score	potential_apr
+Example Request
+curl -X GET "https://filotanalytics.replit.app/v1/predictions?min_score=80&category=Meme" \
+  -H "X-API-Key: your_api_key"
+
+Example Response
+{
+  "status": "success",
+  "count": 15,
+  "data": [
+    {
+      "pool_id": "B0nkD2EW5B0nK1nG51mECoiNSolANaPooL5Us3",
+      "name": "BONK/SOL",
+      "dex": "Raydium",
+      "category": "Meme",
+      "current_tvl": 2345678.90,
+      "current_apr": 28.90,
+      "prediction_score": 96,
+      "predicted_apr_range": {
+        "low": 26.5,
+        "mid": 32.4,
+        "high": 38.9
+      },
+      "predicted_tvl_change": 12.3,
+      "confidence_interval": 7.8,
+      "key_factors": [
+        "Strong positive APR trend",
+        "Increasing liquidity",
+        "High trading volume relative to TVL",
+        "Popular Meme category with current market momentum"
+      ],
+      "last_updated": "2025-04-24T12:34:56Z"
+    },
+    // More predictions...
+  ]
+}
+
+GET /pools/{pool_id}/similar
+Find pools similar to a reference pool
+
+Parameters
+Parameter	Type	Description	Default	Example
+pool_id	string	The unique identifier of the reference pool	-	58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2
+limit	integer	Maximum number of similar pools to return	5	10
+min_similarity	number	Minimum similarity score (0-100)	50	70
+metrics	string	Comma-separated list of metrics to use for similarity calculation	all	liquidity,apr,volume_24h
+Example Request
+curl -X GET "https://filotanalytics.replit.app/v1/pools/58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2/similar?limit=10" \
+  -H "X-API-Key: your_api_key"
+
+Example Response
+{
+  "status": "success",
+  "reference_pool": {
+    "id": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+    "name": "SOL/USDC",
+    "dex": "Raydium"
+  },
+  "similar_pools": [
+    {
+      "id": "7XawhbbxtsRcQA8KTkHT9f9nc6d69UwqCDh6U5EEbEmX",
+      "name": "SOL/USDT",
+      "dex": "Raydium",
+      "similarity_score": 92,
+      "liquidity": 18456789.23,
+      "volume_24h": 6543210.98,
+      "apr": 10.45,
+      // Other pool details...
+    },
+    // More similar pools...
+  ]
+}
+
+GET /market-overview
+Get aggregate market statistics
+
+Parameters
+Parameter	Type	Description	Default	Example
+timeframe	string	Timeframe for change calculation ('24h', '7d', '30d')	24h	7d
+Example Request
+curl -X GET "https://filotanalytics.replit.app/v1/market-overview?timeframe=7d" \
+  -H "X-API-Key: your_api_key"
+
+Example Response
+{
+  "status": "success",
+  "data": {
+    "total_liquidity": 12345678901.23,
+    "total_volume_24h": 3456789012.34,
+    "average_apr": 15.67,
+    "pool_count": 1234,
+    "liquidity_change_7d": 3.45,
+    "volume_change_7d": 2.78,
+    "top_dexes": [
+      {
+        "name": "Raydium",
+        "liquidity": 4567890123.45,
+        "volume_24h": 1234567890.12,
+        "pool_count": 456
+      },
+      // More DEXes...
+    ],
+    "top_categories": [
+      {
+        "name": "Major",
+        "liquidity": 6789012345.67,
+        "volume_24h": 2345678901.23,
+        "pool_count": 123
+      },
+      // More categories...
+    ],
+    "top_gainers": [
+      {
+        "id": "T0pGa1n3rP00lIDf0rTh1sW33k",
+        "name": "CORE/USDC",
+        "dex": "Orca",
+        "apr_change_7d": 25.45
+      },
+      // More gainers...
+    ],
+    "market_sentiment": "bullish",
+    "updated_at": "2025-04-24T12:34:56Z"
+  }
+}
+
+Client Libraries & SDKs
+
+JavaScript / TypeScript
+
+
+Python
+
+JavaScript SDK Installation
+npm install @filot/sdk
+
+Basic Usage
+import { FilotClient } from '@filot/sdk';
+
+// Initialize client with your API key
+const client = new FilotClient('your_api_key');
+
+// Get all pools with filtering
+async function fetchPools() {
+  try {
+    const pools = await client.getPools({
+      dex: 'Raydium',
+      min_tvl: 1000000,
+      min_apr: 10,
+      limit: 20
+    });
+
+    console.log(`Found ${pools.length} pools matching criteria`);
+    console.log(pools);
+  } catch (error) {
+    console.error('Error fetching pools:', error);
+  }
+}
+
+fetchPools();
+
+Support
+For issues, questions, or feature requests related to the API, please contact us through one of the following channels:
+
+Email: api-support@filot.io
+Discord: Join our community
+GitHub: File an issue
+Our support team is available Monday through Friday, 9am-5pm UTC.
+
+Copyright © 2025 FiLot. All rights reserved."
+ https://filotanalytics.replit.app/API_Documentation#:~:text=API%20Documentation,All%20rights%20reserved.
