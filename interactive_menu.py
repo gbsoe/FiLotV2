@@ -207,57 +207,55 @@ async def interactive_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 # Button handlers
 async def show_pool_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show pool data from the database."""
-    query = update.callback_query
-    
-    with app.app_context():
-        try:
-            # Get pools from database - now using the real database data we've added
-            pools = Pool.query.order_by(Pool.apr_24h.desc()).limit(5).all()
+    try:
+        query = update.callback_query
+        user_id = update.effective_user.id if update.effective_user else "Unknown"
+        
+        logger.info(f"User {user_id} requested pool data")
+        
+        # Get pool data using our function
+        pools_data = get_pools(5)
+        
+        if pools_data and len(pools_data) > 0:
+            # Format message with real pool data from database
+            message = "📊 *Liquidity Pool Data*\n\n"
             
-            if pools:
-                # Format message with real pool data from database
-                message = "📊 *Liquidity Pool Data*\n\n"
+            for i, pool in enumerate(pools_data):
+                # Format numbers with commas and proper decimal places
+                apr_formatted = f"{pool['apr_24h']:.2f}%"
+                tvl_formatted = f"${pool['tvl']:,.2f}"
+                fee_formatted = f"{pool['fee']*100:.3f}%"
+                volume_formatted = f"${pool['volume_24h']:,.2f}" if pool['volume_24h'] else "N/A"
                 
-                for i, pool in enumerate(pools):
-                    # Format numbers with commas and proper decimal places
-                    apr_formatted = f"{pool.apr_24h:.2f}%"
-                    tvl_formatted = f"${pool.tvl:,.2f}"
-                    fee_formatted = f"{pool.fee*100:.3f}%"
-                    volume_formatted = f"${pool.volume_24h:,.2f}" if pool.volume_24h else "N/A"
-                    
-                    message += (
-                        f"{i+1}. *{pool.token_a_symbol}-{pool.token_b_symbol}*\n"
-                        f"   • APR: {apr_formatted}\n"
-                        f"   • TVL: {tvl_formatted}\n"
-                        f"   • Fee: {fee_formatted}\n"
-                        f"   • 24h Volume: {volume_formatted}\n\n"
-                    )
-                
-                # Log activity for metrics
-                user_id = update.effective_user.id
-                logger.info(f"User {user_id} viewed pool data")
-                
-                # Add action buttons
-                keyboard = [
-                    [InlineKeyboardButton("📊 View More Details", callback_data="interactive_pool_details")],
-                    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="interactive_back")]
-                ]
-                
-                await query.edit_message_text(
-                    message,
-                    reply_markup=InlineKeyboardMarkup(keyboard),
-                    parse_mode="Markdown"
+                message += (
+                    f"{i+1}. *{pool['token_a_symbol']}-{pool['token_b_symbol']}*\n"
+                    f"   • APR: {apr_formatted}\n"
+                    f"   • TVL: {tvl_formatted}\n"
+                    f"   • Fee: {fee_formatted}\n"
+                    f"   • 24h Volume: {volume_formatted}\n\n"
                 )
-            else:
-                await query.edit_message_text(
-                    "*No Pool Data Available*\n\n"
-                    "We couldn't find any pool data in the database.",
-                    parse_mode="Markdown",
-                    reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("⬅️ Back to Menu", callback_data="interactive_back")
-                    ]])
-                )
-        except Exception as e:
+            
+            # Add action buttons
+            keyboard = [
+                [InlineKeyboardButton("📊 View More Details", callback_data="interactive_pool_details")],
+                [InlineKeyboardButton("⬅️ Back to Menu", callback_data="interactive_back")]
+            ]
+            
+            await query.edit_message_text(
+                message,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+        else:
+            await query.edit_message_text(
+                "*No Pool Data Available*\n\n"
+                "We couldn't find any pool data in the database.",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Menu", callback_data="interactive_back")
+                ]])
+            )
+    except Exception as e:
             logger.error(f"Error retrieving pool data: {e}")
             await query.edit_message_text(
                 "Sorry, an error occurred while retrieving pool data.",
@@ -268,67 +266,67 @@ async def show_pool_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def show_high_apr_pools(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show pools with highest APR from the database."""
-    query = update.callback_query
-    
-    with app.app_context():
-        try:
-            # Get high APR pools from database - we have real data now!
-            high_apr_pools = Pool.query.order_by(Pool.apr_24h.desc()).limit(3).all()
+    try:
+        query = update.callback_query
+        user_id = update.effective_user.id if update.effective_user else "Unknown"
+        
+        logger.info(f"User {user_id} requested high APR pools")
+        
+        # Get high APR pools using our function
+        high_apr_pools_data = get_high_apr_pools(3)
+        
+        if high_apr_pools_data and len(high_apr_pools_data) > 0:
+            # Format message with high APR pool data from actual database
+            message = "📈 *Top High APR Pools*\n\n"
+            message += "These are the highest APR pools currently available on Raydium:\n\n"
             
-            if high_apr_pools:
-                # Format message with high APR pool data from actual database
-                message = "📈 *Top High APR Pools*\n\n"
-                message += "These are the highest APR pools currently available on Raydium:\n\n"
+            for i, pool in enumerate(high_apr_pools_data):
+                # Format numbers with proper presentation
+                apr_formatted = f"{pool['apr_24h']:.2f}%"
+                tvl_formatted = f"${pool['tvl']:,.2f}"
+                fee_formatted = f"{pool['fee']*100:.3f}%"
                 
-                for i, pool in enumerate(high_apr_pools):
-                    # Format numbers with proper presentation
-                    apr_formatted = f"{pool.apr_24h:.2f}%"
-                    tvl_formatted = f"${pool.tvl:,.2f}"
-                    fee_formatted = f"{pool.fee*100:.3f}%"
-                    token_a_price = f"${pool.token_a_price:,.2f}" if pool.token_a_price > 0.01 else f"${pool.token_a_price:.8f}"
-                    token_b_price = f"${pool.token_b_price:,.2f}" if pool.token_b_price > 0.01 else f"${pool.token_b_price:.8f}"
-                    
-                    message += (
-                        f"{i+1}. *{pool.token_a_symbol}-{pool.token_b_symbol}*\n"
-                        f"   • APR: {apr_formatted}\n"
-                        f"   • TVL: {tvl_formatted}\n"
-                        f"   • Fee: {fee_formatted}\n"
-                        f"   • {pool.token_a_symbol} Price: {token_a_price}\n"
-                        f"   • {pool.token_b_symbol} Price: {token_b_price}\n\n"
-                    )
-                
-                # Log user activity for analytics
-                user_id = update.effective_user.id
-                logger.info(f"User {user_id} viewed high APR pools")
-                
-                # Add action buttons including 'Simulate Investment' option
-                keyboard = [
-                    [InlineKeyboardButton("🔮 Simulate Investment", callback_data="interactive_simulate")],
-                    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="interactive_back")]
-                ]
-                
-                await query.edit_message_text(
-                    message,
-                    reply_markup=InlineKeyboardMarkup(keyboard),
-                    parse_mode="Markdown"
+                message += (
+                    f"{i+1}. *{pool['token_a_symbol']}-{pool['token_b_symbol']}*\n"
+                    f"   • APR: {apr_formatted} 🔥\n"
+                    f"   • TVL: {tvl_formatted}\n"
+                    f"   • Fee: {fee_formatted}\n\n"
                 )
-            else:
-                await query.edit_message_text(
-                    "*No High APR Pool Data Available*\n\n"
-                    "We couldn't find any high APR pool data in the database.",
-                    parse_mode="Markdown",
-                    reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("⬅️ Back to Menu", callback_data="interactive_back")
-                    ]])
-                )
-        except Exception as e:
-            logger.error(f"Error retrieving high APR pools: {e}")
+            
+            # Log user activity for analytics
+            logger.info(f"User {user_id} viewed high APR pools")
+            
+            # Add action buttons including 'Simulate Investment' option
+            keyboard = [
+                [InlineKeyboardButton("🔮 Simulate Investment", callback_data="interactive_simulate")],
+                [InlineKeyboardButton("⬅️ Back to Menu", callback_data="interactive_back")]
+            ]
+            
+            await query.edit_message_text(
+                message,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+        else:
+            await query.edit_message_text(
+                "*No High APR Pool Data Available*\n\n"
+                "We couldn't find any high APR pool data in the database.",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Menu", callback_data="interactive_back")
+                ]])
+            )
+    except Exception as e:
+        logger.error(f"Error retrieving high APR pools: {e}")
+        try:
             await query.edit_message_text(
                 "Sorry, an error occurred while retrieving high APR pool data.",
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("⬅️ Back to Menu", callback_data="interactive_back")
                 ]])
             )
+        except Exception as inner_error:
+            logger.error(f"Failed to send error message: {inner_error}")
 
 async def show_user_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show user profile from database with actual data."""
