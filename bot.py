@@ -1657,6 +1657,10 @@ def create_application():
     application.add_handler(CommandHandler("faq", faq_command))
     application.add_handler(CommandHandler("social", social_command))
     
+    # Register mood tracking conversation handler
+    from mood_tracking import get_mood_tracking_conversation_handler
+    application.add_handler(get_mood_tracking_conversation_handler())
+    
     # Register callback query handler
     application.add_handler(CallbackQueryHandler(handle_callback_query))
     
