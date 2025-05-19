@@ -188,6 +188,45 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
         await set_menu_state(update, context, explore_mappings[button_text])
         return True
         
+    # Call the appropriate command based on the button text
+    button_commands = {
+        "📊 Pool Information": "/info",
+        "📈 High APR Pools": "/info high_apr",
+        "💵 Stable Pools": "/info stable",
+        "📊 All Pools": "/info all",
+        "🔍 Search Pool": "/search",
+        "🔮 Simulate Investment": "/simulate",
+        "💡 About Liquidity Pools": "/faq liquidity",
+        "💱 About APR": "/faq apr",
+        "⚠️ About Impermanent Loss": "/faq impermanent",
+        "💸 About DeFi": "/faq defi",
+        "🔑 About Wallets": "/faq wallets",
+        "📚 Commands": "/help",
+        "📱 Contact": "/contact",
+        "🔗 Links": "/social",
+        "🧠 Smart Invest": "/invest smart",
+        "⭐ Top Pools": "/info top",
+        "💼 My Investments": "/status",
+        "🔔 Subscriptions": "/subscribe",
+        "👤 Profile Settings": "/profile",
+        "💳 Wallet Settings": "/wallet"
+    }
+    
+    if button_text in button_commands:
+        if update.effective_chat:
+            cmd = button_commands[button_text]
+            logger.info(f"Executing button command: {cmd}")
+            # This is the key fix - create a proper command entities structure
+            # This makes Telegram process the text as an actual command
+            message = update.message
+            message._text = cmd
+            message._entities = [{'type': 'bot_command', 'offset': 0, 
+                               'length': cmd.find(' ') if ' ' in cmd else len(cmd)}]
+            
+            # Process the update as a command
+            await context.dispatcher.process_update(update)
+            return True
+    
     # Handle pool info menu buttons
     if button_text == "📈 High APR Pools":
         if update.effective_chat:
