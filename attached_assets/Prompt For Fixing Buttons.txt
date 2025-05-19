@@ -1,0 +1,32 @@
+Please rewrite:
+
+- **main.py**:
+  - Replace the manual `elif update_obj.callback_query:` block with proper PTB `Application` handlers (`application.add_handler(CallbackQueryHandler(...))`), registered **before** the generic message handler.
+  - Register each callback:
+    ```python
+    application.add_handler(CallbackQueryHandler(handle_interactive_menu, pattern="^interactive_"))
+    application.add_handler(CallbackQueryHandler(handle_button_callback, pattern="^(invest|explore_pools|account|help)$"))
+    ```
+  - Remove the manual `if callback_data == ...` cascade inside `handle_update`.
+  - After callbacks, register a `MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)` fallback.
+
+- **Keyboard UTILS**:
+  - Ensure each button’s `callback_data` is exactly one of `"invest"`, `"explore_pools"`, `"account"`, or `"help"` (not garbled UTF-8).
+  - Send them as an **inline** keyboard if you want `CallbackQueryHandler`, or switch to `InlineKeyboardMarkup`.
+
+- **Button Responses**:
+  - Implement and export four async stubs:
+    ```python
+    async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        data = update.callback_query.data
+        if data == "invest":
+            return await handle_invest(update, context)
+        # …same for explore_pools, account, help…
+        return False
+    ```
+  - Or split into four dedicated handlers and register them separately.
+
+- **Smart Invest**:
+  - Keep your ConversationHandler setup, but register it via `application.add_handler(get_smart_invest_conversation_handler())` in `main.py`, not inside the manual loop.
+
+Return the revised **main.py**, **Keyboard UTILS**, and **Button Responses** modules with these registrations and consistent `callback_data` values so that tapping “💰 Invest” actually invokes your invest handler, and likewise for the other buttons.```
