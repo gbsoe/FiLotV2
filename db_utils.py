@@ -52,26 +52,42 @@ def get_db_connection() -> Tuple[psycopg2.extensions.connection, psycopg2.extens
         raise
 
 def handle_db_error(func):
-    """Decorator to handle database errors."""
+    """Decorator to handle database errors and use fallback when needed."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except SQLAlchemyError as e:
             logger.error(f"Database error in {func.__name__}: {str(e)}")
-            # Log the error to the database if possible
+            
+            # Try to use fallback if this function is related to menu state
+            user_id = kwargs.get('user_id')
+            if user_id and 'menu' in func.__name__.lower():
+                # Import here to avoid circular imports
+                import db_fallback
+                
+                # Log to fallback system
+                db_fallback.log_user_activity(
+                    user_id, 
+                    "db_error", 
+                    {"function": func.__name__, "error": str(e)}
+                )
+                logger.info(f"Used fallback logging for user {user_id} in {func.__name__}")
+            
+            # Try to log the error to the database if possible
             try:
                 error_log = ErrorLog(
                     error_type="Database Error",
                     error_message=str(e),
                     module=f"db_utils.{func.__name__}",
-                    user_id=kwargs.get('user_id')
+                    user_id=user_id
                 )
                 db.session.add(error_log)
                 db.session.commit()
             except Exception:
                 # If we can't log to DB, at least we logged to the file
                 pass
+            
             return None
     return wrapper
 

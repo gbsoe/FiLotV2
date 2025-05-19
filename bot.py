@@ -316,11 +316,15 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 pool_type = "high_apr"
             elif "stable pools" in text.lower() or "💵 stable pools" in text.lower():
                 pool_type = "stable"
+            elif "all pools" in text.lower() or "📊 all pools" in text.lower():
+                pool_type = "all"
             # Also check for partial matches (for better UX)
             elif any(term in text.lower() for term in ["high apr", "top apr", "best apr", "📈"]):
                 pool_type = "high_apr"
             elif any(term in text.lower() for term in ["stable", "stablecoin", "usdc", "usdt", "💵"]):
                 pool_type = "stable"
+            elif any(term in text.lower() for term in ["all", "every", "complete", "📊"]):
+                pool_type = "all"
         
         # Process top performing pools and stable pools from the predefined data
         top_pools = predefined_data.get('bestPerformance', [])  # Get best performance pools
@@ -334,11 +338,14 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         # Determine which pools to show based on the request
         if pool_type == "high_apr":
-            formatted_info = format_pool_info(top_pools, [], show_title="High APR Pools")
+            formatted_info = format_pool_info(top_pools, [], show_title="📈 High APR Pools")
         elif pool_type == "stable":
-            formatted_info = format_pool_info([], stable_pools, show_title="Stable Pools")
+            formatted_info = format_pool_info([], stable_pools, show_title="💵 Stable Pools")
+        elif pool_type == "all":
+            # Show all pools with a clear title
+            formatted_info = format_pool_info(top_pools, stable_pools, show_title="📊 All Available Pools")
         else:
-            # Default: show both types
+            # Default: show both types without explicit "all" title
             formatted_info = format_pool_info(top_pools, stable_pools)
         
         # Use regular reply_text to avoid markdown formatting issues

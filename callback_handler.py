@@ -14,6 +14,7 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 
 import db_utils
+import db_fallback
 from menus import MenuType, get_menu_config
 from keyboard_utils import set_menu_state, get_current_menu
 
@@ -230,36 +231,52 @@ async def handle_navigation_callback(update: Update, context: ContextTypes.DEFAU
     query = update.callback_query
     await query.answer()
     
-    if params == "back":
-        # Get current menu and navigate to its parent
-        user_id = update.effective_user.id
-        current_menu = get_current_menu(user_id)
-        menu_config = get_menu_config(current_menu)
+    try:
+        if params == "back":
+            # Get current menu and navigate to its parent
+            if update.effective_user:
+                user_id = update.effective_user.id
+                current_menu = get_current_menu(user_id)
+                menu_config = get_menu_config(current_menu)
+                
+                if menu_config.parent_menu:
+                    await set_menu_state(update, context, menu_config.parent_menu)
+                else:
+                    # Default to main menu if no parent is specified
+                    await set_menu_state(update, context, MenuType.MAIN)
+            else:
+                # Fallback - go to main menu if no user info
+                logger.warning("No effective user in navigation callback")
+                await set_menu_state(update, context, MenuType.MAIN)
         
-        if menu_config.parent_menu:
-            await set_menu_state(update, context, menu_config.parent_menu)
-        else:
-            # Default to main menu if no parent is specified
+        elif params == "main":
+            # Go directly to main menu
             await set_menu_state(update, context, MenuType.MAIN)
-    
-    elif params == "main":
-        # Go directly to main menu
-        await set_menu_state(update, context, MenuType.MAIN)
-    
-    elif params.startswith("to_"):
-        # Navigate to a specific menu
-        try:
-            menu_name = params[3:].upper()  # Extract menu name and convert to uppercase
-            target_menu = MenuType[menu_name]
-            await set_menu_state(update, context, target_menu)
-        except (KeyError, ValueError):
-            logger.warning(f"Invalid menu specified in navigation: {params}")
-            await query.edit_message_text(
-                text="Sorry, that menu option is not available.",
-                reply_markup=None
+        
+        elif isinstance(params, str) and params.startswith("to_"):
+            # Navigate to a specific menu
+            try:
+                menu_name = params[3:].upper()  # Extract menu name and convert to uppercase
+                target_menu = MenuType[menu_name]
+                await set_menu_state(update, context, target_menu)
+            except (KeyError, ValueError):
+                logger.warning(f"Invalid menu specified in navigation: {params}")
+                if query and query.message:
+                    await query.edit_message_text(
+                        text="Sorry, that menu option is not available.",
+                        reply_markup=None
+                    )
+        else:
+            logger.warning(f"Unknown navigation param: {params}")
+    except Exception as e:
+        logger.error(f"Error in navigation callback: {e}", exc_info=True)
+        # Log user activity for debugging purposes
+        if update.effective_user:
+            db_fallback.log_user_activity(
+                update.effective_user.id, 
+                "navigation_error", 
+                {"error": str(e), "params": str(params)}
             )
-    else:
-        logger.warning(f"Unknown navigation param: {params}")
 
 
 # --- Create inline keyboard utilities ---

@@ -13,6 +13,7 @@ from telegram import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, U
 from telegram.ext import ContextTypes
 
 from menus import MenuType, get_menu_config
+import db_fallback  # Import our fallback mechanism
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -69,7 +70,15 @@ async def set_menu_state(update: Update, context: ContextTypes.DEFAULT_TYPE, men
     """
     if update.effective_user:
         user_id = update.effective_user.id
+        
+        # Store in memory cache
         user_menu_state[user_id] = menu_type
+        
+        # Also store in fallback storage
+        try:
+            db_fallback.store_menu_state(user_id, menu_type.value)
+        except Exception as e:
+            logger.warning(f"Failed to store menu state in fallback: {e}")
         
         # Get the menu configuration
         menu_config = get_menu_config(menu_type)
@@ -110,14 +119,35 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
     
     # Handle back button
     if button_text.startswith("⬅️ Back to"):
-        current_menu = user_menu_state.get(user_id, MenuType.MAIN)
-        menu_config = get_menu_config(current_menu)
-        
-        if menu_config.parent_menu:
-            await set_menu_state(update, context, menu_config.parent_menu)
-            return True
-        else:
-            # Default to main menu if no parent is specified
+        try:
+            # Get current menu with fallback support
+            current_menu = get_current_menu(user_id)
+            menu_config = get_menu_config(current_menu)
+            
+            if menu_config.parent_menu:
+                await set_menu_state(update, context, menu_config.parent_menu)
+                
+                # Log activity using fallback
+                db_fallback.log_user_activity(
+                    user_id, 
+                    "menu_navigation", 
+                    {"from": current_menu.value, "to": menu_config.parent_menu.value}
+                )
+                return True
+            else:
+                # Default to main menu if no parent is specified
+                await set_menu_state(update, context, MenuType.MAIN)
+                
+                # Log activity using fallback
+                db_fallback.log_user_activity(
+                    user_id, 
+                    "menu_navigation", 
+                    {"from": current_menu.value, "to": "MAIN"}
+                )
+                return True
+        except Exception as e:
+            logger.error(f"Error handling back button: {e}")
+            # Default to main menu in case of error
             await set_menu_state(update, context, MenuType.MAIN)
             return True
     
@@ -130,8 +160,22 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
     }
     
     if button_text in menu_mappings:
-        await set_menu_state(update, context, menu_mappings[button_text])
-        return True
+        try:
+            target_menu = menu_mappings[button_text]
+            await set_menu_state(update, context, target_menu)
+            
+            # Log activity using fallback
+            db_fallback.log_user_activity(
+                user_id, 
+                "menu_navigation", 
+                {"button": button_text, "to": target_menu.value}
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error handling main menu button: {e}")
+            # Try to go back to main menu in case of error
+            await set_menu_state(update, context, MenuType.MAIN)
+            return True
     
     # Handle explore menu buttons
     explore_mappings = {
@@ -241,7 +285,26 @@ def get_current_menu(user_id: int) -> MenuType:
     Returns:
         Current MenuType for the user, or MAIN if not set
     """
-    return user_menu_state.get(user_id, MenuType.MAIN)
+    # First check in-memory cache
+    if user_id in user_menu_state:
+        menu = user_menu_state.get(user_id)
+        if menu is not None:
+            return menu
+    
+    # Then try the fallback storage
+    try:
+        menu_str = db_fallback.get_menu_state(user_id)
+        if menu_str:
+            try:
+                # Convert string back to enum
+                return MenuType(menu_str)
+            except (ValueError, KeyError):
+                logger.warning(f"Invalid menu state '{menu_str}' for user {user_id}")
+    except Exception as e:
+        logger.warning(f"Error retrieving menu state from fallback: {e}")
+    
+    # Default to MAIN menu
+    return MenuType.MAIN
 
 
 def reset_menu_state(user_id: int) -> None:
@@ -251,5 +314,24 @@ def reset_menu_state(user_id: int) -> None:
     Args:
         user_id: Telegram user ID
     """
+    # Remove from in-memory cache
     if user_id in user_menu_state:
         del user_menu_state[user_id]
+    
+    # Store main menu in fallback system
+    try:
+        db_fallback.store_menu_state(user_id, MenuType.MAIN.value)
+        # Log the reset action
+        db_fallback.log_user_activity(
+            user_id, 
+            "menu_reset", 
+            {"new_menu": MenuType.MAIN.value}
+        )
+    except Exception as e:
+        logger.warning(f"Failed to reset menu state in fallback system: {e}")
+    
+    # Also store default state in fallback storage
+    try:
+        db_fallback.store_menu_state(user_id, MenuType.MAIN.value)
+    except Exception as e:
+        logger.warning(f"Failed to reset menu state in fallback: {e}")

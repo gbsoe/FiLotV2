@@ -871,10 +871,22 @@ def run_telegram_bot():
                     # Add unique client identifier to prevent conflict with other instances
                     import uuid
                     params["client_id"] = str(uuid.uuid4())  # Add unique identifier for this client
-                    # Terminate other polling sessions before starting our own
-                    requests.get(f"{base_url}/getUpdates", params={"offset": -1, "timeout": 0})
-                    # Now start our polling
-                    response = requests.get(f"{base_url}/getUpdates", params=params, timeout=60)
+                    # Prevent conflicts between multiple bot instances by clearing existing connections
+                    try:
+                        logger.info("Attempting to delete any existing webhook")
+                        webhook_result = requests.post(f"{base_url}/deleteWebhook")
+                        logger.info(f"Webhook deletion result: {webhook_result.json()}")
+                        
+                        # Force terminate other getUpdates calls
+                        logger.info("Terminating any existing bot polling")
+                        requests.get(f"{base_url}/getUpdates", params={"offset": -1, "timeout": 0})
+                        time.sleep(1)  # Small delay to ensure cleanup is complete
+                    except Exception as e:
+                        logger.error(f"Error during bot cleanup: {e}")
+                    
+                    logger.info("Requesting updates from Telegram API...")
+                    # Now start our polling with a unique offset to avoid conflicts
+                    response = requests.get(f"{base_url}/getUpdates", params=params, timeout=30)  # Reduced timeout for better responsiveness
 
                     # Process the response if successful
                     if response.status_code == 200:
