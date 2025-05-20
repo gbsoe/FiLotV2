@@ -1,0 +1,58 @@
+I’m building a Telegram bot called “FiLot,” an AI-powered DeFi assistant that integrates with two REST APIs:
+
+1. SolPool Insight API – for pool, token, APR, and prediction data. Docs: https://docs.solpoolinsight.com  
+2. **FilotSense API** – for sentiment scores, market signals, prices. Base URL: https://filotsense.replit.app/api
+
+I already have:
+- All slash commands and inline button callback_data defined in `FiLot Telegram Bot Reference.txt`
+- A working bot with `main.py`, `keyboard_utils.py`, and some handler files like `button_responses.py`
+- All buttons visible in the UI, but most don’t work — they fall back to a generic error like “Sorry, I encountered an error…”
+
+GOAL
+
+Make every button and slash command in FiLot functional.
+
+---
+
+YOUR TASK
+
+Please:
+
+#### 1. Implement **ALL missing button callback handlers**:
+- For each static `callback_data` in the bot reference (e.g. `high_apr`, `wallet_settings`, `update_profile`, `smart_invest`, etc.), create a new `async def handle_<callback_data>(update, context)` function inside `button_responses.py`.
+- In each function:
+  - `await update.callback_query.answer()`
+  - Call the appropriate API (`SolPool` or `FilotSense`)
+  - Format the result into a user-friendly message
+  - Send reply with `edit_message_text(...)`
+  - Use try/except and reply “Could not fetch data…” on errors
+  - Add a `# TODO:` comment where deeper logic is needed later
+
+#### 2. Create **regex-based pattern handlers**:
+- `^pool:(?P<id>.+)$` → `handle_pool_detail` → `GET /pools/{id}`
+- `^search_token_(?P<symbol>.+)$` → `handle_token_search_result` → `GET /tokens/{symbol}/pools`
+- `^stable_pools:(?P<page>\d+)$` → pagination logic
+- You can use `re.match()` or PTB’s built-in `pattern` argument in `CallbackQueryHandler`
+
+#### 3. Update `main.py`:
+- Register **every new handler** using `application.add_handler(CallbackQueryHandler(...))`
+- Register regex handlers for dynamic/pattern-based callbacks
+- Make sure these are added **before** the fallback message handler
+- Also register any missing `CommandHandler`s (e.g. `/wallet`, `/simulate`, `/smart_invest`)
+
+#### 4. Wire Slash Commands:
+- `/simulate`: prompt user for amount + days, use `GET /pools/{id}/history` to simulate returns
+- `/smart_invest`: call `rl_investment_advisor.get_smart_investment_recommendation(...)`
+- `/walletconnect`: stub or integrate WalletConnect logic
+- Add basic error handling + `# TODO` stubs for deep logic
+
+---
+
+OUTPUT
+
+Return:
+- A complete `button_responses.py` file with all missing handlers implemented or stubbed
+- An updated `main.py` that registers all handlers correctly
+- Make sure every button in `FiLot Telegram Bot Reference.txt` is connected to a working handler
+
+This will ensure that **every UI button works**, connects to a real API call, and returns helpful responses instead of error fallbacks.
