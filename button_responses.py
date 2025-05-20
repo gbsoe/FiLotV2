@@ -10,7 +10,10 @@ import logging
 import re
 import json
 import datetime
+import asyncio
 from typing import Dict, Any, Optional, List, Union, Tuple
+
+from wallet_actions import initiate_wallet_connection, check_connection_status, disconnect_wallet, WalletConnectionStatus
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
@@ -244,22 +247,406 @@ async def handle_wallet_settings(update: Update, context: ContextTypes.DEFAULT_T
         user_id = update.effective_user.id if update.effective_user else 0
         logger.info(f"User {user_id} pressed wallet settings button")
         
-        keyboard = [
-            [InlineKeyboardButton("🔌 Connect Wallet", callback_data="walletconnect")],
-            [InlineKeyboardButton("📝 Enter Address Manually", callback_data="enter_address")],
-            [InlineKeyboardButton("🔄 Refresh Wallet Data", callback_data="refresh_wallet")],
-            [InlineKeyboardButton("⬅️ Back to Account", callback_data="account")]
-        ]
+        # Get user's wallet status
+        user = User.query.get(user_id)
+        connection_status = "disconnected"
+        wallet_address = None
         
+        if user:
+            connection_status = user.connection_status if hasattr(user, 'connection_status') else "disconnected"
+            wallet_address = user.wallet_address if hasattr(user, 'wallet_address') else None
+        
+        # Create keyboard based on wallet connection status
+        keyboard = []
+        message_text = ""
+        
+        if connection_status == WalletConnectionStatus.CONNECTED and wallet_address:
+            # Wallet is connected - show wallet address and disconnect option
+            keyboard = [
+                [InlineKeyboardButton("🔌 Disconnect Wallet", callback_data="disconnect_wallet")],
+                [InlineKeyboardButton("🔄 Refresh Wallet Data", callback_data="refresh_wallet")],
+                [InlineKeyboardButton("⬅️ Back to Account", callback_data="account")]
+            ]
+            
+            # Truncate wallet address for display
+            display_address = f"{wallet_address[:6]}\\.\\.\\.\\.{wallet_address[-4:]}" if wallet_address else "Unknown"
+            
+            # Send message with wallet info
+            message_text = (
+                "*💳 Wallet Connected*\n\n"
+                f"Your wallet is connected and ready for investments\\.\n\n"
+                f"• Address: `{display_address}`\n"
+                f"• Status: 🟢 Connected\n"
+                f"• All transactions require explicit confirmation in your wallet app\n"
+                f"• FiLot never has access to your private keys"
+            )
+        elif connection_status == WalletConnectionStatus.CONNECTING:
+            # Wallet is in connecting state - show connection status and options
+            keyboard = [
+                [InlineKeyboardButton("🔄 Check Connection Status", callback_data="check_wallet_status")],
+                [InlineKeyboardButton("❌ Cancel Connection", callback_data="cancel_wallet_connection")],
+                [InlineKeyboardButton("⬅️ Back to Account", callback_data="account")]
+            ]
+            
+            message_text = (
+                "*💳 Wallet Connecting*\n\n"
+                "Your wallet connection is in progress\\.\n\n"
+                "• Please check your wallet app to approve the connection\n"
+                "• If you need a new QR code, cancel this connection and try again\n"
+                "• FiLot connects in read\\-only mode for your security"
+            )
+        else:
+            # Wallet is disconnected - show connect options
+            keyboard = [
+                [InlineKeyboardButton("🔌 Connect Wallet", callback_data="walletconnect")],
+                [InlineKeyboardButton("📝 Enter Address Manually", callback_data="enter_address")],
+                [InlineKeyboardButton("⬅️ Back to Account", callback_data="account")]
+            ]
+            
+            message_text = (
+                "*💳 Wallet Settings*\n\n"
+                "Manage your wallet connections and settings\\.\n\n"
+                "• Connect your wallet to enable automated investment features\n"
+                "• Your wallet will connect in read\\-only mode for security\n"
+                "• FiLot never has access to your private keys"
+            )
+        
+        # Send the appropriate message and keyboard
         await query.edit_message_text(
-            "*💳 Wallet Settings*\n\n"
-            "Manage your wallet connections and settings.\n\n"
-            "• Connect your wallet to enable automated investment features\n"
-            "• Your wallet is connected in read-only mode for security\n"
-            "• FiLot never has access to your private keys",
+            message_text,
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="MarkdownV2"
         )
+
+async def handle_walletconnect(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'walletconnect' button click to initiate wallet connection
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} initiated wallet connection")
+        
+        try:
+            # Start wallet connection process
+            connection_result = await initiate_wallet_connection(user_id)
+            
+            if not connection_result.get("success", False):
+                # Show error message if connection failed
+                error_message = connection_result.get("error", "Unknown error")
+                logger.error(f"Wallet connection failed for user {user_id}: {error_message}")
+                
+                await query.edit_message_text(
+                    f"*⚠️ Connection Error*\n\n"
+                    f"Sorry, we couldn't initiate the wallet connection\\.\n\n"
+                    f"Error: `{error_message}`\n\n"
+                    f"Please try again later\\.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("⬅️ Back to Wallet Settings", callback_data="wallet_settings")
+                    ]]),
+                    parse_mode="MarkdownV2"
+                )
+                return
+            
+            # Get QR code and session data
+            session_id = connection_result.get("session_id")
+            qr_code_image = connection_result.get("qr_code_image")
+            deep_link = connection_result.get("deep_link", "")
+            
+            # Store session ID in context for later status checks
+            if not context.user_data:
+                context.user_data = {}
+            context.user_data["wallet_session_id"] = session_id
+            
+            # Create message with QR code and instructions
+            message = (
+                "*🔌 Connect Your Wallet*\n\n"
+                "Scan this QR code with your wallet app to connect\\:\n\n"
+            )
+            
+            # Send QR code as photo with caption and buttons
+            if qr_code_image:
+                # Edit original message first
+                await query.edit_message_text(
+                    "Generating your wallet connection QR code...",
+                    reply_markup=None
+                )
+                
+                # Send new message with photo and buttons
+                await context.bot.send_photo(
+                    chat_id=update.effective_chat.id,
+                    photo=qr_code_image,
+                    caption=(
+                        "*🔌 Connect Your Wallet*\n\n"
+                        "1. Open your Solana wallet app\n"
+                        "2. Scan this QR code with the app\n"
+                        "3. Approve the connection request\n\n"
+                        "Connection will expire in 15 minutes if not used."
+                    ),
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("📱 Open in Wallet App", url=deep_link)],
+                        [InlineKeyboardButton("🔄 Check Connection Status", callback_data="check_wallet_status")],
+                        [InlineKeyboardButton("❌ Cancel Connection", callback_data="cancel_wallet_connection")]
+                    ]),
+                    parse_mode="Markdown"
+                )
+            else:
+                # Fallback to text-only message if QR code generation failed
+                await query.edit_message_text(
+                    "*🔌 Connect Your Wallet*\n\n"
+                    "Sorry, we couldn't generate a QR code\\. Please try again later\\.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("⬅️ Back to Wallet Settings", callback_data="wallet_settings")
+                    ]]),
+                    parse_mode="MarkdownV2"
+                )
+        
+        except Exception as e:
+            logger.error(f"Error in wallet connection: {str(e)}")
+            await query.edit_message_text(
+                "*⚠️ Connection Error*\n\n"
+                "Sorry, we encountered an unexpected error\\. Please try again later\\.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Wallet Settings", callback_data="wallet_settings")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
+
+
+async def handle_check_wallet_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'check_wallet_status' button click to check wallet connection status
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} checking wallet connection status")
+        
+        try:
+            # Get session ID from context
+            session_id = context.user_data.get("wallet_session_id") if context.user_data else None
+            
+            # If session ID is not in context, try to get from database
+            if not session_id:
+                user = User.query.get(user_id)
+                if user and hasattr(user, 'wallet_session_id'):
+                    session_id = user.wallet_session_id
+            
+            if not session_id:
+                # No active session found
+                await query.edit_message_text(
+                    "*⚠️ No Active Connection*\n\n"
+                    "You don't have an active wallet connection session\\.\n\n"
+                    "Please start a new wallet connection\\.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔌 Connect Wallet", callback_data="walletconnect"),
+                        InlineKeyboardButton("⬅️ Back", callback_data="wallet_settings")
+                    ]]),
+                    parse_mode="MarkdownV2"
+                )
+                return
+            
+            # Check connection status
+            status_result = await check_connection_status(user_id, session_id)
+            
+            if not status_result.get("success", False):
+                # Connection check failed
+                error_message = status_result.get("error", "Unknown error")
+                status = status_result.get("status", "failed")
+                
+                if status == "expired":
+                    # Session expired, offer to start a new connection
+                    await query.edit_message_text(
+                        "*⏱️ Connection Expired*\n\n"
+                        "Your wallet connection session has expired\\.\n\n"
+                        "Please start a new wallet connection\\.",
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🔌 Connect Wallet", callback_data="walletconnect"),
+                            InlineKeyboardButton("⬅️ Back", callback_data="wallet_settings")
+                        ]]),
+                        parse_mode="MarkdownV2"
+                    )
+                else:
+                    # Other error, show message
+                    await query.edit_message_text(
+                        f"*⚠️ Connection Error*\n\n"
+                        f"We couldn't check your wallet connection status\\.\n\n"
+                        f"Error: `{error_message}`\n\n"
+                        f"Please try again later\\.",
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🔄 Try Again", callback_data="check_wallet_status"),
+                            InlineKeyboardButton("⬅️ Back", callback_data="wallet_settings")
+                        ]]),
+                        parse_mode="MarkdownV2"
+                    )
+                return
+            
+            # Connection check succeeded, show status
+            status = status_result.get("status")
+            wallet_address = status_result.get("wallet_address")
+            
+            if status == WalletConnectionStatus.CONNECTED and wallet_address:
+                # Wallet successfully connected
+                display_address = f"{wallet_address[:6]}\\.\\.\\.\\.{wallet_address[-4:]}" if wallet_address else "Unknown"
+                
+                await query.edit_message_text(
+                    "*✅ Wallet Connected*\n\n"
+                    f"Your wallet has been successfully connected\\!\n\n"
+                    f"• Address: `{display_address}`\n"
+                    f"• Status: 🟢 Connected\n\n"
+                    f"You can now use your wallet for investments\\.",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🏦 Explore Investment Pools", callback_data="explore_pools")],
+                        [InlineKeyboardButton("⬅️ Back to Wallet Settings", callback_data="wallet_settings")]
+                    ]),
+                    parse_mode="MarkdownV2"
+                )
+            elif status == WalletConnectionStatus.CONNECTING:
+                # Still connecting, give instructions and option to check again
+                await query.edit_message_text(
+                    "*🔄 Wallet Connecting*\n\n"
+                    "Your wallet connection is still in progress\\.\n\n"
+                    "• Please open your wallet app and approve the connection\n"
+                    "• Check again in a few seconds to update status\n"
+                    "• You can cancel and try again if needed",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔄 Check Again", callback_data="check_wallet_status")],
+                        [InlineKeyboardButton("❌ Cancel Connection", callback_data="cancel_wallet_connection")],
+                        [InlineKeyboardButton("⬅️ Back", callback_data="wallet_settings")]
+                    ]),
+                    parse_mode="MarkdownV2"
+                )
+            else:
+                # Other status, provide generic message
+                await query.edit_message_text(
+                    f"*ℹ️ Wallet Status: {status}*\n\n"
+                    f"Your wallet connection status is currently `{status}`\\.\n\n"
+                    f"You may need to start a new connection\\.",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔌 Connect Wallet", callback_data="walletconnect")],
+                        [InlineKeyboardButton("⬅️ Back", callback_data="wallet_settings")]
+                    ]),
+                    parse_mode="MarkdownV2"
+                )
+                
+        except Exception as e:
+            logger.error(f"Error checking wallet status: {str(e)}")
+            await query.edit_message_text(
+                "*⚠️ Error*\n\n"
+                "Sorry, we encountered an unexpected error checking your wallet status\\.\n\n"
+                "Please try again later\\.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Wallet Settings", callback_data="wallet_settings")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
+
+
+async def handle_cancel_wallet_connection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'cancel_wallet_connection' button click to cancel an ongoing wallet connection
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} canceling wallet connection")
+        
+        try:
+            # Disconnect wallet
+            result = disconnect_wallet(user_id)
+            
+            if result:
+                await query.edit_message_text(
+                    "*✅ Connection Canceled*\n\n"
+                    "Your wallet connection has been canceled\\.\n\n"
+                    "You can start a new connection when you're ready\\.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔌 Connect Wallet", callback_data="walletconnect"),
+                        InlineKeyboardButton("⬅️ Back", callback_data="wallet_settings")
+                    ]]),
+                    parse_mode="MarkdownV2"
+                )
+            else:
+                await query.edit_message_text(
+                    "*⚠️ Cancellation Failed*\n\n"
+                    "We couldn't cancel your wallet connection\\.\n\n"
+                    "Please try again or return to wallet settings\\.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔄 Try Again", callback_data="cancel_wallet_connection"),
+                        InlineKeyboardButton("⬅️ Back", callback_data="wallet_settings")
+                    ]]),
+                    parse_mode="MarkdownV2"
+                )
+                
+        except Exception as e:
+            logger.error(f"Error canceling wallet connection: {str(e)}")
+            await query.edit_message_text(
+                "*⚠️ Error*\n\n"
+                "Sorry, we encountered an unexpected error canceling your wallet connection\\.\n\n"
+                "Please try again later\\.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Wallet Settings", callback_data="wallet_settings")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
+
+
+async def handle_disconnect_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'disconnect_wallet' button click to disconnect a connected wallet
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} disconnecting wallet")
+        
+        try:
+            # Disconnect wallet
+            result = disconnect_wallet(user_id)
+            
+            if result:
+                await query.edit_message_text(
+                    "*✅ Wallet Disconnected*\n\n"
+                    "Your wallet has been successfully disconnected\\.\n\n"
+                    "Your investment data is still saved in your profile\\.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔌 Connect Wallet", callback_data="walletconnect"),
+                        InlineKeyboardButton("⬅️ Back", callback_data="wallet_settings")
+                    ]]),
+                    parse_mode="MarkdownV2"
+                )
+            else:
+                await query.edit_message_text(
+                    "*⚠️ Disconnection Failed*\n\n"
+                    "We couldn't disconnect your wallet\\.\n\n"
+                    "Please try again or return to wallet settings\\.",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("🔄 Try Again", callback_data="disconnect_wallet"),
+                        InlineKeyboardButton("⬅️ Back", callback_data="wallet_settings")
+                    ]]),
+                    parse_mode="MarkdownV2"
+                )
+                
+        except Exception as e:
+            logger.error(f"Error disconnecting wallet: {str(e)}")
+            await query.edit_message_text(
+                "*⚠️ Error*\n\n"
+                "Sorry, we encountered an unexpected error disconnecting your wallet\\.\n\n"
+                "Please try again later\\.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Wallet Settings", callback_data="wallet_settings")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
+
 
 async def handle_update_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
