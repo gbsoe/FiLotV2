@@ -1,0 +1,53 @@
+FiLot is now able to connect Solana wallets and simulate investments.
+
+Now, I need to replace the mock logic in `execute_investment()` with real Solana transaction logic so the bot can:
+
+- Build a real Raydium LP deposit transaction
+- Send the unsigned transaction to the user via WalletConnect v2
+- Await and track signature
+- Log result in the InvestmentLog model
+
+---
+
+### WHAT TO DO NEXT
+
+#### 1. Use `solana-py` or `anchorpy` to construct a real transaction:
+In `wallet_actions.py > execute_investment(...)`:
+- Fetch pool metadata via `/pools/{id}` (from SolPool)
+- Use `PublicKey`, `Transaction`, `TransactionInstruction` to:
+  - Create associated token accounts (if needed)
+  - Approve token transfer
+  - Call Raydium program to deposit into LP
+- Serialize the transaction for WalletConnect
+
+#### 2. Integrate with WalletConnect v2:
+- In `WalletConnectManager.send_transaction()`:
+  - Encode the serialized transaction (base58 or base64)
+  - Send it to the wallet for signing
+  - Wait for the signed tx or rejection
+  - Broadcast via RPC (`https://api.mainnet-beta.solana.com`)
+
+#### 3. Log the transaction result:
+- Save `tx_hash`, `status`, `pool_id`, `amount`, and timestamps to `InvestmentLog`
+
+#### 4. Update `handle_confirm_smart_investment(...)`:
+- Ensure wallet is connected
+- Call `execute_investment(wallet_address, pool_id, amount)`
+- Send user a confirmation (e.g. “Investment sent! View on Solscan: https://solscan.io/tx/abc123”)
+
+#### 5. Add fallbacks:
+- If wallet not connected → show “Please connect your wallet first”
+- If signing rejected → show “Transaction cancelled”
+- If RPC fails → show error and mark investment as failed
+
+---
+
+### OUTPUT
+
+Return:
+- Updated `wallet_actions.py` with real `execute_investment()` logic using `solana-py`
+- Updates to `WalletConnectManager` with real transaction delivery
+- Updated investment confirmation flow in `button_responses.py` or `smart_invest.py`
+- Any added helper functions (e.g. get_pool_metadata, build_lp_tx)
+
+This will make FiLot a fully agentic Telegram investment bot capable of suggesting and executing yield-farming investments with one tap.
