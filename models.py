@@ -45,9 +45,23 @@ class User(db.Model):
     preferred_pools = Column(JSON, nullable=True)  # User's favorite or preferred pool types
     investment_goals = Column(String(255), nullable=True)  # User's financial goals
     
+    # Wallet connection settings
+    wallet_address = Column(String(255), nullable=True)  # Solana wallet public address
+    wallet_connected_at = Column(DateTime, nullable=True)  # When wallet was connected
+    connection_status = Column(String(20), default="disconnected")  # disconnected, connecting, connected, failed
+    wallet_session_id = Column(String(100), nullable=True)  # For WalletConnect session tracking
+    last_tx_id = Column(String(100), nullable=True)  # Last transaction signature
+    
+    # Notification preferences
+    notif_market = Column(Boolean, default=False)  # Market summary notifications
+    notif_apr = Column(Boolean, default=False)  # APR change notifications
+    notif_price = Column(Boolean, default=False)  # Price change notifications
+    notif_prediction = Column(Boolean, default=False)  # AI prediction notifications
+    
     # Relationships
     queries = relationship("UserQuery", back_populates="user", cascade="all, delete-orphan")
     activity_logs = relationship("UserActivityLog", back_populates="user", cascade="all, delete-orphan")
+    investments = relationship("InvestmentLog", back_populates="user", cascade="all, delete-orphan")
     
     # Property to maintain backward compatibility
     @property
@@ -255,3 +269,27 @@ class MoodEntry(db.Model):
     
     def __repr__(self):
         return f"<MoodEntry id={self.id}, user_id={self.user_id}, mood={self.mood}, context={self.context}>"
+
+class InvestmentLog(db.Model):
+    """InvestmentLog model for tracking user investments in liquidity pools."""
+    __tablename__ = "investment_logs"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    pool_id = Column(String(255), ForeignKey("pools.id"), nullable=False)
+    amount = Column(Float, nullable=False)  # Amount in USD
+    tx_hash = Column(String(100), nullable=False)  # Transaction signature/hash
+    status = Column(String(20), nullable=False)  # confirming, confirmed, failed, etc.
+    token_a_amount = Column(Float, nullable=True)  # Amount of token A invested
+    token_b_amount = Column(Float, nullable=True)  # Amount of token B invested
+    apr_at_entry = Column(Float, nullable=True)  # APR at time of investment
+    notes = Column(Text, nullable=True)  # Optional notes or error messages
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="investments")
+    pool = relationship("Pool", backref="investments")
+    
+    def __repr__(self):
+        return f"<InvestmentLog id={self.id}, user_id={self.user_id}, pool_id={self.pool_id}, amount=${self.amount}, status={self.status}>"

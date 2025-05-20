@@ -1,0 +1,69 @@
+Real Wallet Execution + Solana Integration
+FiLot is now a fully functional Telegram investment assistant for Solana liquidity pools. The next goal is to go from investment simulation to real transaction execution.
+
+The current setup includes:
+- Wallet connection (mocked, via `/walletconnect`)
+- `execute_investment(wallet_address, pool_id, amount)` stub function in `wallet_actions.py`
+- Smart Invest logic that recommends pools and lets users confirm investment
+
+---
+
+ WHAT TO DO NEXT:
+
+ 1. Structure the actual `execute_investment(...)` function in `wallet_actions.py`:
+Build a clear scaffolding function for executing a Raydium LP investment via Solana. Include:
+
+```python
+async def execute_investment(wallet_address: str, pool_id: str, amount: float) -> str:
+    """
+    Executes an LP investment in a Raydium pool.
+    Args:
+        wallet_address: user's connected Solana wallet
+        pool_id: pool identifier (used to fetch pair/token info)
+        amount: amount in USDC to invest
+
+    Returns:
+        A transaction signature or explorer URL on success, or error string.
+    """
+    # TODO: 1. Fetch pool metadata from SolPool API (/pools/{id})
+    # TODO: 2. Build a Solana transaction using `solana-py` or external TX builder
+    # TODO: 3. Send the unsigned transaction to the user's wallet (WalletConnect v2)
+    # TODO: 4. Wait for signature or error
+    # TODO: 5. Return a link to the transaction (e.g. Solscan)
+    return "https://solscan.io/tx/EXAMPLE_SIGNATURE"
+Use placeholder functions where needed (e.g. build_lp_transaction(), send_walletconnect_request()), and define TODOs with clarity.
+ 
+2. Prepare for WalletConnect v2 integration:
+•	Create a module or function initiate_wallet_connection() that: 
+o	Displays a QR code or deeplink (stub for now)
+o	Stores a wallet_address to user profile
+•	Add placeholder for receiving signed transaction from WalletConnect callback
+ 
+3. Extend database schema (in models.py):
+•	Add fields to the User model: 
+o	wallet_address
+o	wallet_connected_at
+o	last_tx_id
+•	Add a simple InvestmentLog model (if not yet defined) to store: 
+o	user_id
+o	pool_id
+o	amount
+o	tx_hash
+o	status
+o	created_at
+ 
+4. Update handle_confirm_smart_investment():
+•	Validate that the user has a connected wallet
+•	Call execute_investment(...) and reply with: 
+o	Transaction link if successful
+o	Error message if transaction failed or was not signed
+ 
+OUTPUT
+Please return:
+•	Updated wallet_actions.py with execute_investment() function stubbed but logically structured
+•	Updates to models.py to support wallet and investment tracking
+•	Edits to smart_invest.py or button_responses.py where execute_investment is invoked
+•	Any placeholder files needed for WalletConnect support
+With this, FiLot becomes a truly agentic AI investor — not just recommending pools, but enabling users to invest with one tap after connecting their wallet.
+
+-
