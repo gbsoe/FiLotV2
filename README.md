@@ -1,15 +1,17 @@
 # FiLot: Agentic AI Investment Advisor
 
-FiLot is a cutting-edge Telegram bot designed to revolutionize cryptocurrency investment experiences through intelligent, user-friendly technologies. It serves as an agentic AI-powered system that analyzes liquidity pools, recommends optimal investments, and can execute trades securely with varying levels of automation.
+FiLot is a cutting-edge Telegram bot designed to revolutionize cryptocurrency investment experiences through intelligent, user-friendly technologies. It serves as an agentic AI-powered system that analyzes liquidity pools, recommends optimal investments, and executes trades securely with production-grade transaction safety and slippage protection.
 
 ## Core Features
 
 - **Data-Driven Insights**: Real-time data ingestion from Raydium and external sources
 - **Advanced AI Models**: Financial analysis and personalized recommendations
 - **Reinforcement Learning**: Adaptive investment recommendations with risk-adjusted returns
-- **User-Friendly Interface**: Intuitive Telegram interactions and commands
-- **Secure Wallet Integration**: WalletConnect protocol support for safe transactions
+- **User-Friendly Interface**: Intuitive Telegram interactions with detailed transaction information
+- **Production-Grade Transaction Safety**: Comprehensive pre-checks, slippage protection, and price impact analysis
+- **Secure Wallet Integration**: WalletConnect v2 protocol support with full transaction lifecycle management
 - **Personalized Risk Management**: Customized strategies based on user profiles
+- **Enhanced Error Handling**: Detailed error logging and user-friendly recovery paths
 
 ## Project Structure
 
@@ -26,13 +28,16 @@ FiLot is a cutting-edge Telegram bot designed to revolutionize cryptocurrency in
 - `main.py`: Application entry point
 - `bot.py`: Telegram bot command handlers and logic
 - `app.py`: Flask web application
-- `models.py`: SQLAlchemy database models
+- `models.py`: SQLAlchemy database models with enhanced investment tracking
 - `raydium_client.py`: Integration with Raydium API for pool data
+- `wallet_actions.py`: Real Solana transaction execution with slippage protection
+- `walletconnect_manager.py`: WalletConnect v2 integration for secure wallet connectivity
+- `smart_invest_execution.py`: Production-grade investment flows with comprehensive safety checks
+- `solpool_api_client.py`: Client for SolPool Insight API with real-time pool data and price impact analysis
 - `ai_service.py`: DeepSeek AI integration
 - `anthropic_service.py`: Anthropic Claude AI integration
 - `agentic_advisor.py`: Intelligent investment advisor combining technical data with sentiment
 - `rl_investment_advisor.py`: Reinforcement Learning model for adaptive investment recommendations
-- `smart_invest.py`: Smart investment command handlers and conversation flow
 - `db_utils.py`: Database utility functions
 - `coingecko_utils.py`: Token price retrieval utilities
 
