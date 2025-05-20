@@ -11,9 +11,12 @@ import base64
 import json
 import time
 import uuid
+import asyncio
 from typing import Dict, Any, Optional, List, Tuple
+from datetime import datetime
 
-from models import User, db
+from models import User, InvestmentLog, db
+from walletconnect_manager import wallet_connect_manager
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -118,7 +121,7 @@ def disconnect_wallet(user_id: int) -> bool:
         return False
 
 
-def initiate_wallet_connection(user_id: int) -> Dict[str, Any]:
+async def initiate_wallet_connection(user_id: int) -> Dict[str, Any]:
     """
     Initiate a new wallet connection process
     
@@ -129,9 +132,6 @@ def initiate_wallet_connection(user_id: int) -> Dict[str, Any]:
         Dict with session_id and qr_code_data for WalletConnect
     """
     try:
-        # Generate a unique session ID
-        session_id = str(uuid.uuid4())
-        
         # Create or get the user
         user = User.query.get(user_id)
         if not user:
@@ -140,20 +140,23 @@ def initiate_wallet_connection(user_id: int) -> Dict[str, Any]:
             
         # Update user connection status
         user.connection_status = WalletConnectionStatus.CONNECTING
-        user.wallet_session_id = session_id
         db.session.commit()
         
-        # In a real implementation, we would generate a WalletConnect URI and QR code
-        # For now, we'll mock this with a session ID
+        # Use the WalletConnect manager to create a session
+        result = await wallet_connect_manager.create_connection_session(user_id)
         
-        # TODO: Replace with actual WalletConnect implementation
-        qr_code_data = f"wc:filot{session_id[:8]}@1?bridge=wss%3A%2F%2Ffilot.ai%2Fbridge&key=mock_key"
+        if not result.get("success", False):
+            logger.error(f"Failed to create WalletConnect session for user {user_id}: {result.get('error')}")
+            return result
         
+        # Return the session information
         return {
             "success": True,
-            "session_id": session_id,
-            "qr_code_data": qr_code_data,
-            "expires_in": 300  # 5 minutes
+            "session_id": result.get("session_id"),
+            "qr_code_data": result.get("qr_code_data"),
+            "qr_code_image": result.get("qr_code_image"),
+            "expires_at": result.get("expires_at"),
+            "deep_link": result.get("deep_link")
         }
         
     except Exception as e:
@@ -161,7 +164,7 @@ def initiate_wallet_connection(user_id: int) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
-def check_connection_status(user_id: int, session_id: str) -> Dict[str, Any]:
+async def check_connection_status(user_id: int, session_id: str) -> Dict[str, Any]:
     """
     Check the status of a wallet connection in progress
     
@@ -175,24 +178,44 @@ def check_connection_status(user_id: int, session_id: str) -> Dict[str, Any]:
     try:
         user = User.query.get(user_id)
         if not user:
-            return {"status": WalletConnectionStatus.FAILED, "error": "User not found"}
+            return {"success": False, "status": WalletConnectionStatus.FAILED, "error": "User not found"}
             
         # Check if session IDs match
         if user.wallet_session_id != session_id:
-            return {"status": WalletConnectionStatus.FAILED, "error": "Invalid session"}
-            
-        # In a real implementation, we would check the actual WalletConnect session status
-        # For now, we'll always return "connecting" status
+            return {"success": False, "status": WalletConnectionStatus.FAILED, "error": "Invalid session"}
         
-        # TODO: Replace with actual WalletConnect session check
+        # Use the WalletConnect manager to check session status
+        result = await wallet_connect_manager.check_session_status(session_id)
+        
+        if not result.get("success", False):
+            logger.error(f"Failed to check WalletConnect session for user {user_id}: {result.get('error')}")
+            if result.get("status") == "expired":
+                # Update user status if session expired
+                user.connection_status = WalletConnectionStatus.DISCONNECTED
+                user.wallet_session_id = None
+                db.session.commit()
+            return {"success": False, "status": result.get("status", WalletConnectionStatus.FAILED), "error": result.get("error")}
+        
+        # Update user information based on session status
+        if result.get("status") == "connected" and user.connection_status != WalletConnectionStatus.CONNECTED:
+            wallet_address = result.get("wallet_address")
+            if wallet_address:
+                user.wallet_address = wallet_address
+                user.connection_status = WalletConnectionStatus.CONNECTED
+                user.wallet_connected_at = datetime.utcnow()
+                db.session.commit()
+        
+        # Return status information
         return {
+            "success": True,
             "status": user.connection_status,
-            "wallet_address": user.wallet_address if hasattr(user, 'wallet_address') else None
+            "wallet_address": user.wallet_address,
+            "expires_at": result.get("expires_at")
         }
         
     except Exception as e:
         logger.error(f"Error checking connection status for user {user_id}: {e}")
-        return {"status": WalletConnectionStatus.FAILED, "error": str(e)}
+        return {"success": False, "status": WalletConnectionStatus.FAILED, "error": str(e)}
 
 
 async def execute_investment(wallet_address: str, pool_id: str, amount: float) -> Dict[str, Any]:
