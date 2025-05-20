@@ -48,6 +48,8 @@ from button_responses import (
     handle_back_to_main, handle_wallet_settings, handle_update_profile,
     handle_subscription_settings, handle_token_search, handle_predictions,
     handle_my_investments, handle_smart_invest, handle_high_apr_pools,
+    handle_walletconnect, handle_check_wallet_status, handle_cancel_wallet_connection,
+    handle_disconnect_wallet,
     handle_pool_info, handle_pool_detail, handle_token_search_result,
     handle_rising_pools, handle_declining_pools, handle_stable_pools,
     handle_custom_token_search, handle_enable_notifications, 
@@ -129,6 +131,12 @@ def run_telegram_bot():
         application.add_handler(CallbackQueryHandler(handle_wallet_settings, pattern="^wallet_settings$"))
         application.add_handler(CallbackQueryHandler(handle_update_profile, pattern="^update_profile$"))
         application.add_handler(CallbackQueryHandler(handle_subscription_settings, pattern="^subscription_settings$"))
+        
+        # Wallet connection handlers
+        application.add_handler(CallbackQueryHandler(handle_walletconnect, pattern="^walletconnect$"))
+        application.add_handler(CallbackQueryHandler(handle_check_wallet_status, pattern="^check_wallet_status$"))
+        application.add_handler(CallbackQueryHandler(handle_cancel_wallet_connection, pattern="^cancel_wallet_connection$"))
+        application.add_handler(CallbackQueryHandler(handle_disconnect_wallet, pattern="^disconnect_wallet$"))
         
         # Investment options
         application.add_handler(CallbackQueryHandler(handle_smart_invest, pattern="^smart_invest$"))
