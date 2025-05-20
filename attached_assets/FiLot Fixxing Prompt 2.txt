@@ -1,0 +1,68 @@
+We’re building “FiLot” — a Telegram bot that acts as an AI investment advisor for Raydium and other Solana-based liquidity pools.
+
+The core features already work:
+- Buttons and slash commands are implemented
+- Real pool data is fetched via SolPool Insight API
+- Sentiment and price data comes from FilotSense API
+- A reinforcement learning engine recommends pools
+
+---
+
+OUR MAIN GOAL NOW:
+
+Enable the user to connect their Solana wallet to the bot and **execute investments in Raydium liquidity pools** based on recommendations.
+
+Before that, we need to finish up the following:
+
+---
+
+WHAT TO DO NEXT:
+
+1. Implement missing button handlers:
+Create the following stubs inside `button_responses.py`:
+
+- `handle_faq_filot`, `handle_faq_pools`, `handle_faq_apr`, `handle_faq_stable`, etc.
+- `handle_toggle_notif_market`, `handle_toggle_notif_price`, `handle_toggle_notif_custom`
+- Each should:
+  - Acknowledge the callback (`await update.callback_query.answer()`)
+  - Edit the message with a stubbed response
+  - Include `# TODO` for the real logic later
+
+2. Finish the token input conversation flow:
+In the `handle_custom_token_search()` function:
+- Set up a `ConversationHandler` that:
+  - Prompts the user for a token symbol
+  - Then uses `GET /tokens/{symbol}/pools` from SolPool API
+  - Displays search results with proper formatting
+- Return the `ConversationHandler` setup so it can be registered in `main.py`
+
+3. Enable notification toggle state logic
+For each notification type (`market`, `price`, `custom`):
+- Toggle a flag in the database (add helper function if needed)
+- Confirm and persist the change (or simulate it for now)
+- Display confirmation to user (e.g. “Market notifications enabled.”)
+
+4. Scaffold wallet execution logic (big goal)
+In a new module `wallet_actions.py` or inside `smart_invest.py`:
+- Define a stub for `execute_investment(wallet_address, pool_id, amount)`:
+  - Add `# TODO` to integrate with Solana tx signing (planned future step)
+  - For now, simulate the investment and return a mock tx link (like a Solscan link)
+- Modify `handle_confirm_smart_investment()` to:
+  - Check if wallet is connected (from DB)
+  - Call `execute_investment(...)` and display result
+
+5. Update main.py
+- Register the `ConversationHandler` for token search
+- Register new static `CallbackQueryHandler`s for the missing `handle_faq_*` and `handle_toggle_notif_*` functions
+
+---
+
+OUTPUT
+
+Return:
+- Updated `button_responses.py` with all missing stubs implemented
+- Updated `main.py` with all handler registrations (especially the token input flow)
+- A new file (if needed) like `wallet_actions.py` with the `execute_investment()` stub
+- Clear comments or TODOs where real Solana wallet logic will go
+
+This will move FiLot from an intelligent advisor to an actionable investment bot that can eventually let users invest with one tap after connecting their wallet.

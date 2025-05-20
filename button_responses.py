@@ -1354,12 +1354,27 @@ async def handle_notification_preferences(update: Update, context: ContextTypes.
         user_id = update.effective_user.id if update.effective_user else 0
         logger.info(f"User {user_id} is viewing notification preferences")
         
+        # Get current notification preferences
+        user_profile = get_user_profile(user_id)
+        
+        # Default states if not found
+        market_notif = user_profile.get('notif_market', False) if user_profile else False
+        apr_notif = user_profile.get('notif_apr', False) if user_profile else False
+        price_notif = user_profile.get('notif_price', False) if user_profile else False
+        prediction_notif = user_profile.get('notif_prediction', False) if user_profile else False
+        
+        # Create toggle buttons with current state indicators
+        market_label = f"📊 Market Summaries {'✅' if market_notif else '❌'}"
+        apr_label = f"📈 APR Alerts {'✅' if apr_notif else '❌'}"
+        price_label = f"💰 Price Alerts {'✅' if price_notif else '❌'}"
+        prediction_label = f"🔮 Prediction Alerts {'✅' if prediction_notif else '❌'}"
+        
         # Create notification preference options
         keyboard = [
-            [InlineKeyboardButton("📊 Market Summaries", callback_data="toggle_notif_market")],
-            [InlineKeyboardButton("📈 APR Alerts", callback_data="toggle_notif_apr")],
-            [InlineKeyboardButton("💰 Price Alerts", callback_data="toggle_notif_price")],
-            [InlineKeyboardButton("🔮 Prediction Alerts", callback_data="toggle_notif_prediction")],
+            [InlineKeyboardButton(market_label, callback_data="toggle_notif_market")],
+            [InlineKeyboardButton(apr_label, callback_data="toggle_notif_apr")],
+            [InlineKeyboardButton(price_label, callback_data="toggle_notif_price")],
+            [InlineKeyboardButton(prediction_label, callback_data="toggle_notif_prediction")],
             [InlineKeyboardButton("⬅️ Back to Subscription Settings", callback_data="subscription_settings")]
         ]
         
@@ -1374,8 +1389,182 @@ async def handle_notification_preferences(update: Update, context: ContextTypes.
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="MarkdownV2"
         )
+
+async def handle_toggle_notif_market(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the toggle of market notification preferences
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
         
-        # TODO: Implement toggle functionality for each notification type
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} toggled market notifications")
+        
+        # Toggle the notification preference in database
+        success = toggle_notification_preference(user_id, 'notif_market')
+        
+        if success:
+            # Get the updated state
+            user_profile = get_user_profile(user_id)
+            is_enabled = user_profile.get('notif_market', False) if user_profile else False
+            
+            # Return to notification preferences screen with confirmation
+            status_text = "enabled" if is_enabled else "disabled"
+            
+            await query.edit_message_text(
+                f"*📊 Market Notifications {status_text.capitalize()}*\n\n"
+                f"You have successfully {status_text} market summary notifications.\n\n"
+                f"{'You will now receive daily updates about market activity and trends.' if is_enabled else 'You will no longer receive daily market summaries.'}\n\n"
+                f"Use the button below to return to notification preferences.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Notification Preferences", callback_data="notification_preferences")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
+        else:
+            # Error handling
+            await query.edit_message_text(
+                "*⚠️ Update Failed*\n\n"
+                "I couldn't update your notification preferences at this time.\n\n"
+                "Please try again later.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Notification Preferences", callback_data="notification_preferences")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
+
+async def handle_toggle_notif_apr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the toggle of APR notification preferences
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} toggled APR notifications")
+        
+        # Toggle the notification preference in database
+        success = toggle_notification_preference(user_id, 'notif_apr')
+        
+        if success:
+            # Get the updated state
+            user_profile = get_user_profile(user_id)
+            is_enabled = user_profile.get('notif_apr', False) if user_profile else False
+            
+            # Return to notification preferences screen with confirmation
+            status_text = "enabled" if is_enabled else "disabled"
+            
+            await query.edit_message_text(
+                f"*📈 APR Alerts {status_text.capitalize()}*\n\n"
+                f"You have successfully {status_text} APR alert notifications.\n\n"
+                f"{'You will now receive alerts when pool APRs change significantly.' if is_enabled else 'You will no longer receive alerts about APR changes.'}\n\n"
+                f"Use the button below to return to notification preferences.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Notification Preferences", callback_data="notification_preferences")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
+        else:
+            # Error handling
+            await query.edit_message_text(
+                "*⚠️ Update Failed*\n\n"
+                "I couldn't update your notification preferences at this time.\n\n"
+                "Please try again later.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Notification Preferences", callback_data="notification_preferences")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
+
+async def handle_toggle_notif_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the toggle of price notification preferences
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} toggled price notifications")
+        
+        # Toggle the notification preference in database
+        success = toggle_notification_preference(user_id, 'notif_price')
+        
+        if success:
+            # Get the updated state
+            user_profile = get_user_profile(user_id)
+            is_enabled = user_profile.get('notif_price', False) if user_profile else False
+            
+            # Return to notification preferences screen with confirmation
+            status_text = "enabled" if is_enabled else "disabled"
+            
+            await query.edit_message_text(
+                f"*💰 Price Alerts {status_text.capitalize()}*\n\n"
+                f"You have successfully {status_text} price alert notifications.\n\n"
+                f"{'You will now receive alerts about significant token price movements.' if is_enabled else 'You will no longer receive alerts about token prices.'}\n\n"
+                f"Use the button below to return to notification preferences.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Notification Preferences", callback_data="notification_preferences")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
+        else:
+            # Error handling
+            await query.edit_message_text(
+                "*⚠️ Update Failed*\n\n"
+                "I couldn't update your notification preferences at this time.\n\n"
+                "Please try again later.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Notification Preferences", callback_data="notification_preferences")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
+
+async def handle_toggle_notif_prediction(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the toggle of prediction notification preferences
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} toggled prediction notifications")
+        
+        # Toggle the notification preference in database
+        success = toggle_notification_preference(user_id, 'notif_prediction')
+        
+        if success:
+            # Get the updated state
+            user_profile = get_user_profile(user_id)
+            is_enabled = user_profile.get('notif_prediction', False) if user_profile else False
+            
+            # Return to notification preferences screen with confirmation
+            status_text = "enabled" if is_enabled else "disabled"
+            
+            await query.edit_message_text(
+                f"*🔮 Prediction Alerts {status_text.capitalize()}*\n\n"
+                f"You have successfully {status_text} prediction alert notifications.\n\n"
+                f"{'You will now receive AI-powered predictions about potential pool performance.' if is_enabled else 'You will no longer receive AI prediction alerts.'}\n\n"
+                f"Use the button below to return to notification preferences.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Notification Preferences", callback_data="notification_preferences")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
+        else:
+            # Error handling
+            await query.edit_message_text(
+                "*⚠️ Update Failed*\n\n"
+                "I couldn't update your notification preferences at this time.\n\n"
+                "Please try again later.",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("⬅️ Back to Notification Preferences", callback_data="notification_preferences")
+                ]]),
+                parse_mode="MarkdownV2"
+            )
 
 async def handle_help_getting_started(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -1479,19 +1668,181 @@ async def handle_faq(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             parse_mode="MarkdownV2"
         )
 
+async def handle_faq_filot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'faq_filot' button click to explain what FiLot is
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} requested FAQ about FiLot")
+        
+        keyboard = [[InlineKeyboardButton("⬅️ Back to FAQ", callback_data="faq")]]
+        
+        await query.edit_message_text(
+            "*❓ What is FiLot?*\n\n"
+            "FiLot is an agentic AI-powered Telegram bot for cryptocurrency investment\\.\n\n"
+            "It provides intelligent recommendations for Raydium liquidity pools on Solana blockchain, "
+            "combining technical pool data with market sentiment and employing reinforcement learning "
+            "to adapt to changing market conditions\\.\n\n"
+            "Key features:\n"
+            "• AI-powered investment recommendations\n"
+            "• Real-time APR and TVL data from pools\n"
+            "• Market sentiment analysis\n"
+            "• Wallet connection for direct investing\n"
+            "• Customizable notifications\n\n"
+            "FiLot aims to make DeFi investing more accessible and intelligent for everyone\\.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="MarkdownV2"
+        )
+        
+        # TODO: Implement detailed tracking of which FAQ topics users view most
+
+async def handle_faq_pools(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'faq_pools' button click to explain how liquidity pools work
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} requested FAQ about liquidity pools")
+        
+        keyboard = [[InlineKeyboardButton("⬅️ Back to FAQ", callback_data="faq")]]
+        
+        await query.edit_message_text(
+            "*💡 How do Liquidity Pools Work?*\n\n"
+            "Liquidity pools are smart contracts that hold token pairs used for trading\\.\n\n"
+            "Here's how they work:\n\n"
+            "1\\. Users deposit equal values of two tokens \\(e\\.g\\., SOL/USDC\\)\n"
+            "2\\. They receive LP tokens representing their share of the pool\n"
+            "3\\. Traders swap between the tokens in the pool, paying fees\n"
+            "4\\. These fees are distributed to liquidity providers\n\n"
+            "The APR \\(Annual Percentage Rate\\) you see is the estimated yearly return "
+            "based on current trading volume and fees\\.\n\n"
+            "Raydium is a popular decentralized exchange on Solana where these pools exist\\.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="MarkdownV2"
+        )
+        
+        # TODO: Add interactive examples or visualizations to explain pools better
+
+async def handle_faq_apr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'faq_apr' button click to explain what APR is
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} requested FAQ about APR")
+        
+        keyboard = [[InlineKeyboardButton("⬅️ Back to FAQ", callback_data="faq")]]
+        
+        await query.edit_message_text(
+            "*💰 What is APR?*\n\n"
+            "APR \\(Annual Percentage Rate\\) represents your expected yearly return from providing liquidity\\.\n\n"
+            "In liquidity pools, APR comes from:\n"
+            "• Trading fees paid by users swapping tokens\n"
+            "• Sometimes additional incentives or rewards\n\n"
+            "Important notes about APR:\n"
+            "• It's variable and changes with trading volume\n"
+            "• Higher APR often means higher risk\n"
+            "• APR doesn't account for impermanent loss\n"
+            "• 24h, 7d, and 30d APRs show recent performance trends\n\n"
+            "FiLot shows you real\\-time APR data from Raydium pools to help you make informed decisions\\.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="MarkdownV2"
+        )
+        
+        # TODO: Add APR calculator feature that lets users estimate earnings
+
+async def handle_faq_impermanent_loss(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'faq_impermanent_loss' button click to explain impermanent loss
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} requested FAQ about impermanent loss")
+        
+        keyboard = [[InlineKeyboardButton("⬅️ Back to FAQ", callback_data="faq")]]
+        
+        await query.edit_message_text(
+            "*⚠️ What is Impermanent Loss?*\n\n"
+            "Impermanent loss occurs when the price ratio of your deposited tokens changes compared to when you added them to the pool\\.\n\n"
+            "How it works:\n"
+            "1\\. You deposit equal value of two tokens \\(e\\.g\\., 100 SOL and 10,000 USDC\\)\n"
+            "2\\. If SOL price doubles, the pool automatically rebalances\n"
+            "3\\. When you withdraw, you'll get fewer SOL and more USDC than deposited\n"
+            "4\\. The value will be less than if you'd simply held the tokens\n\n"
+            "This loss is 'impermanent' because it only becomes real when you withdraw\\. "
+            "If prices return to original ratios, the loss disappears\\.\n\n"
+            "Trading fees and rewards often help offset impermanent loss, but it's an important risk to understand\\.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="MarkdownV2"
+        )
+        
+        # TODO: Add impermanent loss calculator for specific pool scenarios
+
+async def handle_faq_wallet_security(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'faq_wallet_security' button click to explain wallet security
+    """
+    query = update.callback_query
+    if query:
+        await query.answer()
+        
+        user_id = update.effective_user.id if update.effective_user else 0
+        logger.info(f"User {user_id} requested FAQ about wallet security")
+        
+        keyboard = [[InlineKeyboardButton("⬅️ Back to FAQ", callback_data="faq")]]
+        
+        await query.edit_message_text(
+            "*🔒 Is My Wallet Secure?*\n\n"
+            "FiLot prioritizes your wallet security with several key protections:\n\n"
+            "• We use WalletConnect for secure connections\n"
+            "• Your private keys never leave your device\n"
+            "• FiLot can only perform actions you explicitly approve\n"
+            "• All transactions require your signature in your wallet app\n"
+            "• You can disconnect your wallet at any time\n\n"
+            "When you connect your wallet, we can only see your public address and token balances\\. "
+            "We cannot access your funds without your explicit approval for each transaction\\.\n\n"
+            "For maximum security, we recommend using a hardware wallet when possible\\.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="MarkdownV2"
+        )
+        
+        # TODO: Add option to view current wallet connection status and permissions
+
 # Helper functions
 def get_user_profile(user_id: int) -> Optional[Dict[str, Any]]:
     """Get user profile from database - placeholder implementation"""
     try:
         user = User.query.get(user_id)
         if user:
-            return {
+            profile = {
                 "username": user.username,
                 "risk_profile": user.risk_profile,
                 "investment_horizon": user.investment_horizon,
                 "is_subscribed": user.is_subscribed,
                 "created_at": user.created_at.strftime("%Y-%m-%d") if hasattr(user, 'created_at') and user.created_at else "N/A"
             }
+            
+            # Add notification preferences if they exist
+            for pref in ['notif_market', 'notif_apr', 'notif_price', 'notif_prediction']:
+                if hasattr(user, pref):
+                    profile[pref] = getattr(user, pref)
+                else:
+                    profile[pref] = False
+                    
+            return profile
     except Exception as e:
         logger.error(f"Error getting user profile: {e}")
     return None
@@ -1513,6 +1864,12 @@ def create_user_profile(user_id: int, username: str = None, first_name: str = No
             is_subscribed=False,
             created_at=datetime.datetime.utcnow()
         )
+        
+        # Initialize notification preferences
+        for pref in ['notif_market', 'notif_apr', 'notif_price', 'notif_prediction']:
+            if hasattr(User, pref):
+                setattr(new_user, pref, False)
+                
         db.session.add(new_user)
         db.session.commit()
         
@@ -1520,3 +1877,47 @@ def create_user_profile(user_id: int, username: str = None, first_name: str = No
     except Exception as e:
         logger.error(f"Error creating user profile: {e}")
         return None
+
+def toggle_notification_preference(user_id: int, preference_name: str) -> bool:
+    """
+    Toggle a notification preference for a user
+    
+    Args:
+        user_id: The user's Telegram ID
+        preference_name: The name of the preference to toggle (e.g., 'notif_market')
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Get the user
+        user = User.query.get(user_id)
+        if not user:
+            # Create user if they don't exist yet
+            user_profile = create_user_profile(
+                user_id=user_id,
+                username="unknown",  # This will be updated when we have user data
+                first_name="",
+                last_name=""
+            )
+            user = User.query.get(user_id)
+            if not user:
+                logger.error(f"Failed to create user {user_id} for notification toggle")
+                return False
+        
+        # Check if the preference attribute exists
+        if hasattr(user, preference_name):
+            # Toggle the preference (True -> False, False -> True)
+            current_value = getattr(user, preference_name, False)
+            setattr(user, preference_name, not current_value)
+        else:
+            # Add the preference if it doesn't exist yet (set to True since we're toggling from implicit False)
+            setattr(user, preference_name, True)
+            
+        # Save the changes
+        db.session.commit()
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error toggling notification preference {preference_name} for user {user_id}: {e}")
+        return False
