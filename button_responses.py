@@ -2,32 +2,85 @@
 # -*- coding: utf-8 -*-
 
 """
-Button responses implementation for FiLot Telegram bot
-Adds fully functional interactive buttons that perform real database operations
+Button response handlers for FiLot Telegram bot
+Handles all callback_data values with dedicated handler functions
 """
 
 import logging
+from typing import Dict, Any, Optional, List, Union, Tuple
+import json
 import datetime
-from typing import Dict, List, Any, Optional
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 
-from app import app
-from models import db, User, Pool
-import solpool_api_client as solpool_api
-import filotsense_api_client as sentiment_api
-from smart_invest import start_smart_invest
-from rl_investment_advisor import get_smart_investment_recommendation
+import db_utils
+from models import User, Pool, db
+from utils import format_pool_info
+from menus import MenuType, get_menu_config
+from keyboard_utils import get_reply_keyboard, set_menu_state
 
 # Configure logging
-logging.basicConfig(
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    level=logging.INFO
-)
 logger = logging.getLogger(__name__)
 
-# Button definitions for main menu callbacks
+async def handle_account(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    Handle the 'account' button click
+    """
+    query = update.callback_query
+    if not query:
+        return False
+        
+    await query.answer()
+    user_id = update.effective_user.id if update.effective_user else 0
+    
+    logger.info(f"User {user_id} pressed account button")
+    
+    # Get user profile from database
+    user_profile = get_user_profile(user_id)
+    
+    # If user doesn't exist, create a new profile
+    if not user_profile:
+        user_profile = create_user_profile(
+            user_id=user_id,
+            username=update.effective_user.username or "unknown",
+            first_name=update.effective_user.first_name,
+            last_name=update.effective_user.last_name
+        )
+    
+    # Format user profile data
+    if user_profile:
+        message = (
+            f"*👤 Account Profile*\n\n"
+            f"Username: *{user_profile.get('username', 'Unknown')}*\n"
+            f"Risk Profile: *{user_profile.get('risk_profile', 'Moderate')}*\n"
+            f"Investment Horizon: *{user_profile.get('investment_horizon', 'Medium')}*\n"
+            f"Subscription: *{'Active' if user_profile.get('is_subscribed') else 'Not Active'}*\n"
+            f"Member Since: *{user_profile.get('created_at', 'N/A')}*\n\n"
+        )
+    else:
+        message = (
+            "*👤 Account Profile*\n\n"
+            "We couldn't retrieve your profile information\\. "
+            "Please try again later\\.\n\n"
+        )
+    
+    # Create account options keyboard
+    keyboard = [
+        [InlineKeyboardButton("💳 Wallet Settings", callback_data="wallet_settings")],
+        [InlineKeyboardButton("⚙️ Update Profile", callback_data="update_profile")],
+        [InlineKeyboardButton("🔔 Subscription Settings", callback_data="subscription_settings")],
+        [InlineKeyboardButton("⬅️ Back to Main Menu", callback_data="back_to_main")]
+    ]
+    
+    await query.edit_message_text(
+        message,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="MarkdownV2"
+    )
+    
+    return True
+
 async def handle_invest(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
     Handle the 'invest' button click
@@ -98,312 +151,280 @@ async def handle_explore_pools(update: Update, context: ContextTypes.DEFAULT_TYP
     
     return True
 
-async def handle_account(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """
-    Handle the 'account' button click
-    """
-    query = update.callback_query
-    if not query:
-        return False
-        
-    await query.answer()
-    user_id = update.effective_user.id if update.effective_user else 0
-    
-    logger.info(f"User {user_id} pressed account button")
-    
-    # Get user profile from database
-    user_profile = get_user_profile(user_id)
-    
-    # If user doesn't exist, create a new profile
-    if not user_profile:
-        user_profile = create_user_profile(
-            user_id=user_id,
-            username=update.effective_user.username or "unknown",
-            first_name=update.effective_user.first_name,
-            last_name=update.effective_user.last_name
-        )
-    
-    # Format user profile data
-    if user_profile:
-        message = (
-            f"*👤 Account Profile*\n\n"
-            f"Username: *{user_profile.get('username', 'Unknown')}*\n"
-            f"Risk Profile: *{user_profile.get('risk_profile', 'Moderate')}*\n"
-            f"Investment Horizon: *{user_profile.get('investment_horizon', 'Medium')}*\n"
-            f"Subscription: *{'Active' if user_profile.get('is_subscribed') else 'Not Active'}*\n"
-            f"Member Since: *{user_profile.get('created_at', 'N/A')}*\n\n"
-        )
-    else:
-        message = (
-            "*👤 Account Profile*\n\n"
-            "We couldn't retrieve your profile information\\. "
-            "Please try again later\\.\n\n"
-        )
-    
-    # Create account options keyboard
-    keyboard = [
-        [InlineKeyboardButton("💳 Wallet Settings", callback_data="wallet_settings")],
-        [InlineKeyboardButton("⚙️ Update Profile", callback_data="update_profile")],
-        [InlineKeyboardButton("🔔 Subscription Settings", callback_data="subscription_settings")],
-        [InlineKeyboardButton("⬅️ Back to Main Menu", callback_data="back_to_main")]
-    ]
-    
-    await query.edit_message_text(
-        message,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="MarkdownV2"
-    )
-    
-    return True
-
-async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handle the 'help' button click
     """
     query = update.callback_query
-    if not query:
-        return False
-        
     await query.answer()
-    user_id = update.effective_user.id if update.effective_user else 0
     
+    user_id = update.effective_user.id if update.effective_user else 0
     logger.info(f"User {user_id} pressed help button")
     
-    # Create help options keyboard
     keyboard = [
-        [InlineKeyboardButton("📚 Commands", callback_data="commands")],
+        [InlineKeyboardButton("📚 Getting Started", callback_data="help_getting_started")],
+        [InlineKeyboardButton("🔡 Command List", callback_data="help_commands")],
         [InlineKeyboardButton("❓ FAQ", callback_data="faq")],
-        [InlineKeyboardButton("📱 Contact Support", callback_data="contact")],
-        [InlineKeyboardButton("🔗 Social Links", callback_data="social")],
+        [InlineKeyboardButton("🌐 Visit Website", url="https://filot.ai")],
         [InlineKeyboardButton("⬅️ Back to Main Menu", callback_data="back_to_main")]
     ]
     
     await query.edit_message_text(
-        "*ℹ️ Help Center*\n\n"
-        "What can I help you with?\n\n"
-        "• *Commands*: List of available bot commands\n"
-        "• *FAQ*: Frequently asked questions\n"
-        "• *Contact Support*: Get in touch with our team\n"
-        "• *Social Links*: Our official social media accounts",
+        "*ℹ️ Help & Support*\n\n"
+        "What can we help you with today?\n\n"
+        "• *Getting Started*: Learn how to use FiLot bot\n"
+        "• *Command List*: See all available commands\n"
+        "• *FAQ*: Browse frequently asked questions\n"
+        "• *Visit Website*: View our full documentation",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="MarkdownV2"
+    )
+
+async def handle_back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'back_to_main' button click
+    """
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = update.effective_user.id if update.effective_user else 0
+    logger.info(f"User {user_id} pressed back to main menu button")
+    
+    # Create main menu keyboard
+    keyboard = [
+        [InlineKeyboardButton("💰 Invest", callback_data="invest")],
+        [InlineKeyboardButton("🧭 Explore Pools", callback_data="explore_pools")],
+        [InlineKeyboardButton("👤 My Account", callback_data="account")],
+        [InlineKeyboardButton("ℹ️ Help", callback_data="help")]
+    ]
+    
+    await query.edit_message_text(
+        "*🤖 FiLot - Your Agentic Financial Assistant*\n\n"
+        "Welcome to FiLot, your intelligent cryptocurrency investment companion.\n\n"
+        "What would you like to do today?",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="MarkdownV2"
     )
     
-    return True
+    # Update user's menu state
+    await set_menu_state(update, context, MenuType.MAIN)
 
-async def handle_smart_invest_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Handle smart_invest button press by redirecting to the conversation handler"""
+async def handle_wallet_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'wallet_settings' button click
+    """
     query = update.callback_query
-    if not query:
-        return False
-        
     await query.answer()
     
-    # First send a message to acknowledge
+    user_id = update.effective_user.id if update.effective_user else 0
+    logger.info(f"User {user_id} pressed wallet settings button")
+    
+    keyboard = [
+        [InlineKeyboardButton("🔌 Connect Wallet", callback_data="walletconnect")],
+        [InlineKeyboardButton("📝 Enter Address Manually", callback_data="enter_address")],
+        [InlineKeyboardButton("🔄 Refresh Wallet Data", callback_data="refresh_wallet")],
+        [InlineKeyboardButton("⬅️ Back to Account", callback_data="account")]
+    ]
+    
     await query.edit_message_text(
-        "Starting Smart Investment flow...\n\n"
-        "Please follow the prompts to get AI-powered investment recommendations."
+        "*💳 Wallet Settings*\n\n"
+        "Manage your wallet connections and settings.\n\n"
+        "• Connect your wallet to enable automated investment features\n"
+        "• Your wallet is connected in read-only mode for security\n"
+        "• FiLot never has access to your private keys",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="MarkdownV2"
     )
+
+async def handle_update_profile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'update_profile' button click
+    """
+    query = update.callback_query
+    await query.answer()
     
-    # Create a new message for the conversation handler to work with
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="/smart_invest"
+    user_id = update.effective_user.id if update.effective_user else 0
+    logger.info(f"User {user_id} pressed update profile button")
+    
+    keyboard = [
+        [InlineKeyboardButton("🎯 Update Risk Profile", callback_data="update_risk")],
+        [InlineKeyboardButton("⏱️ Update Investment Horizon", callback_data="update_horizon")],
+        [InlineKeyboardButton("🏆 Update Investment Goals", callback_data="update_goals")],
+        [InlineKeyboardButton("⬅️ Back to Account", callback_data="account")]
+    ]
+    
+    await query.edit_message_text(
+        "*⚙️ Update Profile*\n\n"
+        "Update your investment preferences and profile settings.\n\n"
+        "These settings help us provide personalized recommendations tailored to your investment style.",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="MarkdownV2"
     )
-    
-    return True
 
-async def handle_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+async def handle_subscription_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Handle callback queries from main menu buttons, returning True if handled
+    Handle the 'subscription_settings' button click
     """
-    if not update.callback_query:
-        return False
-        
-    data = update.callback_query.data
+    query = update.callback_query
+    await query.answer()
     
-    if data == "invest":
-        return await handle_invest(update, context)
-        
-    elif data == "explore_pools":
-        return await handle_explore_pools(update, context)
-        
-    elif data == "account":
-        return await handle_account(update, context)
-        
-    elif data == "help":
-        return await handle_help(update, context)
-        
-    elif data == "smart_invest":
-        return await handle_smart_invest_button(update, context)
-        
-    # If we reach here, the callback wasn't handled
-    logger.warning(f"Unhandled button callback: {data}")
-    return False
+    user_id = update.effective_user.id if update.effective_user else 0
+    logger.info(f"User {user_id} pressed subscription settings button")
+    
+    keyboard = [
+        [InlineKeyboardButton("🔔 Enable Notifications", callback_data="enable_notifications")],
+        [InlineKeyboardButton("🔕 Disable Notifications", callback_data="disable_notifications")],
+        [InlineKeyboardButton("📋 Notification Preferences", callback_data="notification_preferences")],
+        [InlineKeyboardButton("⬅️ Back to Account", callback_data="account")]
+    ]
+    
+    await query.edit_message_text(
+        "*🔔 Subscription Settings*\n\n"
+        "Manage your notification preferences and subscriptions.\n\n"
+        "Stay informed about market movements, pool performance, and investment opportunities.",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="MarkdownV2"
+    )
 
-# Database operations
-def get_high_apr_pools(limit: int = 3) -> List[Dict[str, Any]]:
-    """Get high APR pools from SolPool API with database fallback"""
-    try:
-        # First try to get data from SolPool API
-        api_pools = None
-        try:
-            api_pools = solpool_api.get_high_apr_pools(limit)
-        except Exception as api_error:
-            logger.warning(f"Error accessing SolPool API: {api_error}")
-        
-        if api_pools and len(api_pools) > 0:
-            logger.info(f"Successfully retrieved {len(api_pools)} high APR pools from SolPool API")
-            
-            # Convert to our expected format
-            result = []
-            for pool in api_pools:
-                result.append({
-                    'id': pool.get('id', ''),
-                    'token_a': pool.get('token_a_symbol', ''),
-                    'token_b': pool.get('token_b_symbol', ''),
-                    'apr_24h': pool.get('apr_24h', 0),  # This is annual APR
-                    'tvl': pool.get('tvl', 0),
-                    'volume_24h': pool.get('volume_24h', 0),
-                    'fee': pool.get('fee', 0),
-                    'prediction_score': pool.get('prediction_score', 0),
-                    'data_source': 'SolPool API'
-                })
-            return result
-            
-        # If API fails, fall back to database
-        logger.warning("Failed to get high APR pools from API, falling back to database")
-        with app.app_context():
-            pools = Pool.query.order_by(Pool.apr_24h.desc()).limit(limit).all()
-            
-            result = []
-            for pool in pools:
-                result.append({
-                    'id': pool.id,
-                    'token_a': pool.token_a_symbol,
-                    'token_b': pool.token_b_symbol,
-                    'apr_24h': pool.apr_24h or 0,  # This is annual APR
-                    'tvl': pool.tvl or 0,
-                    'volume_24h': pool.volume_24h or 0,
-                    'fee': pool.fee or 0,
-                    'data_source': 'Database'
-                })
-            
-            return result
-    except Exception as e:
-        logger.error(f"Error getting high APR pools: {e}")
-        return []
+async def handle_token_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'token_search' button click
+    """
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = update.effective_user.id if update.effective_user else 0
+    logger.info(f"User {user_id} pressed token search button")
+    
+    # List of popular tokens for quick search
+    keyboard = [
+        [
+            InlineKeyboardButton("SOL", callback_data="search_token_SOL"),
+            InlineKeyboardButton("USDC", callback_data="search_token_USDC"),
+            InlineKeyboardButton("ETH", callback_data="search_token_ETH")
+        ],
+        [
+            InlineKeyboardButton("USDT", callback_data="search_token_USDT"),
+            InlineKeyboardButton("BTC", callback_data="search_token_BTC"),
+            InlineKeyboardButton("BONK", callback_data="search_token_BONK")
+        ],
+        [InlineKeyboardButton("🔍 Custom Token Search", callback_data="custom_token_search")],
+        [InlineKeyboardButton("⬅️ Back to Explore", callback_data="explore_pools")]
+    ]
+    
+    await query.edit_message_text(
+        "*🔍 Search Pools by Token*\n\n"
+        "Find liquidity pools containing a specific token.\n\n"
+        "Select from popular tokens below or use custom search for other tokens:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="MarkdownV2"
+    )
 
-def get_pools(limit: int = 5) -> List[Dict[str, Any]]:
-    """Get pool data from SolPool API with database fallback"""
-    try:
-        # First try to get data from SolPool API
-        api_pools = None
-        try:
-            api_pools = solpool_api.get_pools(limit=limit)
-        except Exception as api_error:
-            logger.warning(f"Error accessing SolPool API: {api_error}")
-        
-        if api_pools and len(api_pools) > 0:
-            logger.info(f"Successfully retrieved {len(api_pools)} pools from SolPool API")
-            
-            # Convert to our expected format
-            result = []
-            for pool in api_pools:
-                result.append({
-                    'id': pool.get('id', ''),
-                    'token_a': pool.get('token_a_symbol', ''),
-                    'token_b': pool.get('token_b_symbol', ''),
-                    'apr_24h': pool.get('apr_24h', 0),  # This is annual APR
-                    'tvl': pool.get('tvl', 0),
-                    'volume_24h': pool.get('volume_24h', 0),
-                    'fee': pool.get('fee', 0),
-                    'dex': pool.get('dex', ''),
-                    'data_source': 'SolPool API'
-                })
-            return result
-            
-        # If API fails, fall back to database
-        logger.warning("Failed to get pools from API, falling back to database")
-        with app.app_context():
-            pools = Pool.query.order_by(Pool.apr_24h.desc()).limit(limit).all()
-            
-            result = []
-            for pool in pools:
-                result.append({
-                    'id': pool.id,
-                    'token_a': pool.token_a_symbol,
-                    'token_b': pool.token_b_symbol,
-                    'apr_24h': pool.apr_24h or 0,  # This is annual APR
-                    'tvl': pool.tvl or 0,
-                    'volume_24h': pool.volume_24h or 0,
-                    'fee': pool.fee or 0,
-                    'data_source': 'Database'
-                })
-            
-            return result
-    except Exception as e:
-        logger.error(f"Error getting pools: {e}")
-        return []
+async def handle_predictions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'predictions' button click
+    """
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = update.effective_user.id if update.effective_user else 0
+    logger.info(f"User {user_id} pressed predictions button")
+    
+    keyboard = [
+        [InlineKeyboardButton("📈 Rising Pools", callback_data="rising_pools")],
+        [InlineKeyboardButton("📉 Declining Pools", callback_data="declining_pools")],
+        [InlineKeyboardButton("🎯 Most Stable", callback_data="stable_pools")],
+        [InlineKeyboardButton("⬅️ Back to Explore", callback_data="explore_pools")]
+    ]
+    
+    await query.edit_message_text(
+        "*🔮 Pool Predictions & Analytics*\n\n"
+        "View AI-powered predictions on pool performance.\n\n"
+        "Our proprietary algorithms analyze historical data and market trends to predict pool performance over different time horizons.",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="MarkdownV2"
+    )
 
+async def handle_my_investments(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handle the 'my_investments' button click
+    """
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = update.effective_user.id if update.effective_user else 0
+    logger.info(f"User {user_id} pressed my investments button")
+    
+    # Check if user has wallet connected
+    has_wallet = False  # Replace with actual check
+    
+    if not has_wallet:
+        keyboard = [
+            [InlineKeyboardButton("🔌 Connect Wallet", callback_data="walletconnect")],
+            [InlineKeyboardButton("⬅️ Back to Invest", callback_data="invest")]
+        ]
+        
+        await query.edit_message_text(
+            "*💼 My Investments*\n\n"
+            "To view your investments, you need to connect your wallet first.\n\n"
+            "Connect your wallet to track your liquidity positions and investment performance.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="MarkdownV2"
+        )
+    else:
+        keyboard = [
+            [InlineKeyboardButton("📊 Performance Overview", callback_data="investment_performance")],
+            [InlineKeyboardButton("📋 Active Positions", callback_data="active_positions")],
+            [InlineKeyboardButton("📜 Transaction History", callback_data="transaction_history")],
+            [InlineKeyboardButton("⬅️ Back to Invest", callback_data="invest")]
+        ]
+        
+        await query.edit_message_text(
+            "*💼 My Investments*\n\n"
+            "View and manage your current investment positions.\n\n"
+            "Monitor performance, track active positions, and review your transaction history.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="MarkdownV2"
+        )
+
+# Helper functions (stubs)
 def get_user_profile(user_id: int) -> Optional[Dict[str, Any]]:
-    """Get user profile from database"""
+    """Get user profile from database - placeholder implementation"""
     try:
-        with app.app_context():
-            user = User.query.filter_by(id=user_id).first()
-            
-            if user:
-                return {
-                    'id': user.id,
-                    'username': user.username or 'Unknown',
-                    'risk_profile': user.risk_profile or 'moderate',
-                    'investment_horizon': user.investment_horizon or 'medium',
-                    'investment_goals': user.investment_goals or 'Not specified',
-                    'is_subscribed': user.is_subscribed or False,
-                    'created_at': user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A'
-                }
-            
-            return None
-    except Exception as e:
-        logger.error(f"Error getting user profile: {e}")
-        return None
-
-def create_user_profile(user_id: int, username: str, first_name: str = None, last_name: str = None) -> Dict[str, Any]:
-    """Create a new user profile in the database"""
-    try:
-        with app.app_context():
-            user = User(
-                id=user_id,
-                username=username,
-                first_name=first_name,
-                last_name=last_name,
-                risk_profile='moderate',
-                investment_horizon='medium',
-                created_at=datetime.datetime.utcnow()
-            )
-            
-            db.session.add(user)
-            db.session.commit()
-            
+        user = User.query.get(user_id)
+        if user:
             return {
-                'id': user.id,
-                'username': user.username or 'Unknown',
-                'risk_profile': user.risk_profile or 'moderate',
-                'investment_horizon': user.investment_horizon or 'medium',
-                'investment_goals': user.investment_goals or 'Not specified',
-                'is_subscribed': user.is_subscribed or False,
-                'created_at': user.created_at.strftime('%Y-%m-%d')
+                "username": user.username,
+                "risk_profile": user.risk_profile,
+                "investment_horizon": user.investment_horizon,
+                "is_subscribed": user.is_subscribed,
+                "created_at": user.created_at.strftime("%Y-%m-%d")
             }
     except Exception as e:
-        logger.error(f"Error creating user profile: {e}")
+        logger.error(f"Error getting user profile: {e}")
+    return None
+
+def create_user_profile(user_id: int, username: str = None, first_name: str = None, last_name: str = None) -> Optional[Dict[str, Any]]:
+    """Create a new user profile - placeholder implementation"""
+    try:
+        # Check if user already exists
+        user = User.query.get(user_id)
+        if user:
+            return get_user_profile(user_id)
+            
+        # Create new user
+        new_user = User(
+            id=user_id,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            is_subscribed=False,
+            created_at=datetime.datetime.utcnow()
+        )
+        db.session.add(new_user)
+        db.session.commit()
         
-        # Return fallback profile on error
-        return {
-            'id': user_id,
-            'username': username or 'Unknown',
-            'risk_profile': 'moderate',
-            'investment_horizon': 'medium',
-            'investment_goals': 'Not specified',
-            'is_subscribed': False,
-            'created_at': 'N/A'
-        }
+        return get_user_profile(user_id)
+    except Exception as e:
+        logger.error(f"Error creating user profile: {e}")
+        return None

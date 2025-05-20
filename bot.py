@@ -1661,7 +1661,28 @@ def create_application():
     from mood_tracking import get_mood_tracking_conversation_handler
     application.add_handler(get_mood_tracking_conversation_handler())
     
-    # Register callback query handler
+    # Import button handlers
+    from button_responses import (
+        handle_account, handle_invest, handle_explore_pools, handle_help,
+        handle_back_to_main, handle_wallet_settings, handle_update_profile,
+        handle_subscription_settings, handle_token_search, handle_predictions,
+        handle_my_investments
+    )
+    
+    # Register specific callback query handlers with patterns
+    application.add_handler(CallbackQueryHandler(handle_account, pattern="^account$"))
+    application.add_handler(CallbackQueryHandler(handle_invest, pattern="^invest$"))
+    application.add_handler(CallbackQueryHandler(handle_explore_pools, pattern="^explore_pools$"))
+    application.add_handler(CallbackQueryHandler(handle_help, pattern="^help$"))
+    application.add_handler(CallbackQueryHandler(handle_back_to_main, pattern="^back_to_main$"))
+    application.add_handler(CallbackQueryHandler(handle_wallet_settings, pattern="^wallet_settings$"))
+    application.add_handler(CallbackQueryHandler(handle_update_profile, pattern="^update_profile$"))
+    application.add_handler(CallbackQueryHandler(handle_subscription_settings, pattern="^subscription_settings$"))
+    application.add_handler(CallbackQueryHandler(handle_token_search, pattern="^token_search$"))
+    application.add_handler(CallbackQueryHandler(handle_predictions, pattern="^predictions$"))
+    application.add_handler(CallbackQueryHandler(handle_my_investments, pattern="^my_investments$"))
+    
+    # Register fallback callback query handler for any other patterns
     application.add_handler(CallbackQueryHandler(handle_callback_query))
     
     # Register message handler for non-command messages
