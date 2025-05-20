@@ -1042,7 +1042,12 @@ async def submit_signed_transaction(signature: str) -> Dict[str, Any]:
 
 
 async def create_investment_log(user_id: int, pool_id: str, amount: float, tx_hash: str, status: str,
-                            token_a_amount: float = None, token_b_amount: float = None, apr_at_entry: float = None) -> bool:
+                            token_a_amount: float = None, token_b_amount: float = None, 
+                            token_a_symbol: str = None, token_b_symbol: str = None,
+                            apr_at_entry: float = None, slippage_tolerance: float = None,
+                            price_impact: float = None, expected_lp_tokens: float = None,
+                            min_lp_tokens: float = None, actual_lp_tokens: float = None,
+                            notes: str = None) -> bool:
     """
     Create a log entry for an investment in the database
     
@@ -1054,7 +1059,15 @@ async def create_investment_log(user_id: int, pool_id: str, amount: float, tx_ha
         status: Transaction status
         token_a_amount: Amount of token A invested (optional)
         token_b_amount: Amount of token B invested (optional)
+        token_a_symbol: Symbol of token A (optional)
+        token_b_symbol: Symbol of token B (optional)
         apr_at_entry: APR at time of investment (optional)
+        slippage_tolerance: Maximum allowed slippage percentage (optional)
+        price_impact: Actual price impact percentage (optional)
+        expected_lp_tokens: Expected LP tokens (optional)
+        min_lp_tokens: Minimum acceptable LP tokens (optional)
+        actual_lp_tokens: Actual LP tokens received (optional)
+        notes: Additional notes or error messages (optional)
         
     Returns:
         True if successful, False otherwise
@@ -1072,7 +1085,15 @@ async def create_investment_log(user_id: int, pool_id: str, amount: float, tx_ha
             status=status,
             token_a_amount=token_a_amount,
             token_b_amount=token_b_amount,
+            token_a_symbol=token_a_symbol,
+            token_b_symbol=token_b_symbol,
             apr_at_entry=apr_at_entry,
+            slippage_tolerance=slippage_tolerance,
+            price_impact=price_impact,
+            expected_lp_tokens=expected_lp_tokens,
+            min_lp_tokens=min_lp_tokens,
+            actual_lp_tokens=actual_lp_tokens,
+            notes=notes,
             created_at=datetime.utcnow()
         )
         

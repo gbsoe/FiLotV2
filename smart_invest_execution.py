@@ -32,11 +32,13 @@ logger = logging.getLogger(__name__)
 # Define conversation states
 AMOUNT_INPUT = 1
 CONFIRM_INVESTMENT = 2
-PROCESSING_TRANSACTION = 3
+AWAITING_FINAL_CONFIRMATION = 3
+PROCESSING_TRANSACTION = 4
 
 # Regular expressions
 INVEST_POOL_PATTERN = r'^invest_now:(?P<pool_id>.+)$'
 CONFIRM_PATTERN = r'^confirm_invest:(?P<pool_id>.+):(?P<amount>\d+\.?\d*)$'
+EXECUTE_PATTERN = r'^execute_invest:(?P<pool_id>.+):(?P<amount>\d+\.?\d*)$'
 CHECK_TX_PATTERN = r'^check_tx:(?P<tx_hash>.+)$'
 
 async def start_investment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -433,6 +435,101 @@ async def handle_investment_confirmation(update: Update, context: ContextTypes.D
         )
         return ConversationHandler.END
     
+    # Get pool information and APR
+    pool_apr = pool_info.get('apr_24h', 0)
+    pool_tvl = pool_info.get('tvl', 0)
+    
+    # Set slippage tolerance (default 0.5%)
+    slippage_tolerance = 0.5
+    
+    # First, calculate token amounts to show in confirmation
+    from wallet_actions import calculate_token_amounts
+    token_calc_result = await calculate_token_amounts(pool_id, amount)
+    
+    if not token_calc_result or 'error' in token_calc_result:
+        # Handle calculation error
+        await query.edit_message_text(
+            "*❌ Calculation Error*\n\n"
+            "I couldn't calculate the token amounts for this investment. Please try again later.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("⬅️ Back to Pools", callback_data="pools")
+            ]]),
+            parse_mode="MarkdownV2"
+        )
+        return ConversationHandler.END
+    
+    # Extract token information
+    token_a_amount = token_calc_result.get('token_a_amount', 0)
+    token_b_amount = token_calc_result.get('token_b_amount', 0)
+    price_impact = token_calc_result.get('price_impact', 0)
+    
+    # Show detailed confirmation with token amounts and slippage
+    confirm_keyboard = [
+        [InlineKeyboardButton("✅ Confirm Transaction", callback_data=f"execute_invest:{pool_id}:{amount}")],
+        [InlineKeyboardButton("⬅️ Back to Pools", callback_data="pools")]
+    ]
+    
+    # Escape any special characters for MarkdownV2
+    pool_name_safe = pool_name.replace("-", "\\-").replace(".", "\\.")
+    token_a_safe = token_a.replace("-", "\\-").replace(".", "\\.")
+    token_b_safe = token_b.replace("-", "\\-").replace(".", "\\.")
+    
+    await query.edit_message_text(
+        f"*🔎 Investment Details*\n\n"
+        f"You're about to invest *${amount:.2f}* in the {pool_name_safe} pool.\n\n"
+        f"*Token Split:*\n"
+        f"• {token_a_amount:.6f} {token_a_safe}\n"
+        f"• {token_b_amount:.6f} {token_b_safe}\n\n"
+        f"*Transaction Details:*\n"
+        f"• Pool APR: {pool_apr:.2f}%\n"
+        f"• Price Impact: {price_impact:.2f}%\n"
+        f"• Slippage Tolerance: {slippage_tolerance:.2f}%\n\n"
+        f"Please confirm to proceed with the transaction.",
+        reply_markup=InlineKeyboardMarkup(confirm_keyboard),
+        parse_mode="MarkdownV2"
+    )
+    
+    # Return to wait for final confirmation
+    return AWAITING_FINAL_CONFIRMATION
+
+async def handle_execute_investment(update: Update, context: CallbackContext) -> int:
+    """Handle the final investment execution after user confirms the transaction details."""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = update.effective_user.id if update.effective_user else 0
+    
+    # Extract pool ID and amount from callback data
+    match = re.match(r"execute_invest:(?P<pool_id>[^:]+):(?P<amount>[\d\.]+)", query.data)
+    if not match:
+        logger.error(f"Invalid execution pattern: {query.data}")
+        return ConversationHandler.END
+        
+    pool_id = match.group("pool_id")
+    amount = float(match.group("amount"))
+    
+    # Get pool info from user data
+    pool_info = context.user_data.get("pool_info", {})
+    
+    # Format pool name
+    token_a = pool_info.get('token_a_symbol', 'Unknown')
+    token_b = pool_info.get('token_b_symbol', 'Unknown')
+    pool_name = f"{token_a}/{token_b}"
+    
+    # Get wallet status and address
+    wallet_status, wallet_address = get_wallet_status(user_id)
+    
+    if wallet_status != WalletConnectionStatus.CONNECTED or not wallet_address:
+        await query.edit_message_text(
+            "*❌ Wallet Connection Error*\n\n"
+            "Your wallet is no longer connected. Please reconnect your wallet and try again.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔌 Connect Wallet", callback_data="walletconnect")
+            ]]),
+            parse_mode="MarkdownV2"
+        )
+        return ConversationHandler.END
+    
     # Show processing message
     await query.edit_message_text(
         f"*⏳ Processing Investment*\n\n"
@@ -442,15 +539,27 @@ async def handle_investment_confirmation(update: Update, context: ContextTypes.D
         parse_mode="MarkdownV2"
     )
     
+    # Set slippage tolerance (default 0.5%)
+    slippage_tolerance = 0.5
+    
     # Execute the investment
     try:
-        # Call the investment execution function
-        result = execute_investment(wallet_address, pool_id, amount)
+        # Call the investment execution function with slippage tolerance
+        result = await execute_investment(wallet_address, pool_id, amount, slippage_tolerance)
         
         if result.get("success", False):
             # Transaction successful
             tx_hash = result.get("transaction_hash", "unknown")
             tx_link = result.get("tx_link", f"https://solscan.io/tx/{tx_hash}")
+            
+            # Get token amounts and transaction details
+            token_a_amount = result.get("token_a_amount", 0)
+            token_b_amount = result.get("token_b_amount", 0)
+            token_a_symbol = result.get("token_a_symbol", token_a)
+            token_b_symbol = result.get("token_b_symbol", token_b)
+            slippage_tolerance = result.get("slippage_tolerance", 0.5)
+            price_impact = result.get("price_impact", 0)
+            expected_lp_tokens = result.get("expected_lp_tokens", 0)
             
             # Store transaction information
             context.user_data["tx_hash"] = tx_hash
@@ -463,12 +572,43 @@ async def handle_investment_confirmation(update: Update, context: ContextTypes.D
                 [InlineKeyboardButton("⬅️ Back to Pools", callback_data="pools")]
             ]
             
-            await query.edit_message_text(
+            # Escape any special characters for MarkdownV2
+            pool_name_safe = pool_name.replace("-", "\\-").replace(".", "\\.")
+            token_a_safe = token_a_symbol.replace("-", "\\-").replace(".", "\\.")
+            token_b_safe = token_b_symbol.replace("-", "\\-").replace(".", "\\.")
+            
+            # Create success message with comprehensive details
+            success_message = (
                 f"*✅ Investment Initiated*\n\n"
-                f"Your investment of *${amount:.2f}* in the {pool_name} pool has been initiated.\n\n"
-                f"*Transaction Hash:* `{tx_hash[:10]}...{tx_hash[-6:]}`\n\n"
-                f"Please wait for the transaction to be confirmed on the Solana blockchain. "
-                f"You can check the status using the buttons below.",
+                f"Your investment of *${amount:.2f}* in the {pool_name_safe} pool has been initiated\\.\n\n"
+            )
+            
+            # Add token details
+            success_message += (
+                f"*Token Amounts:*\n"
+                f"• {token_a_amount:.6f} {token_a_safe}\n"
+                f"• {token_b_amount:.6f} {token_b_safe}\n\n"
+            )
+            
+            # Add transaction details
+            success_message += (
+                f"*Transaction Details:*\n"
+                f"• Transaction Hash: `{tx_hash[:10]}\\.\\.\\.{tx_hash[-6:]}`\n"
+                f"• Price Impact: {price_impact:.2f}%\n"
+                f"• Slippage Protection: {slippage_tolerance:.2f}%\n"
+            )
+            
+            # Add LP token info if available
+            if expected_lp_tokens > 0:
+                success_message += f"• Expected LP Tokens: {expected_lp_tokens:.6f}\n"
+                
+            success_message += (
+                f"\nPlease wait for the transaction to be confirmed on the Solana blockchain\\. "
+                f"You can check the status using the buttons below\\."
+            )
+            
+            await query.edit_message_text(
+                success_message,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="MarkdownV2"
             )
