@@ -156,16 +156,24 @@ See the [Development Roadmap](FiLot_Development_Roadmap.md) for detailed informa
 - [Project Summary](FiLot_Project_Summary.md): Overview of current status and next steps
 - [Agentic Investment Technical Specification](FiLot_Agentic_Investment_Technical_Spec.md): Technical details of the agentic investment system
 - [Implementation Plan](FiLot_Implementation_Plan.md): Phased approach to implementing agentic capabilities
+- [Production Ready Report](FILOT_PRODUCTION_READY_REPORT.md): Detailed report on transaction safety features
+- [Solana Transaction Integration](SOLANA_TRANSACTION_INTEGRATION.md): Documentation of real Solana transaction implementation
 
 ## Security
 
 FiLot implements comprehensive security measures:
 
 - Non-custodial architecture (users maintain control of funds)
-- WalletConnect for secure wallet integration
-- Read-only wallet access by default
-- Transaction limits and verification
-- Comprehensive logging and monitoring
+- WalletConnect v2 for secure wallet integration
+- Read-only wallet access by default with explicit transaction authorization
+- Production-grade transaction safety features:
+  - Default 0.5% slippage protection with minimum LP token calculation
+  - Price impact warnings for large transactions
+  - Comprehensive pre-transaction checks for wallet connection, pool validity, and investment limits
+  - Two-step confirmation process with detailed transaction information
+  - Complete transaction lifecycle management with failure handling
+- Enhanced transaction logging with detailed tracking for audit purposes
+- User-friendly error handling with clear recovery paths
 
 ## Contact Information
 
