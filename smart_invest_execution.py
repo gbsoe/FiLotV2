@@ -863,6 +863,10 @@ def get_investment_conversation_handler() -> ConversationHandler:
                 CallbackQueryHandler(start_investment, pattern=INVEST_POOL_PATTERN),  # Change amount
                 CallbackQueryHandler(cancel_investment, pattern=r'^pool:.+$')
             ],
+            AWAITING_FINAL_CONFIRMATION: [
+                CallbackQueryHandler(handle_execute_investment, pattern=EXECUTE_PATTERN),
+                CallbackQueryHandler(cancel_investment, pattern=r'^pools$')  # Back to pools
+            ],
             PROCESSING_TRANSACTION: [
                 CallbackQueryHandler(handle_check_transaction, pattern=CHECK_TX_PATTERN),
                 CallbackQueryHandler(lambda u, c: ConversationHandler.END, pattern=r'^pools$'),  # Back to pools
