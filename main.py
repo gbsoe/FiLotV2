@@ -39,9 +39,21 @@ from telegram.ext import (
 )
 
 # Import handlers
-from button_responses import handle_button_callback
 from smart_invest import get_smart_invest_conversation_handler, smart_invest_command
 from mood_tracking import get_mood_tracking_conversation_handler, mood_command
+
+# Import button response handlers
+from button_responses import (
+    handle_account, handle_invest, handle_explore_pools, handle_help,
+    handle_back_to_main, handle_wallet_settings, handle_update_profile,
+    handle_subscription_settings, handle_token_search, handle_predictions,
+    handle_my_investments, handle_smart_invest, handle_high_apr_pools,
+    handle_pool_info, handle_pool_detail, handle_token_search_result,
+    handle_rising_pools, handle_declining_pools, handle_stable_pools,
+    handle_custom_token_search, handle_enable_notifications, 
+    handle_disable_notifications, handle_notification_preferences,
+    handle_help_getting_started, handle_help_commands, handle_faq
+)
 
 # Import command handlers
 from bot import (
@@ -88,10 +100,53 @@ def run_telegram_bot():
         application.add_handler(get_mood_tracking_conversation_handler())
         
         # Register callback query handlers with specific patterns
-        application.add_handler(CallbackQueryHandler(handle_button_callback, pattern="^(invest|explore_pools|account|help)$"))
         
-        # Register a general callback query handler for other callbacks
-        application.add_handler(CallbackQueryHandler(handle_button_callback))
+        # Main navigation buttons
+        application.add_handler(CallbackQueryHandler(handle_account, pattern="^account$"))
+        application.add_handler(CallbackQueryHandler(handle_invest, pattern="^invest$"))
+        application.add_handler(CallbackQueryHandler(handle_explore_pools, pattern="^explore_pools$"))
+        application.add_handler(CallbackQueryHandler(handle_help, pattern="^help$"))
+        application.add_handler(CallbackQueryHandler(handle_back_to_main, pattern="^back_to_main$"))
+        
+        # Account/profile options
+        application.add_handler(CallbackQueryHandler(handle_wallet_settings, pattern="^wallet_settings$"))
+        application.add_handler(CallbackQueryHandler(handle_update_profile, pattern="^update_profile$"))
+        application.add_handler(CallbackQueryHandler(handle_subscription_settings, pattern="^subscription_settings$"))
+        
+        # Investment options
+        application.add_handler(CallbackQueryHandler(handle_smart_invest, pattern="^smart_invest$"))
+        application.add_handler(CallbackQueryHandler(handle_high_apr_pools, pattern="^high_apr$"))
+        application.add_handler(CallbackQueryHandler(handle_pool_info, pattern="^top_pools$"))
+        application.add_handler(CallbackQueryHandler(handle_my_investments, pattern="^my_investments$"))
+        
+        # Pool exploration
+        application.add_handler(CallbackQueryHandler(handle_pool_info, pattern="^pools$"))
+        application.add_handler(CallbackQueryHandler(handle_token_search, pattern="^token_search$"))
+        application.add_handler(CallbackQueryHandler(handle_predictions, pattern="^predictions$"))
+        
+        # Dynamic pattern handlers with regex
+        application.add_handler(CallbackQueryHandler(handle_pool_detail, pattern="^pool:"))
+        application.add_handler(CallbackQueryHandler(handle_token_search_result, pattern="^search_token_"))
+        application.add_handler(CallbackQueryHandler(handle_stable_pools, pattern="^stable_pools:"))
+        application.add_handler(CallbackQueryHandler(handle_high_apr_pools, pattern="^high_apr:"))
+        
+        # Pool predictions
+        application.add_handler(CallbackQueryHandler(handle_rising_pools, pattern="^rising_pools$"))
+        application.add_handler(CallbackQueryHandler(handle_declining_pools, pattern="^declining_pools$"))
+        application.add_handler(CallbackQueryHandler(handle_stable_pools, pattern="^stable_pools$"))
+        
+        # Notifications & subscriptions
+        application.add_handler(CallbackQueryHandler(handle_enable_notifications, pattern="^enable_notifications$"))
+        application.add_handler(CallbackQueryHandler(handle_disable_notifications, pattern="^disable_notifications$"))
+        application.add_handler(CallbackQueryHandler(handle_notification_preferences, pattern="^notification_preferences$"))
+        
+        # Help & FAQ
+        application.add_handler(CallbackQueryHandler(handle_help_getting_started, pattern="^help_getting_started$"))
+        application.add_handler(CallbackQueryHandler(handle_help_commands, pattern="^help_commands$"))
+        application.add_handler(CallbackQueryHandler(handle_faq, pattern="^faq$"))
+        
+        # Custom token search
+        application.add_handler(CallbackQueryHandler(handle_custom_token_search, pattern="^custom_token_search$"))
         
         # Register message handler as fallback for everything else
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
