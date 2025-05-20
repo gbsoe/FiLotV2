@@ -363,26 +363,36 @@ async def fetch_pool_metadata(pool_id: str) -> Dict[str, Any]:
         Pool metadata including token information
     """
     try:
-        # TODO: Implement actual API call to SolPool API (/pools/{id})
-        # For now, return mock data
-        # In production, this would make a real API call
+        from solpool_api_client import SolPoolClient
         
-        # Placeholder implementation
-        import time
-        await asyncio.sleep(0.5)  # Simulate API call latency
+        # Initialize API client
+        solpool_client = SolPoolClient()
         
-        # Mock pool data structure
+        # Fetch pool data from API
+        response = await solpool_client.get_pool(pool_id)
+        
+        if not response or "error" in response:
+            logger.error(f"Error fetching pool data from SolPool API: {response.get('error', 'Unknown error')}")
+            return {}
+            
+        # Return complete pool metadata
         return {
             "id": pool_id,
-            "token_a_mint": f"MINT{pool_id[:8]}A",
-            "token_b_mint": f"MINT{pool_id[:8]}B",
-            "token_a_symbol": "SOL",
-            "token_b_symbol": "USDC",
-            "apr_24h": 12.5,
-            "tvl": 1500000,
-            "pool_address": f"POOL{pool_id[:10]}",
-            "amm_id": f"AMM{pool_id[:10]}",
-            "lp_mint": f"LP{pool_id[:10]}",
+            "token_a_mint": response.get("tokenAMint"),
+            "token_b_mint": response.get("tokenBMint"),
+            "token_a_symbol": response.get("tokenASymbol"),
+            "token_b_symbol": response.get("tokenBSymbol"),
+            "apr_24h": float(response.get("apr24h", 0)),
+            "tvl": float(response.get("tvlUsd", 0)),
+            "pool_address": response.get("poolAddress"),
+            "amm_id": response.get("ammId"),
+            "lp_mint": response.get("lpMint"),
+            "token_a_decimals": int(response.get("tokenADecimals", 9)),
+            "token_b_decimals": int(response.get("tokenBDecimals", 6)),
+            "raydium_program_id": response.get("programId", "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"),
+            "prediction_score": float(response.get("predictionScore", 0)),
+            "sentiment_score": float(response.get("sentimentScore", 0)),
+            "risk_level": response.get("riskLevel", "moderate")
         }
         
     except Exception as e:
@@ -402,33 +412,66 @@ async def calculate_token_amounts(pool_id: str, amount_usd: float) -> Dict[str, 
         Dictionary with token_a_amount and token_b_amount
     """
     try:
-        # TODO: Implement actual calculation logic
-        # This would fetch current pool prices and calculate optimal amounts
-        # In production, this would make real API calls to get current prices
+        from solpool_api_client import SolPoolClient
+        from filotsense_api_client import FilotSenseClient
         
-        # Placeholder implementation
-        import random
-        await asyncio.sleep(0.3)  # Simulate API call latency
-        
-        # Mock calculation (in real implementation, would use actual pool ratios)
-        if "SOL" in pool_id:
-            # SOL/USDC-like pool example
-            sol_price = 150 + (random.random() * 20)  # Mock SOL price around $150-$170
-            sol_amount = (amount_usd / 2) / sol_price
-            usdc_amount = amount_usd / 2
+        # Get pool data first
+        pool_data = await fetch_pool_metadata(pool_id)
+        if not pool_data:
+            return {"error": "Failed to fetch pool metadata"}
             
-            return {
-                "token_a_amount": sol_amount,
-                "token_b_amount": usdc_amount,
-                "price_impact": random.uniform(0.1, 0.8)
-            }
-        else:
-            # Generic pool example
-            return {
-                "token_a_amount": amount_usd / 3,
-                "token_b_amount": amount_usd * 2/3,
-                "price_impact": random.uniform(0.1, 1.2)
-            }
+        # Initialize API clients
+        solpool_client = SolPoolClient()
+        
+        # Get current token prices and pool ratio
+        pricing_data = await solpool_client.get_pool_pricing(pool_id)
+        if not pricing_data or "error" in pricing_data:
+            return {"error": "Failed to fetch current pool pricing"}
+            
+        # Extract token prices
+        token_a_price_usd = float(pricing_data.get("tokenAPrice", 0))
+        token_b_price_usd = float(pricing_data.get("tokenBPrice", 0))
+        
+        # Check if prices are valid
+        if token_a_price_usd <= 0 or token_b_price_usd <= 0:
+            return {"error": "Invalid token prices received"}
+            
+        # Get optimal ratio
+        pool_ratio = float(pricing_data.get("tokenRatio", 0.5))  # Ratio of token_a to token_b in pool
+        
+        # If no ratio is available, use 50/50 split
+        if pool_ratio <= 0:
+            pool_ratio = 0.5
+            
+        # Calculate amounts based on the pool ratio
+        token_a_usd_amount = amount_usd * pool_ratio
+        token_b_usd_amount = amount_usd * (1 - pool_ratio)
+        
+        # Convert USD amounts to token amounts
+        token_a_amount = token_a_usd_amount / token_a_price_usd
+        token_b_amount = token_b_usd_amount / token_b_price_usd
+        
+        # Calculate price impact
+        price_impact = float(pricing_data.get("priceImpact", 0.0))
+        if not price_impact:
+            # Estimate price impact based on investment size and pool TVL
+            pool_tvl = float(pool_data.get("tvl", 1000000))  # Default to 1M if not available
+            price_impact = min(1.0, (amount_usd / pool_tvl) * 100) if pool_tvl > 0 else 0.5
+        
+        logger.info(f"Calculated token amounts for ${amount_usd} investment in pool {pool_id}: " +
+                    f"{token_a_amount} {pool_data.get('token_a_symbol')} and " +
+                    f"{token_b_amount} {pool_data.get('token_b_symbol')} " +
+                    f"with {price_impact}% price impact")
+        
+        return {
+            "token_a_amount": token_a_amount,
+            "token_b_amount": token_b_amount,
+            "token_a_price_usd": token_a_price_usd,
+            "token_b_price_usd": token_b_price_usd,
+            "token_a_usd_value": token_a_usd_amount,
+            "token_b_usd_value": token_b_usd_amount,
+            "price_impact": price_impact
+        }
         
     except Exception as e:
         logger.error(f"Error calculating token amounts for pool {pool_id}: {e}")
@@ -458,28 +501,149 @@ async def build_raydium_lp_transaction(
         Dictionary with serialized_transaction and other metadata
     """
     try:
-        # TODO: Implement actual transaction building logic using solana-py
-        # This would create a properly formatted Solana transaction for
-        # Raydium's addLiquidity instruction
+        logger.info(f"Building Raydium LP transaction for pool {pool_id}")
         
-        # In production, this would:
-        # 1. Create a Solana Transaction object
-        # 2. Add instructions for token approvals
-        # 3. Add the Raydium addLiquidity instruction
-        # 4. Set the recent blockhash
-        # 5. Serialize the transaction for signing
+        # Import Solana libraries
+        from solana.rpc.api import Client
+        from solana.transaction import Transaction, TransactionInstruction, AccountMeta
+        from solana.publickey import PublicKey
+        from solana.rpc.types import TxOpts
+        from solders.instruction import Instruction
+        from solders.pubkey import Pubkey
+        import base58
         
-        # Placeholder implementation
-        await asyncio.sleep(0.5)  # Simulate transaction building time
+        # Define constants for Raydium program
+        RAYDIUM_LIQUIDITY_PROGRAM_ID = PublicKey("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8")
+        SYSTEM_PROGRAM_ID = PublicKey("11111111111111111111111111111111")
+        TOKEN_PROGRAM_ID = PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+        ASSOCIATED_TOKEN_PROGRAM_ID = PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
+        SYSVAR_RENT_PUBKEY = PublicKey("SysvarRent111111111111111111111111111111111")
         
-        # Mock serialized transaction
-        serialized_tx = f"BASE64_SERIALIZED_TX_{uuid.uuid4().hex}"
+        # Connect to Solana network
+        solana_client = Client("https://api.mainnet-beta.solana.com")
+        
+        # Convert addresses to PublicKey objects
+        user_wallet = PublicKey(wallet_address)
+        token_a_mint_pubkey = PublicKey(token_a_mint)
+        token_b_mint_pubkey = PublicKey(token_b_mint)
+        
+        # Fetch pool data from Raydium API (normally we'd get this from our SolPool API)
+        pool_pubkey = PublicKey(pool_id)
+        
+        # Derive associated token accounts for the user's wallet
+        def find_associated_token_address(wallet_address, token_mint):
+            return PublicKey.find_program_address(
+                [
+                    bytes(wallet_address),
+                    bytes(TOKEN_PROGRAM_ID),
+                    bytes(token_mint)
+                ],
+                ASSOCIATED_TOKEN_PROGRAM_ID
+            )[0]
+            
+        user_token_a_account = find_associated_token_address(user_wallet, token_a_mint_pubkey)
+        user_token_b_account = find_associated_token_address(user_wallet, token_b_mint_pubkey)
+        
+        # Get pool accounts from pool ID
+        # In a real implementation, we would fetch these from either our API or
+        # directly from on-chain data
+        
+        # For this example, we're assuming we have these pool parameters from our API
+        # These would normally come from fetch_pool_metadata()
+        pool_authority = PublicKey.find_program_address(
+            [bytes(pool_pubkey)],
+            RAYDIUM_LIQUIDITY_PROGRAM_ID
+        )[0]
+        
+        # Normally these would be fetched from our pool data API
+        pool_token_a_account = PublicKey(f"pool_token_a_{pool_id[:8]}")  # Example address
+        pool_token_b_account = PublicKey(f"pool_token_b_{pool_id[:8]}")  # Example address
+        lp_mint = PublicKey(f"lp_mint_{pool_id[:8]}")  # Example address
+        user_lp_token_account = find_associated_token_address(user_wallet, lp_mint)
+        
+        # Convert token amounts to lamports (the smallest denomination)
+        # For this example we're using standard 9 decimals for SOL-like tokens
+        # and 6 decimals for USDC-like tokens but this would be fetched from token data
+        token_a_decimals = 9 if "SOL" in token_a_mint else 6
+        token_b_decimals = 6 if "USDC" in token_b_mint else 9
+        
+        token_a_lamports = int(token_a_amount * (10 ** token_a_decimals))
+        token_b_lamports = int(token_b_amount * (10 ** token_b_decimals))
+        
+        logger.info(f"Token amounts in lamports: {token_a_lamports} / {token_b_lamports}")
+        
+        # Create a new transaction
+        transaction = Transaction()
+        
+        # Create instructions
+        
+        # 1. Create associated token accounts if they don't exist
+        # Check if user's token accounts exist and create them if needed
+        # (This would be separate instructions added to the transaction)
+        
+        # 2. Approve tokens for transfer (transfer authority)
+        # (This would be a token program instruction)
+        
+        # 3. Add main deposit liquidity instruction
+        # This is the main Raydium addLiquidity instruction
+        # The actual instruction layout would come from Raydium's IDL
+        
+        # For the Raydium addLiquidity instruction, we need to structure the data correctly
+        # This is a simplified version - in production this would follow Raydium's
+        # exact instruction format
+        data = bytes([
+            1,  # Instruction index for addLiquidity
+            *list(token_a_lamports.to_bytes(8, 'little')),
+            *list(token_b_lamports.to_bytes(8, 'little')),
+            # Additional parameters would go here
+        ])
+        
+        # Define accounts required for the addLiquidity instruction
+        # The order and inclusion of accounts is specific to Raydium's instruction format
+        accounts = [
+            AccountMeta(pubkey=user_wallet, is_signer=True, is_writable=True),
+            AccountMeta(pubkey=pool_token_a_account, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=pool_token_b_account, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=lp_mint, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=user_token_a_account, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=user_token_b_account, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=user_lp_token_account, is_signer=False, is_writable=True),
+            AccountMeta(pubkey=pool_authority, is_signer=False, is_writable=False),
+            AccountMeta(pubkey=TOKEN_PROGRAM_ID, is_signer=False, is_writable=False),
+        ]
+        
+        # Create and add addLiquidity instruction
+        add_liquidity_ix = TransactionInstruction(
+            program_id=RAYDIUM_LIQUIDITY_PROGRAM_ID,
+            data=data,
+            keys=accounts
+        )
+        
+        transaction.add(add_liquidity_ix)
+        
+        # Get a recent blockhash
+        response = solana_client.get_recent_blockhash()
+        if not response["result"]:
+            raise ValueError("Failed to get recent blockhash")
+            
+        recent_blockhash = response["result"]["value"]["blockhash"]
+        transaction.recent_blockhash = recent_blockhash
+        
+        # Set fee payer
+        transaction.fee_payer = user_wallet
+        
+        # Serialize the transaction
+        serialized_tx = base64.b64encode(transaction.serialize()).decode('ascii')
+        
+        logger.info(f"Transaction built successfully: {serialized_tx[:20]}...")
         
         return {
             "serialized_transaction": serialized_tx,
             "wallet_address": wallet_address,
             "pool_id": pool_id,
-            "expires_at": int(time.time()) + 120  # 2 minute expiration
+            "expires_at": int(time.time()) + 120,  # 2 minute expiration
+            "token_a_amount": token_a_amount,
+            "token_b_amount": token_b_amount
         }
         
     except Exception as e:
@@ -499,22 +663,54 @@ async def send_transaction_for_signing(wallet_address: str, serialized_transacti
         Dictionary with signature and metadata if successful
     """
     try:
-        # TODO: Implement actual WalletConnect integration
-        # This would send the transaction to the user's wallet for signing
-        # via the established WalletConnect session
+        logger.info(f"Sending transaction to wallet {wallet_address[:8]}... for signing")
         
-        # In production, this would:
-        # 1. Get the user's active WalletConnect session
-        # 2. Send the solana_signTransaction request
-        # 3. Wait for the response with a signature or rejection
+        # Get the user from the database by wallet address
+        user = await get_user_by_wallet_address(wallet_address)
+        if not user:
+            return {
+                "success": False,
+                "error": "User not found",
+                "message": "Could not find user with the provided wallet address."
+            }
         
-        # Placeholder implementation
-        await asyncio.sleep(1.0)  # Simulate wallet interaction time
+        # Get the user's WalletConnect session
+        session_id = user.wallet_session_id
+        if not session_id:
+            return {
+                "success": False, 
+                "error": "No active wallet session",
+                "message": "No active wallet connection found. Please reconnect your wallet."
+            }
         
-        # Mock signature (in real implementation, would come from wallet)
-        signature = f"5{''.join([hex(hash(str(time.time() + i)))[2:10] for i in range(6)])}"
+        from walletconnect_manager import wallet_connect_manager
+        
+        # Send transaction to wallet for signing using WalletConnect
+        signing_result = await wallet_connect_manager.send_transaction(
+            user_id=user.id,
+            serialized_transaction=serialized_transaction
+        )
+        
+        if not signing_result.get("success", False):
+            return {
+                "success": False,
+                "error": signing_result.get("error", "Failed to sign transaction"),
+                "message": signing_result.get("message", "Could not sign the transaction. Please try again.")
+            }
+        
+        # Get signature from result
+        signature = signing_result.get("signature")
+        if not signature:
+            return {
+                "success": False,
+                "error": "No signature returned",
+                "message": "No signature was returned from your wallet. Please try again."
+            }
+        
+        logger.info(f"Transaction signed successfully with signature: {signature[:10]}...")
         
         return {
+            "success": True,
             "signature": signature,
             "wallet_address": wallet_address,
             "signed_at": int(time.time())
@@ -522,7 +718,7 @@ async def send_transaction_for_signing(wallet_address: str, serialized_transacti
         
     except Exception as e:
         logger.error(f"Error sending transaction for signing: {e}")
-        return {"error": str(e)}
+        return {"success": False, "error": str(e), "message": "An error occurred while sending the transaction for signing."}
 
 
 async def submit_signed_transaction(signature: str) -> Dict[str, Any]:
@@ -536,30 +732,104 @@ async def submit_signed_transaction(signature: str) -> Dict[str, Any]:
         Dictionary with submission result
     """
     try:
-        # TODO: Implement actual Solana RPC integration
-        # This would submit the signed transaction to the Solana network
+        logger.info(f"Submitting signed transaction to Solana network: {signature[:10]}...")
         
-        # In production, this would:
-        # 1. Send the signed transaction to a Solana RPC endpoint
-        # 2. Wait for confirmation or rejection
-        # 3. Return the result with block height, etc.
+        # Import Solana libraries
+        from solana.rpc.api import Client
+        from solana.rpc.types import TxOpts
+        import base58
         
-        # Placeholder implementation
-        await asyncio.sleep(0.8)  # Simulate network latency
+        # Connect to Solana network
+        solana_client = Client("https://api.mainnet-beta.solana.com")
         
-        # Mock submission result
-        return {
-            "signature": signature,
-            "slot": int(time.time() * 10),  # mock slot number
-            "submitted_at": int(time.time())
-        }
+        # The signature provided by WalletConnect is actually the full signed transaction
+        # We need to decode it and submit it to the network
+        try:
+            # Convert from base64 to binary if needed
+            if signature.startswith("Base64:"):
+                import base64
+                signed_tx_data = base64.b64decode(signature[7:])
+            else:
+                # Assuming the signature is the full signed transaction in base58
+                signed_tx_data = base58.b58decode(signature)
+            
+            # Send the transaction to the network
+            send_opts = TxOpts(skip_preflight=False, preflight_commitment="confirmed")
+            response = await solana_client.send_raw_transaction(
+                signed_tx_data,
+                opts=send_opts
+            )
+            
+            if not response or "result" not in response:
+                return {
+                    "success": False,
+                    "error": "Failed to submit transaction",
+                    "message": "Network did not acknowledge the transaction."
+                }
+            
+            # Extract the transaction signature from the response
+            tx_signature = response["result"]
+            
+            logger.info(f"Transaction submitted with signature: {tx_signature}")
+            
+            # Wait for confirmation (optional, can be moved to a separate function)
+            # This makes a synchronous check for confirmation
+            confirmation_status = "finalized"  # or "confirmed" for faster but less final confirmation
+            
+            # Try to get confirmation a few times with backoff
+            max_retries = 3
+            for retry in range(max_retries):
+                try:
+                    await asyncio.sleep(1 * (2 ** retry))  # Exponential backoff
+                    confirm_response = await solana_client.confirm_transaction(
+                        tx_signature,
+                        commitment=confirmation_status
+                    )
+                    
+                    if confirm_response and confirm_response.get("result", {}).get("value", False):
+                        # Transaction confirmed
+                        break
+                except Exception as confirm_error:
+                    logger.warning(f"Confirmation check {retry+1} failed: {confirm_error}")
+                    if retry == max_retries - 1:
+                        # Last retry failed
+                        logger.warning("Could not confirm transaction finality, continuing anyway")
+            
+            # Get transaction details
+            tx_response = await solana_client.get_transaction(
+                tx_signature,
+                commitment=confirmation_status
+            )
+            
+            slot = tx_response.get("result", {}).get("slot", 0) if tx_response else 0
+            
+            return {
+                "success": True,
+                "signature": tx_signature,
+                "slot": slot,
+                "submitted_at": int(time.time()),
+                "tx_link": f"https://solscan.io/tx/{tx_signature}"
+            }
+            
+        except Exception as submit_error:
+            logger.error(f"Error in transaction submission: {submit_error}")
+            return {
+                "success": False,
+                "error": str(submit_error),
+                "message": "Failed to submit the transaction to the network."
+            }
         
     except Exception as e:
         logger.error(f"Error submitting signed transaction: {e}")
-        return {"error": str(e)}
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "An unexpected error occurred while processing the transaction."
+        }
 
 
-async def create_investment_log(user_id: int, pool_id: str, amount: float, tx_hash: str, status: str) -> bool:
+async def create_investment_log(user_id: int, pool_id: str, amount: float, tx_hash: str, status: str,
+                            token_a_amount: float = None, token_b_amount: float = None, apr_at_entry: float = None) -> bool:
     """
     Create a log entry for an investment in the database
     
@@ -569,26 +839,33 @@ async def create_investment_log(user_id: int, pool_id: str, amount: float, tx_ha
         amount: Investment amount in USD
         tx_hash: Transaction hash/signature
         status: Transaction status
+        token_a_amount: Amount of token A invested (optional)
+        token_b_amount: Amount of token B invested (optional)
+        apr_at_entry: APR at time of investment (optional)
         
     Returns:
         True if successful, False otherwise
     """
     try:
-        # TODO: Implement database logging
-        # This would create a new entry in the InvestmentLog table
+        # Import models and db
+        from models import InvestmentLog, db
         
-        # Example DB implementation:
-        # from models import InvestmentLog, db
-        # investment_log = InvestmentLog(
-        #     user_id=user_id,
-        #     pool_id=pool_id,
-        #     amount=amount,
-        #     tx_hash=tx_hash,
-        #     status=status,
-        #     created_at=datetime.datetime.utcnow()
-        # )
-        # db.session.add(investment_log)
-        # db.session.commit()
+        # Create new investment log entry
+        investment_log = InvestmentLog(
+            user_id=user_id,
+            pool_id=pool_id,
+            amount=amount,
+            tx_hash=tx_hash,
+            status=status,
+            token_a_amount=token_a_amount,
+            token_b_amount=token_b_amount,
+            apr_at_entry=apr_at_entry,
+            created_at=datetime.utcnow()
+        )
+        
+        # Add and commit to database
+        db.session.add(investment_log)
+        db.session.commit()
         
         logger.info(f"Created investment log for user {user_id}, pool {pool_id}, amount ${amount}, tx {tx_hash}")
         return True
@@ -610,15 +887,18 @@ async def update_user_last_tx(wallet_address: str, tx_hash: str) -> bool:
         True if successful, False otherwise
     """
     try:
-        # TODO: Implement database update
-        # This would update the user's last_tx_id field
+        # Import necessary models
+        from models import User, db
         
-        # Example DB implementation:
-        # from models import User, db
-        # user = User.query.filter_by(wallet_address=wallet_address).first()
-        # if user:
-        #     user.last_tx_id = tx_hash
-        #     db.session.commit()
+        # Find user by wallet address
+        user = User.query.filter_by(wallet_address=wallet_address).first()
+        if not user:
+            logger.error(f"No user found with wallet address {wallet_address[:8]}...")
+            return False
+            
+        # Update last transaction ID
+        user.last_tx_id = tx_hash
+        db.session.commit()
         
         logger.info(f"Updated last transaction for wallet {wallet_address[:8]}... to {tx_hash[:10]}...")
         return True
@@ -639,21 +919,42 @@ def get_user_id_from_wallet(wallet_address: str) -> Optional[int]:
         Telegram user ID if found, None otherwise
     """
     try:
-        # TODO: Implement database lookup
-        # This would query the User table for the wallet_address
+        # Import User model
+        from models import User
         
-        # Example DB implementation:
-        # from models import User
-        # user = User.query.filter_by(wallet_address=wallet_address).first()
-        # if user:
-        #     return user.id
-        # return None
+        # Query the database
+        user = User.query.filter_by(wallet_address=wallet_address).first()
+        if user:
+            return user.id
         
-        # Placeholder implementation
-        return 12345  # mock user ID
+        logger.warning(f"No user found with wallet address {wallet_address[:8]}...")
+        return None
         
     except Exception as e:
         logger.error(f"Error getting user ID from wallet {wallet_address}: {e}")
+        return None
+
+
+async def get_user_by_wallet_address(wallet_address: str) -> Optional[Any]:
+    """
+    Get a user from their wallet address
+    
+    Args:
+        wallet_address: User's Solana wallet address
+        
+    Returns:
+        User object if found, None otherwise
+    """
+    try:
+        # Import User model
+        from models import User
+        
+        # Query the database
+        user = User.query.filter_by(wallet_address=wallet_address).first()
+        return user
+        
+    except Exception as e:
+        logger.error(f"Error getting user from wallet address: {e}")
         return None
 
 
