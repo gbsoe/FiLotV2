@@ -52,8 +52,23 @@ from button_responses import (
     handle_rising_pools, handle_declining_pools, handle_stable_pools,
     handle_custom_token_search, handle_enable_notifications, 
     handle_disable_notifications, handle_notification_preferences,
-    handle_help_getting_started, handle_help_commands, handle_faq
+    handle_help_getting_started, handle_help_commands, handle_faq,
+    handle_faq_filot, handle_faq_pools, handle_faq_apr, 
+    handle_faq_impermanent_loss, handle_faq_wallet_security,
+    handle_toggle_notif_market, handle_toggle_notif_apr,
+    handle_toggle_notif_price, handle_toggle_notif_prediction
 )
+
+# Import token search conversation flow
+from token_search import get_token_search_conversation_handler
+
+# Import wallet and investment execution
+from wallet_actions import (
+    get_wallet_status, connect_wallet, disconnect_wallet,
+    initiate_wallet_connection, check_connection_status,
+    execute_investment, check_transaction_status
+)
+from smart_invest_execution import get_investment_conversation_handler
 
 # Import command handlers
 from bot import (
@@ -98,6 +113,8 @@ def run_telegram_bot():
         # Register conversation handlers
         application.add_handler(get_smart_invest_conversation_handler())
         application.add_handler(get_mood_tracking_conversation_handler())
+        application.add_handler(get_token_search_conversation_handler())
+        application.add_handler(get_investment_conversation_handler())
         
         # Register callback query handlers with specific patterns
         
@@ -144,6 +161,17 @@ def run_telegram_bot():
         application.add_handler(CallbackQueryHandler(handle_help_getting_started, pattern="^help_getting_started$"))
         application.add_handler(CallbackQueryHandler(handle_help_commands, pattern="^help_commands$"))
         application.add_handler(CallbackQueryHandler(handle_faq, pattern="^faq$"))
+        application.add_handler(CallbackQueryHandler(handle_faq_filot, pattern="^faq_filot$"))
+        application.add_handler(CallbackQueryHandler(handle_faq_pools, pattern="^faq_pools$"))
+        application.add_handler(CallbackQueryHandler(handle_faq_apr, pattern="^faq_apr$"))
+        application.add_handler(CallbackQueryHandler(handle_faq_impermanent_loss, pattern="^faq_impermanent_loss$"))
+        application.add_handler(CallbackQueryHandler(handle_faq_wallet_security, pattern="^faq_wallet_security$"))
+        
+        # Notification toggles
+        application.add_handler(CallbackQueryHandler(handle_toggle_notif_market, pattern="^toggle_notif_market$"))
+        application.add_handler(CallbackQueryHandler(handle_toggle_notif_apr, pattern="^toggle_notif_apr$"))
+        application.add_handler(CallbackQueryHandler(handle_toggle_notif_price, pattern="^toggle_notif_price$"))
+        application.add_handler(CallbackQueryHandler(handle_toggle_notif_prediction, pattern="^toggle_notif_prediction$"))
         
         # Custom token search
         application.add_handler(CallbackQueryHandler(handle_custom_token_search, pattern="^custom_token_search$"))
