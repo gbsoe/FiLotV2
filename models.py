@@ -280,9 +280,24 @@ class InvestmentLog(db.Model):
     amount = Column(Float, nullable=False)  # Amount in USD
     tx_hash = Column(String(100), nullable=False)  # Transaction signature/hash
     status = Column(String(20), nullable=False)  # confirming, confirmed, failed, etc.
+    
+    # Token amounts and symbols
     token_a_amount = Column(Float, nullable=True)  # Amount of token A invested
     token_b_amount = Column(Float, nullable=True)  # Amount of token B invested
+    token_a_symbol = Column(String(20), nullable=True)  # Symbol of token A
+    token_b_symbol = Column(String(20), nullable=True)  # Symbol of token B
+    
+    # Investment parameters and metrics
     apr_at_entry = Column(Float, nullable=True)  # APR at time of investment
+    slippage_tolerance = Column(Float, nullable=True)  # Slippage tolerance in percentage
+    price_impact = Column(Float, nullable=True)  # Actual price impact in percentage
+    
+    # LP token information
+    expected_lp_tokens = Column(Float, nullable=True)  # Expected LP tokens
+    min_lp_tokens = Column(Float, nullable=True)  # Minimum acceptable LP tokens (with slippage)
+    actual_lp_tokens = Column(Float, nullable=True)  # Actual LP tokens received
+    
+    # Metadata
     notes = Column(Text, nullable=True)  # Optional notes or error messages
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

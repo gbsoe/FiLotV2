@@ -1,0 +1,46 @@
+FiLot now executes real Solana transactions via WalletConnect and Raydium LP deposits.
+
+The transaction flow, wallet integration, and database logging are complete.
+
+To finalize this as a production-ready DeFi bot, please:
+
+---
+
+### WHAT TO IMPROVE:
+
+#### 1. Add **slippage tolerance** to `build_raydium_lp_transaction()`:
+- Support a default slippage of 0.5% (50 basis points)
+- Add optional `min_lp_tokens` param
+- Show slippage value in confirmation UI
+
+#### 2. Add **pre-checks** in `execute_investment()`:
+- Ensure:
+  - Wallet is connected
+  - User has sufficient token A & B balances
+  - Pool is active
+  - Transaction won’t exceed size/RPC limits
+
+#### 3. Enhance Telegram **confirmation screen** before investing:
+- In `handle_confirm_smart_investment()`:
+  - Show user:
+    - Token A/B split in real units
+    - Pool name, APR
+    - Estimated LP tokens
+    - Slippage applied
+
+#### 4. Improve **error handling**:
+- If user cancels in wallet, mark `InvestmentLog` as `"failed"` and note `"user rejected"`
+- If Solana RPC errors, include `"RPC error"` in notes
+- Add `try/except` block around `submit_signed_transaction()`
+
+---
+
+### OUTPUT
+
+Return:
+- Updated `wallet_actions.py` with these improvements
+- Improved confirmation UI in `button_responses.py` or `smart_invest.py`
+- Changes to `models.py` if logging slippage or LP token estimates
+- Any added helper methods for slippage, price checks, or balance validation
+
+This will complete FiLot’s transformation into a production-grade, agentic DeFi Telegram bot.

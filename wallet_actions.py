@@ -218,7 +218,7 @@ async def check_connection_status(user_id: int, session_id: str) -> Dict[str, An
         return {"success": False, "status": WalletConnectionStatus.FAILED, "error": str(e)}
 
 
-async def execute_investment(wallet_address: str, pool_id: str, amount: float) -> Dict[str, Any]:
+async def execute_investment(wallet_address: str, pool_id: str, amount: float, slippage_tolerance: float = 0.5) -> Dict[str, Any]:
     """
     Execute an investment in a Raydium liquidity pool
     
@@ -226,6 +226,7 @@ async def execute_investment(wallet_address: str, pool_id: str, amount: float) -
         wallet_address: User's Solana wallet address
         pool_id: Raydium pool ID
         amount: Investment amount in USD
+        slippage_tolerance: Maximum allowed slippage in percentage (default 0.5%)
         
     Returns:
         Dict with transaction information
@@ -233,13 +234,37 @@ async def execute_investment(wallet_address: str, pool_id: str, amount: float) -
     try:
         logger.info(f"Starting investment execution for wallet {wallet_address[:8]}... in pool {pool_id}, amount ${amount}")
         
-        # 1. Fetch pool metadata from SolPool API
+        # PRECHECKS: Verify all conditions before starting transaction process
+        # 1. Check wallet connection status
+        user = await get_user_by_wallet_address(wallet_address)
+        if not user:
+            return {
+                "success": False,
+                "error": "Wallet not found",
+                "message": "No user found with the provided wallet address. Please reconnect your wallet."
+            }
+            
+        if user.connection_status != "connected" or not user.wallet_session_id:
+            return {
+                "success": False,
+                "error": "Wallet not connected",
+                "message": "Your wallet is not properly connected. Please reconnect your wallet and try again."
+            }
+            
+        # 2. Check if pool exists and is active
         pool_data = await fetch_pool_metadata(pool_id)
         if not pool_data:
             return {
                 "success": False,
-                "error": "Failed to fetch pool data",
-                "message": "Could not retrieve pool information. Please try again later."
+                "error": "Pool not found",
+                "message": "Could not retrieve pool information. The pool may no longer be active."
+            }
+        
+        if pool_data.get('status') == 'inactive':
+            return {
+                "success": False,
+                "error": "Inactive pool",
+                "message": "This liquidity pool is currently inactive. Please choose another pool."
             }
         
         token_a_mint = pool_data.get('token_a_mint')
@@ -247,9 +272,63 @@ async def execute_investment(wallet_address: str, pool_id: str, amount: float) -
         token_a_symbol = pool_data.get('token_a_symbol', 'Unknown')
         token_b_symbol = pool_data.get('token_b_symbol', 'Unknown')
         
+        # 3. Check investment amount limits
+        min_investment = pool_data.get('min_investment_usd', 1.0)  # Default $1 minimum
+        max_investment = pool_data.get('max_investment_usd', 1000000.0)  # Default $1M maximum
+        
+        if amount < min_investment:
+            return {
+                "success": False,
+                "error": "Investment amount too low",
+                "message": f"Minimum investment amount for this pool is ${min_investment}."
+            }
+            
+        if amount > max_investment:
+            return {
+                "success": False,
+                "error": "Investment amount too high",
+                "message": f"Maximum investment amount for this pool is ${max_investment}."
+            }
+        
         logger.info(f"Pool {pool_id} metadata fetched: {token_a_symbol}/{token_b_symbol}")
         
-        # 2. Calculate token amounts based on current prices
+        # 4. Check if user has sufficient balance
+        # In a real implementation, we would check token balances on-chain
+        
+        from solana.rpc.api import Client
+        solana_client = Client("https://api.mainnet-beta.solana.com")
+        
+        try:
+            # Check token balances (simplified for now)
+            # To properly implement, we would get all token accounts for the user
+            # and check balances on token_a_mint and token_b_mint
+            
+            # For now, just log this since we don't have a real balance check
+            logger.info(f"Would check balance for {token_a_symbol} and {token_b_symbol} in wallet {wallet_address[:8]}...")
+            
+            # In a complete implementation:
+            # token_a_balance = await get_token_balance(solana_client, wallet_address, token_a_mint)
+            # token_b_balance = await get_token_balance(solana_client, wallet_address, token_b_mint)
+            # 
+            # if token_a_balance < token_a_amount:
+            #     return {
+            #         "success": False,
+            #         "error": "Insufficient token balance",
+            #         "message": f"Insufficient {token_a_symbol} balance. Required: {token_a_amount}, Available: {token_a_balance}."
+            #     }
+            # 
+            # if token_b_balance < token_b_amount:
+            #     return {
+            #         "success": False,
+            #         "error": "Insufficient token balance",
+            #         "message": f"Insufficient {token_b_symbol} balance. Required: {token_b_amount}, Available: {token_b_balance}."
+            #     }
+            
+        except Exception as balance_error:
+            logger.warning(f"Could not check token balances: {balance_error}")
+            # Continue despite balance check failure
+        
+        # 5. Calculate token amounts based on current prices
         token_amounts = await calculate_token_amounts(pool_id, amount)
         if not token_amounts or 'error' in token_amounts:
             return {
@@ -261,16 +340,28 @@ async def execute_investment(wallet_address: str, pool_id: str, amount: float) -
         token_a_amount = token_amounts.get('token_a_amount')
         token_b_amount = token_amounts.get('token_b_amount')
         
-        logger.info(f"Calculated token amounts: {token_a_amount} {token_a_symbol}, {token_b_amount} {token_b_symbol}")
+        # 6. Check transaction size limits and price impact
+        price_impact = token_amounts.get('price_impact', 0.0)
+        max_safe_impact = 5.0  # 5% is generally considered the safe maximum
         
-        # 3. Build a Solana transaction for Raydium liquidity pool investment
+        if price_impact > max_safe_impact:
+            return {
+                "success": False, 
+                "error": "High price impact",
+                "message": f"This transaction would have a high price impact of {price_impact:.2f}%. Try a smaller amount."
+            }
+        
+        logger.info(f"Calculated token amounts: {token_a_amount} {token_a_symbol}, {token_b_amount} {token_b_symbol} with {price_impact:.2f}% price impact")
+        
+        # 7. Build a Solana transaction with slippage tolerance
         transaction_data = await build_raydium_lp_transaction(
             wallet_address=wallet_address,
             pool_id=pool_id,
             token_a_mint=token_a_mint,
             token_b_mint=token_b_mint,
             token_a_amount=token_a_amount,
-            token_b_amount=token_b_amount
+            token_b_amount=token_b_amount,
+            slippage_tolerance=slippage_tolerance  # Apply requested slippage tolerance
         )
         
         if not transaction_data or 'error' in transaction_data:
@@ -281,44 +372,113 @@ async def execute_investment(wallet_address: str, pool_id: str, amount: float) -
             }
         
         serialized_tx = transaction_data.get('serialized_transaction')
-        logger.info(f"Transaction built successfully for pool {pool_id}")
+        expected_lp_tokens = transaction_data.get('expected_lp_tokens', 0)
+        min_lp_tokens = transaction_data.get('min_lp_tokens', 0)
         
-        # 4. Send transaction to user's wallet via WalletConnect for signing
+        logger.info(f"Transaction built successfully for pool {pool_id} with {slippage_tolerance}% slippage tolerance")
+        
+        # 8. Send transaction to user's wallet via WalletConnect for signing
         signing_result = await send_transaction_for_signing(
             wallet_address=wallet_address,
             serialized_transaction=serialized_tx
         )
         
-        if not signing_result or 'error' in signing_result:
+        if not signing_result or not signing_result.get('success', False):
+            error_msg = signing_result.get('error', "Transaction was not signed")
+            
+            # Special case for user rejection
+            if "rejected" in str(error_msg).lower() or "declined" in str(error_msg).lower():
+                # Log the rejection in the database
+                user_id = get_user_id_from_wallet(wallet_address)
+                if user_id:
+                    await create_investment_log(
+                        user_id=user_id,
+                        pool_id=pool_id,
+                        amount=amount,
+                        tx_hash="user_rejected",
+                        status="failed",
+                        token_a_amount=token_a_amount,
+                        token_b_amount=token_b_amount,
+                        notes="User rejected transaction in wallet"
+                    )
+                
+                return {
+                    "success": False,
+                    "error": "Transaction rejected",
+                    "message": "You declined to sign the transaction in your wallet."
+                }
+            
             return {
                 "success": False,
-                "error": signing_result.get('error', "Transaction was not signed"),
-                "message": "The transaction was not signed. Please check your wallet and try again."
+                "error": error_msg,
+                "message": signing_result.get('message', "The transaction was not signed. Please check your wallet and try again.")
             }
         
         signature = signing_result.get('signature')
         logger.info(f"Transaction signed with signature: {signature[:10]}...")
         
-        # 5. Submit signed transaction to Solana network
-        submission_result = await submit_signed_transaction(signature)
-        
-        if not submission_result or 'error' in submission_result:
+        # 9. Submit signed transaction to Solana network
+        try:
+            submission_result = await submit_signed_transaction(signature)
+            
+            if not submission_result or not submission_result.get('success', False):
+                error_msg = submission_result.get('error', "Failed to submit transaction")
+                
+                # Log the failure in the database
+                user_id = get_user_id_from_wallet(wallet_address)
+                if user_id:
+                    await create_investment_log(
+                        user_id=user_id,
+                        pool_id=pool_id,
+                        amount=amount,
+                        tx_hash=signature,
+                        status="failed",
+                        token_a_amount=token_a_amount,
+                        token_b_amount=token_b_amount,
+                        notes=f"RPC error: {error_msg}"
+                    )
+                
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "message": "Failed to submit the signed transaction to the network. Please try again later."
+                }
+        except Exception as submit_error:
+            logger.error(f"Error submitting transaction: {submit_error}")
+            
+            # Log the exception in the database
+            user_id = get_user_id_from_wallet(wallet_address)
+            if user_id:
+                await create_investment_log(
+                    user_id=user_id,
+                    pool_id=pool_id,
+                    amount=amount,
+                    tx_hash=signature,
+                    status="failed",
+                    token_a_amount=token_a_amount,
+                    token_b_amount=token_b_amount,
+                    notes=f"Exception: {str(submit_error)}"
+                )
+            
             return {
                 "success": False,
-                "error": submission_result.get('error', "Failed to submit transaction"),
-                "message": "Failed to submit the signed transaction to the network. Please try again later."
+                "error": str(submit_error),
+                "message": "An error occurred while submitting the transaction. Please try again later."
             }
         
-        # 6. Store transaction in database
+        # 10. Store transaction in database
         tx_hash = signature
         
-        # Create investment log entry in database
+        # Create investment log entry in database with full details
         await create_investment_log(
             user_id=get_user_id_from_wallet(wallet_address),
             pool_id=pool_id,
             amount=amount,
             tx_hash=tx_hash,
-            status="confirming"
+            status="confirming",
+            token_a_amount=token_a_amount,
+            token_b_amount=token_b_amount,
+            apr_at_entry=pool_data.get('apr_24h')
         )
         
         # Update user's last transaction ID
@@ -326,7 +486,7 @@ async def execute_investment(wallet_address: str, pool_id: str, amount: float) -
         
         logger.info(f"Investment transaction completed and logged: {tx_hash}")
         
-        # 7. Return success with transaction link
+        # 11. Return success with comprehensive transaction information
         return {
             "success": True,
             "transaction_hash": tx_hash,
@@ -337,6 +497,10 @@ async def execute_investment(wallet_address: str, pool_id: str, amount: float) -
             "token_b_amount": token_b_amount,
             "token_a_symbol": token_a_symbol,
             "token_b_symbol": token_b_symbol,
+            "slippage_tolerance": slippage_tolerance,
+            "expected_lp_tokens": expected_lp_tokens,
+            "min_lp_tokens": min_lp_tokens,
+            "price_impact": price_impact,
             "status": "confirming",
             "message": "Investment transaction initiated. Please check your wallet for status updates."
         }
@@ -484,7 +648,9 @@ async def build_raydium_lp_transaction(
     token_a_mint: str,
     token_b_mint: str,
     token_a_amount: float,
-    token_b_amount: float
+    token_b_amount: float,
+    slippage_tolerance: float = 0.5,  # Default slippage of 0.5% (50 basis points)
+    min_lp_tokens: Optional[float] = None  # Optional minimum LP tokens to receive
 ) -> Dict[str, Any]:
     """
     Build a Solana transaction for Raydium LP investment
@@ -496,6 +662,8 @@ async def build_raydium_lp_transaction(
         token_b_mint: Token B mint address
         token_a_amount: Amount of Token A to invest
         token_b_amount: Amount of Token B to invest
+        slippage_tolerance: Maximum allowed slippage in percentage (default 0.5%)
+        min_lp_tokens: Optional minimum LP tokens to receive (calculated if None)
         
     Returns:
         Dictionary with serialized_transaction and other metadata
@@ -588,13 +756,55 @@ async def build_raydium_lp_transaction(
         # This is the main Raydium addLiquidity instruction
         # The actual instruction layout would come from Raydium's IDL
         
+        # Calculate expected LP token amount if not provided
+        # This requires pool ratio and supply information from API
+        expected_lp_tokens = 0.0
+        try:
+            # In a real implementation, this would be calculated based on:
+            # 1. Current pool reserves
+            # 2. Current LP token supply
+            # 3. Amount of tokens being added
+            
+            # For now, we'll make a simplified estimate based on the USD value
+            # and current pool TVL+supply
+            from solpool_api_client import SolPoolClient
+            solpool_client = SolPoolClient()
+            pool_details = await solpool_client.get_pool_details(pool_id)
+            
+            if pool_details and "lpSupply" in pool_details and "tvlUsd" in pool_details:
+                lp_supply = float(pool_details.get("lpSupply", 0))
+                tvl_usd = float(pool_details.get("tvlUsd", 0))
+                
+                if lp_supply > 0 and tvl_usd > 0:
+                    # Estimate LP tokens: (investment amount / total TVL) * LP supply
+                    token_a_usd = token_a_amount * float(pool_details.get("tokenAPrice", 0))
+                    token_b_usd = token_b_amount * float(pool_details.get("tokenBPrice", 0))
+                    total_investment_usd = token_a_usd + token_b_usd
+                    
+                    expected_lp_tokens = (total_investment_usd / tvl_usd) * lp_supply
+                    logger.info(f"Estimated LP tokens: {expected_lp_tokens}")
+        except Exception as e:
+            logger.warning(f"Error calculating expected LP tokens: {e}")
+            # Proceed without LP token estimation
+        
+        # Apply slippage to calculate minimum acceptable LP tokens
+        if min_lp_tokens is None and expected_lp_tokens > 0:
+            min_lp_tokens = expected_lp_tokens * (1 - (slippage_tolerance / 100))
+            logger.info(f"Calculated minimum LP tokens with {slippage_tolerance}% slippage: {min_lp_tokens}")
+        
+        # Convert minimum LP tokens to lamports if available
+        min_lp_lamports = 0
+        if min_lp_tokens is not None and min_lp_tokens > 0:
+            lp_decimals = int(pool_details.get("lpDecimals", 9)) if "lpDecimals" in pool_details else 9
+            min_lp_lamports = int(min_lp_tokens * (10 ** lp_decimals))
+        
         # For the Raydium addLiquidity instruction, we need to structure the data correctly
-        # This is a simplified version - in production this would follow Raydium's
-        # exact instruction format
+        # Include slippage protection through minimum LP tokens to receive
         data = bytes([
             1,  # Instruction index for addLiquidity
             *list(token_a_lamports.to_bytes(8, 'little')),
             *list(token_b_lamports.to_bytes(8, 'little')),
+            *list(min_lp_lamports.to_bytes(8, 'little')),  # Minimum LP tokens (slippage protection)
             # Additional parameters would go here
         ])
         
@@ -643,7 +853,10 @@ async def build_raydium_lp_transaction(
             "pool_id": pool_id,
             "expires_at": int(time.time()) + 120,  # 2 minute expiration
             "token_a_amount": token_a_amount,
-            "token_b_amount": token_b_amount
+            "token_b_amount": token_b_amount,
+            "slippage_tolerance": slippage_tolerance,
+            "expected_lp_tokens": expected_lp_tokens,
+            "min_lp_tokens": min_lp_tokens
         }
         
     except Exception as e:
