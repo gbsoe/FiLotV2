@@ -134,19 +134,38 @@ def api_health_check() -> bool:
         logger.error(f"Error checking API health: {e}")
         return False
 
-def get_pool_list(limit: int = 10) -> List[Dict[str, Any]]:
+def get_pools(filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """
-    Get list of all pools
+    Get list of all pools with optional filtering
     
     Args:
-        limit: Maximum number of pools to return
+        filters: Dictionary of filter parameters
+            - dex: Filter by DEX name
+            - category: Filter by pool category
+            - min_tvl: Minimum TVL threshold
+            - max_tvl: Maximum TVL threshold
+            - min_apr: Minimum APR threshold
+            - max_apr: Maximum APR threshold
+            - min_volume: Minimum 24h volume
+            - token: Filter pools containing this token
+            - limit: Maximum number of results
+            - offset: Number of results to skip
+            - sort_by: Field to sort by
+            - sort_dir: Sort direction ('asc' or 'desc')
+            - min_prediction: Minimum prediction score
+            - trend: Filter by trend direction
         
     Returns:
         List of pool data dictionaries
     """
     try:
-        # Generate cache key
-        cache_key = f"pool_list_{limit}"
+        # Set default filters if none provided
+        if filters is None:
+            filters = {}
+            
+        # Generate cache key from filters
+        filter_str = "_".join([f"{k}:{v}" for k, v in sorted(filters.items())])
+        cache_key = f"pools_{filter_str}"
         
         if _is_cache_valid(cache_key):
             # Return cached data
@@ -161,30 +180,47 @@ def get_pool_list(limit: int = 10) -> List[Dict[str, Any]]:
         
         # Make API call
         url = f"{SOLPOOL_API_URL}/pools"
-        params = {"limit": limit}
         
         # Use API key if available
         headers = {}
         if SOLPOOL_API_KEY:
             headers["X-API-Key"] = SOLPOOL_API_KEY
             
-        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response = requests.get(url, params=filters, headers=headers, timeout=10)
         
         # Update call timestamp
         _update_api_call_timestamp("pools")
         
         if response.status_code == 200:
             result = response.json()
-            if "pools" in result and isinstance(result["pools"], list):
-                _save_to_cache(cache_key, result["pools"])
-                return result["pools"]
+            if result.get("status") == "success" and "data" in result:
+                pool_data = result["data"]
+                _save_to_cache(cache_key, pool_data)
+                return pool_data
+        
+        # Log error if API call was unsuccessful
+        if response.status_code != 200:
+            logger.error(f"API error: {response.status_code}, {response.text}")
         
         # Return empty list on error
         return []
     except Exception as e:
-        logger.error(f"Error getting pool list: {e}")
+        logger.error(f"Error getting pools: {e}")
         # Always return a list, even on error
         return []
+
+def get_pool_list(limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    Legacy function to get list of all pools
+    
+    Args:
+        limit: Maximum number of pools to return
+        
+    Returns:
+        List of pool data dictionaries
+    """
+    # Call new function with limit parameter for backward compatibility
+    return get_pools({"limit": limit})
 
 def get_pool_detail(pool_id: str) -> Dict[str, Any]:
     """
@@ -226,9 +262,17 @@ def get_pool_detail(pool_id: str) -> Dict[str, Any]:
         
         if response.status_code == 200:
             result = response.json()
-            if "pool" in result and isinstance(result["pool"], dict):
-                _save_to_cache(cache_key, result["pool"])
-                return result["pool"]
+            if result.get("status") == "success" and "data" in result:
+                pool_data = result["data"]
+                _save_to_cache(cache_key, pool_data)
+                return pool_data
+        
+        # Log error if API call was unsuccessful
+        if response.status_code != 200:
+            logger.error(f"API error getting pool detail: {response.status_code}, {response.text}")
+        elif response.status_code == 200:
+            # API returned 200 but response format was unexpected
+            logger.error(f"Unexpected API response format: {response.text[:100]}...")
         
         # Return empty dict on error
         return {}
@@ -414,19 +458,24 @@ def simulate_investment(
     """
     try:
         # Generate cache key
-        cache_key = f"simulation_{pool_id}_{amount}_{days}"
+        sim_cache_key = f"simulation_{pool_id}_{amount}_{days}"
         
-        if _is_cache_valid(cache_key):
+        if _is_cache_valid(sim_cache_key):
             # Return cached data
-            return _cache[cache_key]["data"]
+            return _cache[sim_cache_key]["data"]
         
         if not _can_make_api_call("simulate"):
-            # Rate limited, return cached data if available or fallback
-            if cache_key in _cache:
-                return _cache[cache_key]["data"]
+            # Rate limited, return cached data if available
+            if sim_cache_key in _cache:
+                return _cache[sim_cache_key]["data"]
             else:
-                # Generate fallback simulation data
-                return _generate_fallback_simulation(pool_id, amount, days)
+                # Return error indicating we're rate limited
+                logger.warning(f"Rate limited for simulation API: pool_id={pool_id}")
+                return {
+                    "success": False, 
+                    "error": "Rate limited", 
+                    "message": "Too many API calls, please try again later"
+                }
         
         # Make API call
         url = f"{SOLPOOL_API_URL}/simulate"
@@ -448,21 +497,120 @@ def simulate_investment(
         
         if response.status_code == 200:
             result = response.json()
-            if "simulation" in result and isinstance(result["simulation"], dict):
-                _save_to_cache(cache_key, result["simulation"])
-                return result["simulation"]
+            if result.get("status") == "success" and "data" in result:
+                simulation_data = result["data"]
+                _save_to_cache(sim_cache_key, simulation_data)
+                return simulation_data
         
-        # Return fallback simulation data on error
-        fallback_simulation = _generate_fallback_simulation(pool_id, amount, days)
-        _save_to_cache(cache_key, fallback_simulation)
-        return fallback_simulation
+        # Log error if API call was unsuccessful
+        if response.status_code != 200:
+            logger.error(f"API error in simulation: {response.status_code}, {response.text}")
+        else:
+            logger.error(f"Unexpected API response format for simulation: {response.text[:100]}...")
+        
+        # Try to get pool data to provide minimal info
+        pool_data = get_pool_detail(pool_id)
+        if pool_data:
+            # Return minimal simulation based on current pool APR
+            apr = pool_data.get("apr", 0) or 0
+            daily_rate = apr / 365 / 100
+            final_amount = amount * (1 + daily_rate) ** days
+            profit = final_amount - amount
+            
+            minimal_simulation = {
+                "success": True,
+                "initial_amount": amount,
+                "final_amount": final_amount,
+                "profit": profit,
+                "roi_percent": (profit / amount) * 100 if amount > 0 else 0,
+                "apr_used": apr,
+                "days": days,
+                "pool_id": pool_id,
+                "note": "Limited simulation based on current APR"
+            }
+            
+            _save_to_cache(sim_cache_key, minimal_simulation)
+            return minimal_simulation
+        
+        # Return error indication
+        return {
+            "success": False,
+            "error": "Simulation failed",
+            "message": "Unable to simulate investment at this time"
+        }
     except Exception as e:
         logger.error(f"Error simulating investment: {e}")
-        # Return fallback simulation data on error
-        fallback_simulation = _generate_fallback_simulation(pool_id, amount, days)
-        _save_to_cache(cache_key, fallback_simulation)
-        return fallback_simulation
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "An error occurred while simulating the investment"
+        }
 
+def get_pool_history(pool_id: str, days: int = 30, interval: str = "day") -> List[Dict[str, Any]]:
+    """
+    Get historical data for a specific pool
+    
+    Args:
+        pool_id: Pool ID to get history for
+        days: Number of days of history to retrieve
+        interval: Time interval ('hour', 'day', 'week')
+        
+    Returns:
+        List of historical data points
+    """
+    try:
+        # Generate cache key
+        cache_key = f"pool_history_{pool_id}_{days}_{interval}"
+        
+        if _is_cache_valid(cache_key):
+            # Return cached data
+            return _cache[cache_key]["data"]
+        
+        if not _can_make_api_call("pool_history"):
+            # Rate limited, return cached data if available or empty list
+            if cache_key in _cache:
+                return _cache[cache_key]["data"]
+            else:
+                return []
+        
+        # Make API call
+        url = f"{SOLPOOL_API_URL}/pools/{pool_id}/history"
+        params = {
+            "days": days,
+            "interval": interval
+        }
+        
+        # Use API key if available
+        headers = {}
+        if SOLPOOL_API_KEY:
+            headers["X-API-Key"] = SOLPOOL_API_KEY
+            
+        response = requests.get(url, params=params, headers=headers, timeout=15)
+        
+        # Update call timestamp
+        _update_api_call_timestamp("pool_history")
+        
+        if response.status_code == 200:
+            result = response.json()
+            if result.get("status") == "success" and "data" in result:
+                history_data = result["data"]
+                _save_to_cache(cache_key, history_data)
+                return history_data
+        
+        # Log error if API call was unsuccessful
+        if response.status_code != 200:
+            logger.error(f"API error getting pool history: {response.status_code}, {response.text}")
+        elif response.status_code == 200:
+            logger.error(f"Unexpected API response format for history: {response.text[:100]}...")
+        
+        # Return empty list on error
+        return []
+    except Exception as e:
+        logger.error(f"Error getting pool history: {e}")
+        # Always return a list, even on error
+        return []
+
+# Deprecated fallback function, kept for compatibility with old code
 def _generate_fallback_simulation(pool_id: str, amount: float, days: int) -> Dict[str, Any]:
     """
     Generate fallback simulation data
