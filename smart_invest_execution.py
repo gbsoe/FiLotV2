@@ -492,7 +492,7 @@ async def handle_investment_confirmation(update: Update, context: ContextTypes.D
     # Return to wait for final confirmation
     return AWAITING_FINAL_CONFIRMATION
 
-async def handle_execute_investment(update: Update, context: CallbackContext) -> int:
+async def handle_execute_investment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle the final investment execution after user confirms the transaction details."""
     query = update.callback_query
     await query.answer()
