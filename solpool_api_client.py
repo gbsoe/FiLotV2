@@ -21,11 +21,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # SolPool API configuration
-SOLPOOL_API_URL = os.getenv("SOLPOOL_API_URL", "https://api.solpool.io/v1")
-SOLPOOL_API_KEY = os.getenv("SOLPOOL_API_KEY")
+SOLPOOL_API_URL = os.environ.get("SOLPOOL_API_URL", "https://filotanalytics.replit.app/API")
+SOLPOOL_API_KEY = os.environ.get("SOLPOOL_API_KEY")
 
 # Cache configuration
-CACHE_EXPIRY = 60  # 1 minute cache for pool data
+CACHE_EXPIRY = 300  # 5 minutes cache for pool data
 RATE_LIMIT_PERIOD = 10  # 10 seconds between API calls
 
 # Cache storage
