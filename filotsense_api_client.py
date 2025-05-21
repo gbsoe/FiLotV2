@@ -21,9 +21,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# FilotSense API configuration
+# FilotSense API configuration (Public API - no authentication required)
 FILOTSENSE_API_URL = os.environ.get("FILOTSENSE_API_URL", "https://filotsense.replit.app/api")
-FILOTSENSE_API_KEY = os.environ.get("FILOTSENSE_API_KEY")
 
 # Cache configuration
 CACHE_EXPIRY = 300  # 5 minutes cache for sentiment data
