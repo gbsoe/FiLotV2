@@ -1,0 +1,46 @@
+I need you to update FiLot’s Reinforcement Learning advisor so it uses live SolPool and FilotSense data instead of mocks.
+
+**Your tasks:**
+
+1. **Import Real Clients**  
+   - In `rl_investment_advisor.py`, remove any mock data imports.  
+   - Add:
+     ```python
+     from solpool_api_client import get_pools, get_pool_detail
+     from filotsense_api_client import get_sentiment_simple, get_prices_latest
+     ```
+
+2. **Fetch Live Data**  
+   - Replace mocked pool list calls with `pools = await get_pools(filters={})`  
+   - For each pool, call `await get_pool_detail(pool["id"])` if you need per‐pool fields.  
+   - Call `sentiments = await get_sentiment_simple()` and `prices = await get_prices_latest()` once, then map token symbols to their sentiment and price.
+
+3. **Build Feature Vectors**  
+   - For each pool, assemble:
+     ```python
+     features = {
+         "apr": pool["apr"],
+         "tvl": math.log10(pool["liquidity"] + 1),
+         "volume": math.log10(pool["volume_24h"] + 1),
+         "volatility": pool["volatility"],
+         "prediction_score": pool["prediction_score"],
+         "sentiment": sentiments.get(pool["token1_symbol"], 0),
+         "price_change_24h": prices.get(pool["token1_symbol"], {}).get("percent_change_24h", 0),
+         "apr_change_7d": pool.get("apr_change_7d", 0),
+     }
+     ```
+   - Ensure all fields match your model’s expected inputs and fill missing values with sensible defaults (e.g., 0).
+
+4. **Sanity-Check Data Shapes**  
+   - Log a sample of the `features` dicts.  
+   - Verify value ranges and types (APR [0–100], sentiment [−1–1], log-scaled TVL/volume).
+
+5. **Update Recommendation Call**  
+   - In `get_rl_recommendations()`, feed your feature list into the DQN or scoring function exactly as before.  
+   - Ensure the output format remains `List[{"pool": pool, "score": score, ...}]`.
+
+6. **End-to-End Test**  
+   - Write a quick script or unit test that calls `get_rl_recommendations(user_id, risk_profile, amount)` and prints the top 3 pools with their scores.  
+   - Confirm it runs without errors and returns plausible results using real market and sentiment data.
+
+Please implement these changes so that the RL advisor now consumes live data, and share any code snippets or tests you create. Thank you!
