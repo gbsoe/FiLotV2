@@ -16,7 +16,7 @@ from telegram.ext import (
 )
 
 from solpool_api_client import get_token_pools
-from filotsense_api_client import get_sentiment_data, get_price_data
+from filotsense_api_client import get_sentiment_simple, get_prices_latest, get_token_sentiment, get_token_price
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ async def handle_token_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         price_data = {}
         
         try:
-            sentiment_response = get_sentiment_data(token_symbol)
+            sentiment_response = get_token_sentiment(token_symbol)
             if token_symbol in sentiment_response.get('sentiment', {}):
                 sentiment_data = sentiment_response['sentiment'][token_symbol]
         except Exception as e:

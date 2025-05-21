@@ -1112,7 +1112,7 @@ async def handle_pool_detail(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 
                 if token_a:
                     try:
-                        sentiment_data = get_sentiment_data(token_a)
+                        sentiment_data = get_token_sentiment(token_a)
                         if token_a.upper() in sentiment_data.get('sentiment', {}):
                             sentiment_a = sentiment_data['sentiment'][token_a.upper()]
                     except Exception as e:
@@ -1120,7 +1120,7 @@ async def handle_pool_detail(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 
                 if token_b:
                     try:
-                        sentiment_data = get_sentiment_data(token_b)
+                        sentiment_data = get_token_sentiment(token_b)
                         if token_b.upper() in sentiment_data.get('sentiment', {}):
                             sentiment_b = sentiment_data['sentiment'][token_b.upper()]
                     except Exception as e:
@@ -1226,7 +1226,7 @@ async def handle_token_search_result(update: Update, context: ContextTypes.DEFAU
             # Get token sentiment
             sentiment_data = {}
             try:
-                sentiment_response = get_sentiment_data(token_symbol)
+                sentiment_response = get_token_sentiment(token_symbol)
                 if token_symbol.upper() in sentiment_response.get('sentiment', {}):
                     sentiment_data = sentiment_response['sentiment'][token_symbol.upper()]
             except Exception as e:
@@ -1235,7 +1235,7 @@ async def handle_token_search_result(update: Update, context: ContextTypes.DEFAU
             # Get token price
             price_data = {}
             try:
-                price_response = get_price_data(token_symbol)
+                price_response = get_token_price(token_symbol)
                 if token_symbol.upper() in price_response.get('prices', {}):
                     price_data = price_response['prices'][token_symbol.upper()]
             except Exception as e:
