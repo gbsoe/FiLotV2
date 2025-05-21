@@ -1,0 +1,77 @@
+I need you to generate a complete, production-grade technical documentation for my Telegram bot project: FiLot — an AI-powered DeFi investment assistant that lets users explore, simulate, and execute liquidity pool investments on Solana using WalletConnect.
+
+---
+
+Please include the following in the documentation:
+
+1. Project Overview
+- Purpose of FiLot
+- Key technologies used: Python, python-telegram-bot, Flask, SQLAlchemy, solana-py, WalletConnect, etc.
+- Summary of functionality
+
+2. Directory and File Structure
+- List and explain all `.py` files in the project:
+  - What each file is responsible for
+  - How they are logically grouped (handlers, models, APIs, etc.)
+
+3. Core Components
+Explain in detail:
+- `main.py`: how handlers are registered and bot is started
+- `button_responses.py`: how callback handlers work
+- `smart_invest.py`: the RL engine and investment flow
+- `wallet_actions.py`: how transactions are built, signed, and submitted
+- `models.py`: user, pool, and investment schema
+- `walletconnect_manager.py`: WalletConnect flow and session handling
+- API clients: `solpool_api_client.py`, `filotsense_client.py`
+
+4. Command & Callback Flow
+- List all `/commands` and how each flows to a handler
+- List all `callback_data` and what happens when a user taps a button
+- Show how pattern-based callbacks (e.g. `pool:<id>`) are routed
+
+5. Investment Execution Flow
+Step-by-step:
+1. User chooses a pool or gets RL recommendation
+2. User taps "Confirm Investment"
+3. WalletConnect is invoked
+4. Transaction is built via Raydium + solana-py
+5. User signs in wallet
+6. Bot submits transaction
+7. DB logs the result
+8. Confirmation sent to user
+
+6. API Integration
+- How FiLot uses the SolPool Insight API
+- How FiLot uses the FilotSense API
+- Key endpoints used (e.g. `/pools`, `/tokens/{symbol}`, `/sentiment/simple`)
+- How pricing, prediction, and metadata are combined
+
+7. Data Models
+- Describe all SQLAlchemy models (User, InvestmentLog, etc.)
+- Which handlers read/write to the DB
+- How wallet info and transaction logs are stored
+
+8. **Security and Error Handling**
+- How exceptions are caught and user-friendly messages returned
+- What validations are done before executing a transaction
+- Where slippage protection is implemented
+
+9. **Session, State, and Persistence**
+- How wallet sessions are maintained
+- How user states are stored or reset
+- Caching or fallback logic (if applicable)
+
+10. **How It Runs**
+- Explain how the bot and Flask run concurrently
+- Describe startup sequence
+- Any cron jobs or background tasks (if any)
+
+11. **Future Architecture Hooks**
+- Where slippage tolerance, transaction history, or agentic automation could expand
+- Where AI advisors could be upgraded
+- Optional integration points with DeFi aggregators (Jupiter, Orca)
+
+---
+
+Output
+- Return a full Markdown document (`FiLot_Technical_Documentation.md`) with all sections above, detailed code snippets, and diagrams if needed.
