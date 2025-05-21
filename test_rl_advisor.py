@@ -5,11 +5,9 @@
 Test script for the RL Investment Advisor using real API data
 """
 
-import asyncio
 import logging
 import json
 from typing import Dict, Any
-import sys
 
 # Configure logging
 logging.basicConfig(
@@ -21,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Import the RL advisor to test
 from rl_investment_advisor import get_rl_recommendations
 
-async def test_investment_recommendations():
+def test_investment_recommendations():
     """Test investment recommendations with different risk profiles"""
     
     # Parameters to test
@@ -42,7 +40,7 @@ async def test_investment_recommendations():
             
             try:
                 # Get recommendations using the RL advisor
-                recommendations = await get_rl_recommendations(
+                recommendations = get_rl_recommendations(
                     investment_amount=investment_amount,
                     risk_profile=risk,
                     token_preference=token,
@@ -94,10 +92,10 @@ async def test_investment_recommendations():
     print("\nTest results saved to rl_test_results.json")
     return results
 
-async def main():
+def main():
     """Main test function"""
     print("Testing RL Investment Advisor with Real API Data")
-    await test_investment_recommendations()
+    test_investment_recommendations()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

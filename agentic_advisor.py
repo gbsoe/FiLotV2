@@ -122,7 +122,7 @@ def get_investment_recommendation(
         sentiment_data = {}
         
         try:
-            all_sentiment = sentiment_api.get_sentiment_data()
+            all_sentiment = sentiment_api.get_sentiment_simple()
             if all_sentiment.get("status") == "success" and all_sentiment.get("sentiment"):
                 for token in common_tokens:
                     if token in all_sentiment["sentiment"]:
@@ -409,7 +409,7 @@ def should_exit_position(
             token_b = pool_details.get("token_b_symbol", "")
             
             # Get sentiment for these tokens if available
-            all_sentiment = sentiment_api.get_sentiment_data()
+            all_sentiment = sentiment_api.get_sentiment_simple()
             
             if all_sentiment.get("status") == "success" and all_sentiment.get("sentiment"):
                 # Add token-specific sentiment
