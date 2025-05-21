@@ -38,7 +38,7 @@ from filotsense_api_client import (
     get_token_price,
     get_market_sentiment
 )
-from rl_investment_advisor import get_smart_investment_recommendation
+from rl_investment_advisor import get_rl_recommendations
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -825,7 +825,7 @@ async def handle_smart_invest(update: Update, context: ContextTypes.DEFAULT_TYPE
             default_amount = 1000
             
             # Call the RL investment advisor to get recommendations
-            recommendation = get_smart_investment_recommendation(
+            recommendation = get_rl_recommendations(
                 investment_amount=default_amount,
                 risk_profile=risk_profile,
                 max_suggestions=3
@@ -1113,16 +1113,18 @@ async def handle_pool_detail(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 if token_a:
                     try:
                         sentiment_data = get_token_sentiment(token_a)
-                        if token_a.upper() in sentiment_data.get('sentiment', {}):
-                            sentiment_a = sentiment_data['sentiment'][token_a.upper()]
+                        # New sentiment API returns the data directly
+                        if sentiment_data.get('success', False):
+                            sentiment_a = sentiment_data
                     except Exception as e:
                         logger.error(f"Error getting sentiment for {token_a}: {e}")
                 
                 if token_b:
                     try:
                         sentiment_data = get_token_sentiment(token_b)
-                        if token_b.upper() in sentiment_data.get('sentiment', {}):
-                            sentiment_b = sentiment_data['sentiment'][token_b.upper()]
+                        # New sentiment API returns the data directly
+                        if sentiment_data.get('success', False):
+                            sentiment_b = sentiment_data
                     except Exception as e:
                         logger.error(f"Error getting sentiment for {token_b}: {e}")
                 
@@ -1227,8 +1229,9 @@ async def handle_token_search_result(update: Update, context: ContextTypes.DEFAU
             sentiment_data = {}
             try:
                 sentiment_response = get_token_sentiment(token_symbol)
-                if token_symbol.upper() in sentiment_response.get('sentiment', {}):
-                    sentiment_data = sentiment_response['sentiment'][token_symbol.upper()]
+                # New sentiment API returns the data directly
+                if sentiment_response.get('success', False):
+                    sentiment_data = sentiment_response
             except Exception as e:
                 logger.error(f"Error getting sentiment for {token_symbol}: {e}")
             
@@ -1236,8 +1239,9 @@ async def handle_token_search_result(update: Update, context: ContextTypes.DEFAU
             price_data = {}
             try:
                 price_response = get_token_price(token_symbol)
-                if token_symbol.upper() in price_response.get('prices', {}):
-                    price_data = price_response['prices'][token_symbol.upper()]
+                # New price API returns the data directly
+                if price_response.get('success', False):
+                    price_data = price_response
             except Exception as e:
                 logger.error(f"Error getting price for {token_symbol}: {e}")
             

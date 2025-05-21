@@ -80,15 +80,17 @@ async def handle_token_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         try:
             sentiment_response = get_token_sentiment(token_symbol)
-            if token_symbol in sentiment_response.get('sentiment', {}):
-                sentiment_data = sentiment_response['sentiment'][token_symbol]
+            # The token_sentiment function returns data directly for the token
+            if sentiment_response.get('success', False):
+                sentiment_data = sentiment_response
         except Exception as e:
             logger.error(f"Error getting sentiment for {token_symbol}: {e}")
             
         try:
-            price_response = get_price_data(token_symbol)
-            if token_symbol in price_response.get('prices', {}):
-                price_data = price_response['prices'][token_symbol]
+            price_response = get_token_price(token_symbol)
+            # The token_price function returns data directly for the token
+            if price_response.get('success', False):
+                price_data = price_response
         except Exception as e:
             logger.error(f"Error getting price for {token_symbol}: {e}")
         
