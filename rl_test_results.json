@@ -1,0 +1,233 @@
+{
+  "conservative": {
+    "any": {
+      "status": "partial",
+      "investment_amount": 1000.0,
+      "risk_profile": "conservative",
+      "token_preference": null,
+      "suggestions": [
+        {
+          "pair": "SOL-USDC",
+          "apr": 8.5,
+          "tvl": 4500000,
+          "description": "Major pair with stable returns"
+        },
+        {
+          "pair": "ETH-USDC",
+          "apr": 6.2,
+          "tvl": 3800000,
+          "description": "Established pair with low volatility"
+        }
+      ],
+      "market_sentiment": {},
+      "explanation": "Unable to retrieve real-time pool data. Using default recommendations.",
+      "fallback_used": true,
+      "action": "invest",
+      "rl_powered": false
+    },
+    "SOL": {
+      "status": "partial",
+      "investment_amount": 1000.0,
+      "risk_profile": "conservative",
+      "token_preference": "SOL",
+      "suggestions": [
+        {
+          "pair": "SOL-USDC",
+          "apr": 8.5,
+          "tvl": 4500000,
+          "description": "Major pair with stable returns"
+        },
+        {
+          "pair": "ETH-USDC",
+          "apr": 6.2,
+          "tvl": 3800000,
+          "description": "Established pair with low volatility"
+        }
+      ],
+      "market_sentiment": {},
+      "explanation": "Unable to retrieve real-time pool data. Using default recommendations.",
+      "fallback_used": true,
+      "action": "invest",
+      "rl_powered": false
+    },
+    "USDC": {
+      "status": "partial",
+      "investment_amount": 1000.0,
+      "risk_profile": "conservative",
+      "token_preference": "USDC",
+      "suggestions": [
+        {
+          "pair": "SOL-USDC",
+          "apr": 8.5,
+          "tvl": 4500000,
+          "description": "Major pair with stable returns"
+        },
+        {
+          "pair": "ETH-USDC",
+          "apr": 6.2,
+          "tvl": 3800000,
+          "description": "Established pair with low volatility"
+        }
+      ],
+      "market_sentiment": {},
+      "explanation": "Unable to retrieve real-time pool data. Using default recommendations.",
+      "fallback_used": true,
+      "action": "invest",
+      "rl_powered": false
+    }
+  },
+  "moderate": {
+    "any": {
+      "status": "partial",
+      "investment_amount": 1000.0,
+      "risk_profile": "moderate",
+      "token_preference": null,
+      "suggestions": [
+        {
+          "pair": "SOL-USDT",
+          "apr": 12.5,
+          "tvl": 2800000,
+          "description": "Balanced risk-reward ratio"
+        },
+        {
+          "pair": "RAY-SOL",
+          "apr": 18.7,
+          "tvl": 1200000,
+          "description": "DEX token with solid fundamentals"
+        }
+      ],
+      "market_sentiment": {},
+      "explanation": "Unable to retrieve real-time pool data. Using default recommendations.",
+      "fallback_used": true,
+      "action": "invest",
+      "rl_powered": false
+    },
+    "SOL": {
+      "status": "partial",
+      "investment_amount": 1000.0,
+      "risk_profile": "moderate",
+      "token_preference": "SOL",
+      "suggestions": [
+        {
+          "pair": "SOL-USDT",
+          "apr": 12.5,
+          "tvl": 2800000,
+          "description": "Balanced risk-reward ratio"
+        },
+        {
+          "pair": "RAY-SOL",
+          "apr": 18.7,
+          "tvl": 1200000,
+          "description": "DEX token with solid fundamentals"
+        }
+      ],
+      "market_sentiment": {},
+      "explanation": "Unable to retrieve real-time pool data. Using default recommendations.",
+      "fallback_used": true,
+      "action": "invest",
+      "rl_powered": false
+    },
+    "USDC": {
+      "status": "partial",
+      "investment_amount": 1000.0,
+      "risk_profile": "moderate",
+      "token_preference": "USDC",
+      "suggestions": [
+        {
+          "pair": "SOL-USDT",
+          "apr": 12.5,
+          "tvl": 2800000,
+          "description": "Balanced risk-reward ratio"
+        },
+        {
+          "pair": "RAY-SOL",
+          "apr": 18.7,
+          "tvl": 1200000,
+          "description": "DEX token with solid fundamentals"
+        }
+      ],
+      "market_sentiment": {},
+      "explanation": "Unable to retrieve real-time pool data. Using default recommendations.",
+      "fallback_used": true,
+      "action": "invest",
+      "rl_powered": false
+    }
+  },
+  "aggressive": {
+    "any": {
+      "status": "partial",
+      "investment_amount": 1000.0,
+      "risk_profile": "aggressive",
+      "token_preference": null,
+      "suggestions": [
+        {
+          "pair": "BONK-SOL",
+          "apr": 35.8,
+          "tvl": 780000,
+          "description": "High volatility meme token pair"
+        },
+        {
+          "pair": "JTO-SOL",
+          "apr": 28.4,
+          "tvl": 950000,
+          "description": "New token with growth potential"
+        }
+      ],
+      "market_sentiment": {},
+      "explanation": "Unable to retrieve real-time pool data. Using default recommendations.",
+      "fallback_used": true,
+      "action": "invest",
+      "rl_powered": false
+    },
+    "SOL": {
+      "status": "partial",
+      "investment_amount": 1000.0,
+      "risk_profile": "aggressive",
+      "token_preference": "SOL",
+      "suggestions": [
+        {
+          "pair": "BONK-SOL",
+          "apr": 35.8,
+          "tvl": 780000,
+          "description": "High volatility meme token pair"
+        },
+        {
+          "pair": "JTO-SOL",
+          "apr": 28.4,
+          "tvl": 950000,
+          "description": "New token with growth potential"
+        }
+      ],
+      "market_sentiment": {},
+      "explanation": "Unable to retrieve real-time pool data. Using default recommendations.",
+      "fallback_used": true,
+      "action": "invest",
+      "rl_powered": false
+    },
+    "USDC": {
+      "status": "partial",
+      "investment_amount": 1000.0,
+      "risk_profile": "aggressive",
+      "token_preference": "USDC",
+      "suggestions": [
+        {
+          "pair": "BONK-SOL",
+          "apr": 35.8,
+          "tvl": 780000,
+          "description": "High volatility meme token pair"
+        },
+        {
+          "pair": "JTO-SOL",
+          "apr": 28.4,
+          "tvl": 950000,
+          "description": "New token with growth potential"
+        }
+      ],
+      "market_sentiment": {},
+      "explanation": "Unable to retrieve real-time pool data. Using default recommendations.",
+      "fallback_used": true,
+      "action": "invest",
+      "rl_powered": false
+    }
+  }
+}

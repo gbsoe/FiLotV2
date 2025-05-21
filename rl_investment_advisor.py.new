@@ -237,7 +237,7 @@ class RLInvestmentAdvisor:
         # For tracking selected investments
         self.investments = {}
             
-    def _extract_features(self, pool: Dict[str, Any], sentiments: Dict[str, Any] = None, prices: Dict[str, Any] = None) -> np.ndarray:
+    async def _extract_features(self, pool: Dict[str, Any], sentiments: Dict[str, Any] = None, prices: Dict[str, Any] = None) -> np.ndarray:
         """
         Extract features from pool data for RL state
         
@@ -327,7 +327,7 @@ class RLInvestmentAdvisor:
         
         return features
     
-    def _calculate_reward(self, 
+    async def _calculate_reward(self, 
                         pool_data: Dict[str, Any], 
                         initial_investment: float,
                         days_held: int,
@@ -351,11 +351,11 @@ class RLInvestmentAdvisor:
         weights = RISK_PROFILE_WEIGHTS[risk_profile]
         
         # Get sentiment and price data
-        sentiments = get_sentiment_simple()
-        prices = get_prices_latest()
+        sentiments = await get_sentiment_simple()
+        prices = await get_prices_latest()
         
         # Extract features
-        features = self._extract_features(pool_data, sentiments, prices)
+        features = await self._extract_features(pool_data, sentiments, prices)
         
         # Calculate weighted feature score (only use the first 6 features that match original weights)
         feature_score = (
@@ -377,7 +377,7 @@ class RLInvestmentAdvisor:
         
         return reward
     
-    def get_recommendations(self,
+    async def get_recommendations(self,
                            investment_amount: float,
                            risk_profile: str = "moderate",
                            token_preference: Optional[str] = None,
@@ -416,8 +416,8 @@ class RLInvestmentAdvisor:
             if token_preference:
                 filters["token"] = token_preference
                 
-            # Fetch pools data - non-async call
-            pools = get_pools(filters=filters)
+            # Fetch pools data
+            pools = await get_pools(filters=filters)
             logger.info(f"Fetched {len(pools)} pools from SolPool API")
             
             if not pools or len(pools) < max_suggestions:
@@ -429,14 +429,14 @@ class RLInvestmentAdvisor:
                 standard_recommendation["rl_powered"] = False
                 return standard_recommendation
             
-            # Get real sentiment data - non-async call
-            sentiments = get_sentiment_simple()
+            # Get real sentiment data
+            sentiments = await get_sentiment_simple()
             if not sentiments or not sentiments.get("status") == "success":
                 logger.warning("Failed to get sentiment data")
                 sentiments = {"sentiment": {}}
             
-            # Get real price data - non-async call
-            prices = get_prices_latest()
+            # Get real price data
+            prices = await get_prices_latest()
             if not prices or not prices.get("status") == "success":
                 logger.warning("Failed to get price data")
                 prices = {"prices": {}}
@@ -465,10 +465,10 @@ class RLInvestmentAdvisor:
                 if any(p["pool_id"] == pool.get("id") for p in pool_features):
                     continue
                 
-                # Get detailed pool data if needed - non-async call
+                # Get detailed pool data if needed
                 if "volatility" not in pool or "prediction_score" not in pool:
                     try:
-                        detailed_pool = get_pool_detail(pool["id"])
+                        detailed_pool = await get_pool_detail(pool["id"])
                         if detailed_pool:
                             # Merge detailed data with pool data
                             pool.update(detailed_pool)
@@ -476,7 +476,7 @@ class RLInvestmentAdvisor:
                         logger.error(f"Error getting pool detail: {e}")
                 
                 # Extract features using real data
-                features = self._extract_features(pool, sentiments, prices)
+                features = await self._extract_features(pool, sentiments, prices)
                 
                 # Skip invalid pools
                 if np.isnan(features).any():
@@ -616,7 +616,7 @@ class RLInvestmentAdvisor:
             standard_recommendation["fallback_used"] = True
             return standard_recommendation
     
-    def record_investment(self, user_id: int, pool_id: str, investment_amount: float, risk_profile: str):
+    async def record_investment(self, user_id: int, pool_id: str, investment_amount: float, risk_profile: str):
         """
         Record an investment for RL training feedback
         
@@ -627,19 +627,19 @@ class RLInvestmentAdvisor:
             risk_profile: User's risk profile
         """
         try:
-            # Get pool details from real API - non-async call
-            pool_details = get_pool_detail(pool_id)
+            # Get pool details from real API
+            pool_details = await get_pool_detail(pool_id)
             
             if not pool_details:
                 logger.error(f"Could not get pool details for {pool_id}")
                 return
             
-            # Get sentiment and price data - non-async calls
-            sentiments = get_sentiment_simple()
-            prices = get_prices_latest()
+            # Get sentiment and price data
+            sentiments = await get_sentiment_simple()
+            prices = await get_prices_latest()
             
             # Record initial state
-            initial_state = self._extract_features(pool_details, sentiments, prices)
+            initial_state = await self._extract_features(pool_details, sentiments, prices)
             
             # Store investment record
             investment_id = f"{user_id}_{pool_id}_{int(time.time())}"
@@ -659,7 +659,7 @@ class RLInvestmentAdvisor:
         except Exception as e:
             logger.error(f"Error recording investment: {e}")
     
-    def feedback_investment(self, user_id: int, pool_id: str, rating: int, exit_amount: Optional[float] = None):
+    async def feedback_investment(self, user_id: int, pool_id: str, rating: int, exit_amount: Optional[float] = None):
         """
         Provide feedback on a previous investment for RL training
         
@@ -676,8 +676,8 @@ class RLInvestmentAdvisor:
                 if investment["user_id"] == user_id and investment["pool_id"] == pool_id:
                     found = True
                     
-                    # Get current pool details from real API - non-async call
-                    pool_details = get_pool_detail(pool_id)
+                    # Get current pool details from real API
+                    pool_details = await get_pool_detail(pool_id)
                     
                     if not pool_details:
                         logger.error(f"Could not get pool details for {pool_id}")
@@ -686,12 +686,12 @@ class RLInvestmentAdvisor:
                     # Calculate days held
                     days_held = (time.time() - investment["start_time"]) / (60 * 60 * 24)
                     
-                    # Get sentiment and price data - non-async calls
-                    sentiments = get_sentiment_simple()
-                    prices = get_prices_latest()
+                    # Get sentiment and price data
+                    sentiments = await get_sentiment_simple()
+                    prices = await get_prices_latest()
                     
                     # Extract features for current state
-                    current_state = self._extract_features(pool_details, sentiments, prices)
+                    current_state = await self._extract_features(pool_details, sentiments, prices)
                     
                     # Calculate reward
                     # If exit_amount provided, use actual return
@@ -701,7 +701,7 @@ class RLInvestmentAdvisor:
                         base_reward = min(max(profit_ratio * 5, -1), 1)
                     else:
                         # Use estimated return from APR
-                        base_reward = self._calculate_reward(
+                        base_reward = await self._calculate_reward(
                             pool_details, 
                             investment["investment_amount"],
                             days_held,
@@ -741,7 +741,7 @@ class RLInvestmentAdvisor:
 # Create a singleton instance
 rl_advisor = RLInvestmentAdvisor()
 
-def get_rl_recommendations(
+async def get_rl_recommendations(
     investment_amount: float,
     risk_profile: str = "moderate",
     token_preference: Optional[str] = None,
@@ -760,11 +760,11 @@ def get_rl_recommendations(
         Dictionary with recommendations, explanations, and data sources
     """
     global rl_advisor
-    return rl_advisor.get_recommendations(
+    return await rl_advisor.get_recommendations(
         investment_amount, risk_profile, token_preference, max_suggestions
     )
 
-def record_smart_investment(user_id: int, pool_id: str, investment_amount: float, risk_profile: str):
+async def record_smart_investment(user_id: int, pool_id: str, investment_amount: float, risk_profile: str):
     """
     Record a smart investment for RL training
     
@@ -775,9 +775,9 @@ def record_smart_investment(user_id: int, pool_id: str, investment_amount: float
         risk_profile: User's risk profile
     """
     global rl_advisor
-    rl_advisor.record_investment(user_id, pool_id, investment_amount, risk_profile)
+    await rl_advisor.record_investment(user_id, pool_id, investment_amount, risk_profile)
     
-def feedback_smart_investment(user_id: int, pool_id: str, rating: int, exit_amount: Optional[float] = None):
+async def feedback_smart_investment(user_id: int, pool_id: str, rating: int, exit_amount: Optional[float] = None):
     """
     Provide feedback on a smart investment
     
@@ -788,10 +788,10 @@ def feedback_smart_investment(user_id: int, pool_id: str, rating: int, exit_amou
         exit_amount: Optional amount received upon exit
     """
     global rl_advisor
-    rl_advisor.feedback_investment(user_id, pool_id, rating, exit_amount)
+    await rl_advisor.feedback_investment(user_id, pool_id, rating, exit_amount)
 
 # Simple test function
-def test_rl_recommendations():
+async def test_rl_recommendations():
     """Test the RL recommendations with real data"""
     print("Testing RL investment recommendations with real data")
     
@@ -803,7 +803,7 @@ def test_rl_recommendations():
         print(f"\n--- Testing {risk_profile.upper()} risk profile ---")
         
         # Get recommendations
-        recommendations = get_rl_recommendations(
+        recommendations = await get_rl_recommendations(
             investment_amount=investment_amount,
             risk_profile=risk_profile,
             max_suggestions=3
@@ -835,4 +835,5 @@ def test_rl_recommendations():
 
 # Run test if executed directly
 if __name__ == "__main__":
-    test_rl_recommendations()
+    import asyncio
+    asyncio.run(test_rl_recommendations())
