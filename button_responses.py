@@ -32,10 +32,11 @@ from solpool_api_client import (
     simulate_investment
 )
 from filotsense_api_client import (
-    get_sentiment_data,
-    get_price_data,
-    get_token_trends,
-    get_topic_sentiment
+    get_sentiment_simple,
+    get_prices_latest,
+    get_token_sentiment,
+    get_token_price,
+    get_market_sentiment
 )
 from rl_investment_advisor import get_smart_investment_recommendation
 
